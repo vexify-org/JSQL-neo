@@ -1,0 +1,29 @@
+{
+    "name": "jsql-neo",
+    "version": "1.3.0",
+    "description": "JSQL — Pure JavaScript embedded database. SQL-like API, zero native dependencies, file-based or in-memory storage.",
+    "main": "index.js",
+    "files": [
+        "index.js",
+        "lib/",
+        "README.md",
+        "LICENSE"
+    ],
+    "keywords": [
+        "database",
+        "sql",
+        "embedded",
+        "json",
+        "javascript",
+        "jsql",
+        "nosql",
+        "sql-like",
+        "in-memory",
+        "file-based"
+    ],
+    "author": "Vexify",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=14.0.0"
+    }
+}
