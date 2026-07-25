@@ -1,0 +1,12 @@
+{
+  "name": "jsql-neo-wasm",
+  "description": "JSQL Neo WASM bindings",
+  "version": "0.1.0",
+  "files": [
+    "jsql_neo_wasm_bg.wasm",
+    "jsql_neo_wasm.js",
+    "jsql_neo_wasm.d.ts"
+  ],
+  "main": "jsql_neo_wasm.js",
+  "types": "jsql_neo_wasm.d.ts"
+}
