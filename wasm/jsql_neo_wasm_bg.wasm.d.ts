@@ -8,6 +8,8 @@ export const jsql_find: (a: number, b: number, c: number, d: number, e: number, 
 export const jsql_find_by_id: (a: number, b: number, c: bigint) => [number, number];
 export const jsql_insert: (a: number, b: number, c: number, d: number) => [number, number];
 export const jsql_insert_buf: (a: number, b: number, c: number, d: number) => [number, number];
+export const jsql_insert_buf_count: (a: number, b: number, c: number, d: number) => [number, number];
+export const jsql_insert_json: (a: number, b: number, c: number, d: number) => [number, number];
 export const jsql_remove_by_id: (a: number, b: number, c: bigint) => [number, number];
 export const jsql_update_by_id: (a: number, b: number, c: bigint, d: number, e: number) => [number, number];
 export const __wbindgen_malloc: (a: number, b: number) => number;
