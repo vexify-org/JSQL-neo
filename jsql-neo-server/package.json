@@ -1,0 +1,36 @@
+{
+    "name": "jsql-neo",
+    "version": "3.5.3",
+    "description": "JSQL-NEO — Rust-powered embedded database with WASM, REST API, B-Tree indexes, WAL, crash recovery",
+    "main": "index.js",
+    "files": [
+        "index.js",
+        "lib/",
+        "bin/",
+        "wasm/",
+        "postinstall.js",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "postinstall": "node postinstall.js"
+    },
+    "keywords": [
+        "database",
+        "sql",
+        "embedded",
+        "rust",
+        "wasm",
+        "json",
+        "javascript",
+        "jsql",
+        "nosql",
+        "rest-api",
+        "high-performance"
+    ],
+    "author": "Vexify",
+    "license": "Apache-2.0",
+    "engines": {
+        "node": ">=14.0.0"
+    }
+}

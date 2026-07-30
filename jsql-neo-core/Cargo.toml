@@ -1,0 +1,23 @@
+[package]
+name = "jsql-neo-core"
+version = "0.1.0"
+edition = "2021"
+description = "Embedded database engine — core library (supports WASM)"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "wasmbind"] }
+crc32fast = "1"
+itoa = "1"
+ryu = "1"
+rustc-hash = "2"
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+
+[features]
+default = []
+wasm = ["wasm-bindgen", "js-sys"]
