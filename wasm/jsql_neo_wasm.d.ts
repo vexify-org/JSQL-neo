@@ -15,6 +15,10 @@ export function jsql_insert(table: string, data_json: string): string;
 
 export function jsql_insert_buf(table: string, data: Uint8Array): string;
 
+export function jsql_insert_buf_count(table: string, data: Uint8Array): string;
+
+export function jsql_insert_json(table: string, json: string): string;
+
 export function jsql_remove_by_id(table: string, id: bigint): string;
 
 export function jsql_update_by_id(table: string, id: bigint, data_json: string): string;
