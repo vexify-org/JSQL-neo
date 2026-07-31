@@ -1,0 +1,97 @@
+#!/usr/bin/env node
+const yaggs = require('@vexify-org/yaggs');
+const { ModuleManager } = require('../lib/mod');
+
+function printModules(list) {
+  if (list.length === 0) {
+    console.log('No modules registered.');
+    return;
+  }
+  const rows = list.map(m =>
+    `${m.enabled ? 'ON ' : 'OFF'}  ${m.name.padEnd(24)} ${m.path}`
+  );
+  console.log(rows.join('\n'));
+}
+
+const manager = new ModuleManager();
+
+const cli = yaggs()
+  .usage('jsql <command> [options]')
+  .option('help', { alias: 'h', type: 'boolean', description: 'Show help' })
+  .command('mod', 'Module management', (sub) => {
+    sub.option('address', {
+      alias: 'a',
+      type: 'string',
+      description: 'Path to module file'
+    });
+    sub.option('json', {
+      type: 'boolean',
+      description: 'Output as JSON'
+    });
+  }, (argv) => {
+    const action = argv._[0];
+    const name = argv._[1];
+    const useJson = !!argv.json;
+
+    const fail = (err) => {
+      console.error(`Error: ${err.message}`);
+      process.exitCode = 1;
+    };
+    const out = (obj) => {
+      if (obj === undefined) return;
+      if (useJson) {
+        console.log(JSON.stringify(obj, null, 2));
+      } else {
+        console.log(obj);
+      }
+    };
+
+    try {
+      switch (action) {
+        case 'add': {
+          if (!argv.address) return fail(new Error("'mod add' requires --address <path>"));
+          const entry = manager.add(argv.address);
+          out(useJson ? entry : `Module '${entry.name}' added (${entry.path}). Use 'jsql mod enable ${entry.name}' to enable.`);
+          break;
+        }
+        case 'enable': {
+          if (!name) return fail(new Error("'mod enable' requires a module name"));
+          const r = manager.enable(name);
+          out(useJson ? r : `Module '${name}' enabled.`);
+          break;
+        }
+        case 'disable': {
+          if (!name) return fail(new Error("'mod disable' requires a module name"));
+          const r = manager.disable(name);
+          out(useJson ? r : `Module '${name}' disabled.`);
+          break;
+        }
+        case 'remove': {
+          if (!name) return fail(new Error("'mod remove' requires a module name"));
+          const r = manager.remove(name);
+          out(useJson ? r : `Module '${name}' removed.`);
+          break;
+        }
+        case 'list':
+        case 'ls': {
+          const list = manager.list();
+          out(useJson ? list : printModules(list));
+          break;
+        }
+        case undefined:
+          return fail(new Error("Missing action. Usage: jsql mod <add|enable|disable|remove|list>"));
+        default:
+          return fail(new Error(`Unknown mod action: ${action}`));
+      }
+    } catch (e) {
+      fail(e);
+    }
+  })
+  .command('version', 'Show version', null, () => {
+    console.log(require('../package.json').version);
+  });
+
+cli.run(process.argv.slice(2)).catch(e => {
+  console.error(`Error: ${e.message}`);
+  process.exitCode = 1;
+});
