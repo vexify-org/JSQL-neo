@@ -15,6 +15,10 @@ const WasmClient = require('./lib/wasm_client');
 const NativeClient = require('./lib/native_client');
 const { Plugin } = require('./lib/plugin');
 const { ModuleManager } = require('./lib/mod');
+const sql = require('./lib/sql');
+const { Datastore } = require('./lib/nedb_compat');
+const mysqlCompat = require('./lib/mysql_compat');
+const { createMysqlServer, MysqlServer } = require('./lib/mysql_server');
 
 module.exports = {
     JSQL: WasmClient.JSQL,
@@ -30,4 +34,14 @@ module.exports = {
     ErrorCodes: require('./lib/errors').ErrorCodes,
     JSQLFormat: require('./lib/jsql_format'),
     HttpJSQL: require('./lib/client').JSQL,
+    // 兼容层
+    SQL: sql,
+    executeSQL: sql.executeSQL,
+    parseSQL: sql.parseSQL,
+    Datastore,
+    createConnection: mysqlCompat.createConnection,
+    createPool: mysqlCompat.createPool,
+    mysql: mysqlCompat,
+    createMysqlServer,
+    MysqlServer,
 };
