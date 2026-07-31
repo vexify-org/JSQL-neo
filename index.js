@@ -12,14 +12,20 @@
  */
 
 const WasmClient = require('./lib/wasm_client');
+const NativeClient = require('./lib/native_client');
+const { Plugin } = require('./lib/plugin');
+const { ModuleManager } = require('./lib/mod');
 
 module.exports = {
     JSQL: WasmClient.JSQL,
+    NativeJSQL: NativeClient.JSQL,
     Database: require('./lib/database'),
     Table: require('./lib/table'),
     Query: require('./lib/query'),
     BTree: require('./lib/btree'),
     Cache: require('./lib/cache'),
+    Plugin,
+    ModuleManager,
     JSQL_Error: require('./lib/errors').JSQL_Error,
     ErrorCodes: require('./lib/errors').ErrorCodes,
     JSQLFormat: require('./lib/jsql_format'),
