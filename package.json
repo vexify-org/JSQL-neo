@@ -1,6 +1,6 @@
 {
     "name": "jsql-neo",
-    "version": "3.6.0-beta.11",
+    "version": "4.0.0",
     "description": "JSQL-NEO — Rust-powered embedded database with WASM, REST API, B-Tree indexes, WAL, crash recovery",
     "main": "index.js",
     "bin": {
@@ -11,7 +11,8 @@
         "lib/",
         "bin/",
         "wasm/",
-        "native/jsql-neo-native.node",
+        "native/",
+        "nativesrc/",
         "postinstall.js",
         "README.md",
         "LICENSE"
