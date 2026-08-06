@@ -12,3 +12,4 @@ examples/*/node_modules/
 examples/*/dist/
 *.tmp
 data.rdb.json
+nativesrc/**/*.node

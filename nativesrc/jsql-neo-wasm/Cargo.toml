@@ -1,0 +1,15 @@
+[package]
+name = "jsql-neo-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+jsql-neo-core = { path = "../jsql-neo-core", features = ["wasm"] }
+wasm-bindgen = "0.2"
+serde_json = "1"
+
+[dependencies.js-sys]
+version = "0.3"

@@ -1,6 +1,6 @@
 {
   "name": "jsql-neo",
-  "version": "4.4.1",
+  "version": "4.4.2",
   "description": "JSQL-NEO — Rust-powered embedded database with WASM, REST API, B-Tree indexes, WAL, crash recovery",
   "main": "index.js",
   "types": "index.d.ts",
@@ -8,12 +8,17 @@
     ".": {
       "types": "./index.d.ts",
       "browser": "./wasm/browser.mjs",
+      "import": "./index.js",
+      "require": "./index.js",
       "default": "./index.js"
     },
+    "./cli": "./bin/jsql",
     "./wasm/browser.mjs": {
       "types": "./wasm/browser.d.ts",
       "default": "./wasm/browser.mjs"
     },
+    "./wasm/browser_bg.mjs": "./wasm/browser_bg.mjs",
+    "./wasm/browser.d.ts": "./wasm/browser.d.ts",
     "./wasm/*": "./wasm/*",
     "./lib/*": "./lib/*",
     "./package.json": "./package.json"
@@ -38,6 +43,7 @@
   "scripts": {
     "postinstall": "node postinstall.js",
     "test": "node test/smoke.js",
+    "test:coverage": "c8 --all --include='lib/**' --exclude='lib/mysql_server.js' --exclude='lib/native_client.js' --exclude='lib/wasm_client.js' --exclude='lib/mysql_compat.js' --exclude='lib/nedb_compat.js' --exclude='lib/plugin.js' --reporter=text --reporter=lcov node test/coverage.js",
     "test:orms": "node examples/orms/run-all.js"
   },
   "keywords": [
@@ -66,5 +72,8 @@
   },
   "dependencies": {
     "@vexify-org/yaggs": "^8.1.0"
+  },
+  "devDependencies": {
+    "c8": "^10.1.2"
   }
 }
