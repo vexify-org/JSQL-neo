@@ -1,0 +1,7 @@
+{
+    "name": "jsql-neo-native",
+    "version": "0.1.0",
+    "napi": {
+        "binaryName": "jsql-neo-native"
+    }
+}
