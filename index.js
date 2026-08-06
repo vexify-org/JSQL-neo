@@ -19,6 +19,9 @@ const sql = require('./lib/sql');
 const { Datastore } = require('./lib/nedb_compat');
 const mysqlCompat = require('./lib/mysql_compat');
 const { createMysqlServer, MysqlServer } = require('./lib/mysql_server');
+const migrate = require('./lib/migrate');
+const { WebUI } = require('./lib/web_ui');
+const { RedisServer, createRedisServer } = require('./lib/redis_server');
 
 module.exports = {
     JSQL: WasmClient.JSQL,
@@ -44,4 +47,19 @@ module.exports = {
     mysql: mysqlCompat,
     createMysqlServer,
     MysqlServer,
+    // 迁移工具: mysqldump 导入 / JSON / CSV
+    migrate,
+    exportTableToJSON: migrate.exportTableToJSON,
+    exportAllToJSON: migrate.exportAllToJSON,
+    importFromJSON: migrate.importFromJSON,
+    exportTableToCSV: migrate.exportTableToCSV,
+    importFromCSV: migrate.importFromCSV,
+    importDump: migrate.importDump,
+    importDumpFile: migrate.importDumpFile,
+    exportToFile: migrate.exportToFile,
+    // Web UI
+    WebUI,
+    // Redis 兼容服务器
+    RedisServer,
+    createRedisServer,
 };

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  engine:
+    name: Engine (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+        env:
+          CI: true
+
+  orm:
+    name: ORM compatibility (Node 20)
+    runs-on: ubuntu-latest
+    needs: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: examples/orms/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: examples/orms
+      - name: Start jsql-neo MySQL server
+        run: |
+          node examples/orms/start-server.js > /tmp/orm-server.log 2>&1 &
+          sleep 2
+          node -e "require('net').connect(33309, '127.0.0.1', () => { console.log('server up'); process.exit(0); })"
+      - run: npm test
+        working-directory: examples/orms
+        env:
+          CI: true
+      - name: Dump server log on failure
+        if: failure()
+        run: cat /tmp/orm-server.log

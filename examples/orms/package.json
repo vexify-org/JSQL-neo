@@ -1,0 +1,16 @@
+{
+  "name": "jsql-neo-orm-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ORM compatibility tests against jsql-neo MySQL server mode",
+  "scripts": {
+    "test": "node run-all.js"
+  },
+  "devDependencies": {
+    "sequelize": "^6.37.0",
+    "mysql2": "^3.11.0",
+    "knex": "^3.1.0",
+    "typeorm": "^0.3.20",
+    "reflect-metadata": "^0.2.2"
+  }
+}

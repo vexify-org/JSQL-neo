@@ -1,0 +1,14 @@
+node_modules/
+*.tgz
+.npmrc
+npm-debug.log*
+*.log
+.DS_Store
+native/target/
+nativesrc/target/
+**/target/
+bench/node_modules/
+examples/*/node_modules/
+examples/*/dist/
+*.tmp
+data.rdb.json
