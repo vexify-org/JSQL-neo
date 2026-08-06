@@ -15,6 +15,7 @@ export const jsql_remove_by_id: (a: number, b: number, c: bigint) => [number, nu
 export const jsql_remove_by_ids: (a: number, b: number, c: number, d: number) => [number, number];
 export const jsql_update_by_id: (a: number, b: number, c: bigint, d: number, e: number) => [number, number];
 export const jsql_update_by_ids: (a: number, b: number, c: number, d: number) => [number, number];
+export const jsql_reset: () => void;
 export const __wbindgen_malloc: (a: number, b: number) => number;
 export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
 export const __wbindgen_externrefs: WebAssembly.Table;

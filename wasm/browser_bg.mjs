@@ -1,3 +1,5 @@
+let wasm;
+
 /* @ts-self-types="./jsql_neo_wasm.d.ts" */
 
 /**
@@ -18,7 +20,6 @@ function jsql_count(table) {
         wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
     }
 }
-exports.jsql_count = jsql_count;
 
 /**
  * @param {string} name
@@ -41,7 +42,6 @@ function jsql_create_table(name, schema_json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_create_table = jsql_create_table;
 
 /**
  * @param {string} name
@@ -61,7 +61,6 @@ function jsql_drop_table(name) {
         wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
     }
 }
-exports.jsql_drop_table = jsql_drop_table;
 
 /**
  * @param {string} table
@@ -86,7 +85,6 @@ function jsql_find(table, filter_json, limit, offset) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_find = jsql_find;
 
 /**
  * @param {string} table
@@ -107,7 +105,6 @@ function jsql_find_by_id(table, id) {
         wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
     }
 }
-exports.jsql_find_by_id = jsql_find_by_id;
 
 /**
  * @param {string} table
@@ -130,7 +127,6 @@ function jsql_find_by_ids(table, ids_json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_find_by_ids = jsql_find_by_ids;
 
 /**
  * @param {string} table
@@ -153,7 +149,6 @@ function jsql_insert(table, data_json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_insert = jsql_insert;
 
 /**
  * @param {string} table
@@ -176,7 +171,6 @@ function jsql_insert_buf(table, data) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_insert_buf = jsql_insert_buf;
 
 /**
  * @param {string} table
@@ -199,7 +193,6 @@ function jsql_insert_buf_count(table, data) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_insert_buf_count = jsql_insert_buf_count;
 
 /**
  * @param {string} table
@@ -222,7 +215,6 @@ function jsql_insert_json(table, json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_insert_json = jsql_insert_json;
 
 /**
  * @param {string} table
@@ -243,7 +235,6 @@ function jsql_remove_by_id(table, id) {
         wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
     }
 }
-exports.jsql_remove_by_id = jsql_remove_by_id;
 
 /**
  * @param {string} table
@@ -266,12 +257,10 @@ function jsql_remove_by_ids(table, ids_json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_remove_by_ids = jsql_remove_by_ids;
 
 function jsql_reset() {
     wasm.jsql_reset();
 }
-exports.jsql_reset = jsql_reset;
 
 /**
  * @param {string} table
@@ -295,7 +284,6 @@ function jsql_update_by_id(table, id, data_json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_update_by_id = jsql_update_by_id;
 
 /**
  * @param {string} table
@@ -318,7 +306,6 @@ function jsql_update_by_ids(table, batch_json) {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
-exports.jsql_update_by_ids = jsql_update_by_ids;
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -455,9 +442,21 @@ if (!('encodeInto' in cachedTextEncoder)) {
 
 let WASM_VECTOR_LEN = 0;
 
-const wasmPath = `${__dirname}/jsql_neo_wasm_bg.wasm`;
-const wasmBytes = require('fs').readFileSync(wasmPath);
-const wasmModule = new WebAssembly.Module(wasmBytes);
-let wasmInstance = new WebAssembly.Instance(wasmModule, __wbg_get_imports());
-let wasm = wasmInstance.exports;
-wasm.__wbindgen_start();
+
+
+export async function init(input) {
+  cachedDataViewMemory0 = null;
+  cachedUint8ArrayMemory0 = null;
+  let bytes;
+  if (input instanceof Uint8Array) bytes = input;
+  else if (input instanceof ArrayBuffer) bytes = new Uint8Array(input);
+  else if (input instanceof Response) bytes = new Uint8Array(await input.arrayBuffer());
+  else if (input instanceof WebAssembly.Module) { wasm = new WebAssembly.Instance(input, __wbg_get_imports()).exports; wasm.__wbindgen_start(); return wasm; }
+  else bytes = new Uint8Array(await (await fetch(input || new URL('./jsql_neo_wasm_bg.wasm', import.meta.url))).arrayBuffer());
+  const result = await WebAssembly.instantiate(bytes, __wbg_get_imports());
+  wasm = result.instance.exports;
+  wasm.__wbindgen_start();
+  return wasm;
+}
+
+export { jsql_count, jsql_create_table, jsql_drop_table, jsql_find, jsql_find_by_id, jsql_find_by_ids, jsql_insert, jsql_insert_buf, jsql_insert_buf_count, jsql_insert_json, jsql_remove_by_id, jsql_remove_by_ids, jsql_reset, jsql_update_by_id, jsql_update_by_ids, __wbg_get_imports };

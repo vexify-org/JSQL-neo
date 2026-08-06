@@ -25,6 +25,8 @@ export function jsql_remove_by_id(table: string, id: bigint): string;
 
 export function jsql_remove_by_ids(table: string, ids_json: string): string;
 
+export function jsql_reset(): void;
+
 export function jsql_update_by_id(table: string, id: bigint, data_json: string): string;
 
 export function jsql_update_by_ids(table: string, batch_json: string): string;

@@ -1,6 +1,10 @@
 #!/usr/bin/env node
+const path = require('path');
+const fs = require('fs');
 const yaggs = require('@vexify-org/yaggs');
 const { ModuleManager } = require('../lib/mod');
+const Database = require('../lib/database');
+const migrate = require('../lib/migrate');
 
 function printModules(list) {
   if (list.length === 0) {
@@ -14,6 +18,8 @@ function printModules(list) {
 }
 
 const manager = new ModuleManager();
+
+const RAW_ARGV = process.argv.slice(2);
 
 const cli = yaggs()
   .usage('jsql <command> [options]')
@@ -50,6 +56,10 @@ const cli = yaggs()
       switch (action) {
         case 'add': {
           if (!argv.address) return fail(new Error("'mod add' requires --address <path>"));
+          const ext = path.extname(argv.address).toLowerCase();
+          if (ext === '.js' || ext === '.cjs' || ext === '.mjs') {
+            console.warn("Warning: JS modules run without sandbox isolation (trust model). Use .json files for data-only plugins.");
+          }
           const entry = manager.add(argv.address);
           out(useJson ? entry : `Module '${entry.name}' added (${entry.path}). Use 'jsql mod enable ${entry.name}' to enable.`);
           break;
@@ -87,8 +97,205 @@ const cli = yaggs()
       fail(e);
     }
   })
+  .command('export', 'Export a table to JSON or CSV', (sub) => {
+    sub.option('db', { type: 'string', description: 'Database file path (default ./db.json)' });
+    sub.option('json', { type: 'boolean', description: 'Output metadata as JSON' });
+  }, async (argv) => {
+    const table = argv._[0];
+    const outFile = argv._[1];
+    const fail = (e) => { console.error(`Error: ${e.message}`); process.exitCode = 1; };
+    try {
+      if (!table || !outFile) throw new Error('Usage: jsql export <table> <file.json|csv> [--db <path>]');
+      const db = new Database(argv.db || './db.json', { autoSave: false });
+      await db.loadDatabase ? db.loadDatabase() : null;
+      const bytes = await migrate.exportToFile(db, table, outFile);
+      if (argv.json) console.log(JSON.stringify({ ok: true, table, file: outFile, bytes }));
+      else console.log(`Exported '${table}' (${bytes} bytes) to ${outFile}`);
+    } catch (e) { fail(e); }
+  })
+  .command('import', 'Import a mysqldump (.sql), JSON (.json) or CSV (.csv) file', (sub) => {
+    sub.option('db', { type: 'string', description: 'Database file path (default ./db.json)' });
+    sub.option('table', { type: 'string', description: 'Target table for CSV import' });
+    sub.option('strict', { type: 'boolean', description: 'Abort on first import error' });
+    sub.option('json', { type: 'boolean', description: 'Output metadata as JSON' });
+  }, async (argv) => {
+    const file = argv._[0];
+    const fail = (e) => { console.error(`Error: ${e.message}`); process.exitCode = 1; };
+    try {
+      if (!file) throw new Error('Usage: jsql import <file.sql|.json|.csv> [--db <path>] [--table <name>]');
+      const db = new Database(argv.db || './db.json', { autoSave: false });
+      await db.loadDatabase ? db.loadDatabase() : null;
+      const ext = path.extname(file).toLowerCase();
+      let result;
+      if (ext === '.sql') {
+        result = await migrate.importDumpFile(db, file, { strict: !!argv.strict });
+      } else if (ext === '.json') {
+        const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+        result = await migrate.importFromJSON(db, data);
+      } else if (ext === '.csv') {
+        if (!argv.table) throw new Error('CSV import requires --table <name>');
+        const schemaFile = file.replace(/\.csv$/i, '.schema.json');
+        const schema = fs.existsSync(schemaFile) ? JSON.parse(fs.readFileSync(schemaFile, 'utf8')) : null;
+        result = await migrate.importFromCSV(db, argv.table, fs.readFileSync(file, 'utf8'), { schema });
+      } else {
+        throw new Error('Unsupported file type: ' + ext);
+      }
+      if (argv.json) {
+        console.log(JSON.stringify({ ok: true, ...result }));
+      } else {
+        const errs = result.errors && result.errors.length;
+        console.log(`Imported: ${result.created ? result.created.length + ' table(s), ' : ''}${result.inserted || 0} row(s)` + (errs ? `, ${errs} error(s)` : ''));
+      }
+    } catch (e) { fail(e); }
+  })
+  .command('serve', 'Run the MySQL-compatible server in the foreground', (sub) => {
+    sub.option('port', { alias: 'p', type: 'number', description: 'Listen port (default 3306)' });
+    sub.option('host', { type: 'string', description: 'Listen host (default 127.0.0.1)' });
+    sub.option('data-dir', { type: 'string', description: 'Directory to store databases' });
+    sub.option('no-auth', { type: 'boolean', description: 'Allow connections without authentication' });
+    sub.option('log', { type: 'boolean', description: 'Log queries to stdout' });
+  }, async (argv) => {
+    const { createMysqlServer } = require('../lib/mysql_server');
+    const options = {
+      port: argv.port != null ? argv.port : 3306,
+      host: argv.host || '127.0.0.1',
+      dataDir: argv['data-dir'],
+      noAuth: argv['no-auth'] === true,
+    };
+    if (argv.log) options.onQuery = (q) => console.log('[sql]', q);
+    const srv = createMysqlServer(options);
+    srv.listen();
+    console.log(`jsql-neo MySQL server on ${options.host}:${options.port}${options.dataDir ? ' (data: ' + options.dataDir + ')' : ' (in-memory)'}`);
+    setInterval(() => {}, 1 << 30);
+  })
+  .command('bench', 'Insert + query benchmark against a data directory', (sub) => {
+    sub.option('n', { type: 'number', description: 'Number of rows (default 10000)' });
+    sub.option('data-dir', { type: 'string', description: 'Data directory (default :memory:)' });
+    sub.option('json', { type: 'boolean', description: 'Output as JSON' });
+  }, async (argv) => {
+    const N = argv.n || 10000;
+    const dataDir = argv['data-dir'] || ':memory:';
+    try {
+      const db = new Database(dataDir === ':memory:' ? ':memory:' : path.join(dataDir, 'bench.json'), { autoSave: false });
+      await db.createTable('bench', { id: { type: 'integer', primaryKey: true, autoIncrement: true }, name: { type: 'string' }, score: { type: 'float' } });
+      let t0 = Date.now();
+      const batch = [];
+      for (let i = 0; i < N; i++) batch.push({ name: 'user_' + i, score: Math.random() * 1000 });
+      for (let i = 0; i < batch.length; i += 1000) await db.insert('bench', batch.slice(i, i + 1000));
+      const insertMs = Date.now() - t0;
+      t0 = Date.now();
+      let hits = 0;
+      for (let i = 0; i < 100; i++) hits += (await db.find('bench', { score: { $gt: 500 } }, { limit: 10 })).length;
+      const queryMs = Date.now() - t0;
+      const total = await db.count('bench');
+      const out = { ok: true, rows: N, inserted: total, insertMs, insertPerSec: Math.round(N / (insertMs / 1000)), queryMs, queryCount: 100 };
+      if (argv.json) console.log(JSON.stringify(out));
+      else console.log(`Inserted ${total} rows in ${insertMs}ms (${out.insertPerSec}/s), 100 queries in ${queryMs}ms`);
+    } catch (e) { console.error(`Error: ${e.message}`); process.exitCode = 1; }
+  })
+  .command('ui', 'Serve the built-in web management console', (sub) => {
+    sub.option('port', { alias: 'p', type: 'number', description: 'HTTP port (default 8080)' });
+    sub.option('host', { type: 'string', description: 'Listen host (default 0.0.0.0)' });
+    sub.option('data-dir', { type: 'string', description: 'Directory containing *.json databases (default .)' });
+    sub.option('readonly', { type: 'boolean', description: 'Never write back to disk' });
+  }, async (argv) => {
+    const { WebUI } = require('../lib/web_ui');
+    const ui = new WebUI({
+      port: argv.port != null ? argv.port : 8080,
+      host: argv.host || '0.0.0.0',
+      dataDir: argv['data-dir'] || '.',
+      readonly: argv.readonly === true,
+    });
+    try {
+      const port = await ui.start();
+      console.log(`JSQL-NEO web UI on http://${argv.host || '0.0.0.0'}:${port} (data: ${ui.dataDir})`);
+      setInterval(() => {}, 1 << 30);
+    } catch (e) { console.error(`Error: ${e.message}`); process.exitCode = 1; }
+  })
+  .command('redis', 'Run the Redis-compatible server', (sub) => {
+    sub.option('port', { alias: 'p', type: 'number', description: 'Listen port (default 6379)' });
+    sub.option('host', { type: 'string', description: 'Listen host (default 127.0.0.1)' });
+    sub.option('data-dir', { type: 'string', description: 'Directory for data.rdb.json snapshot' });
+    sub.option('auth', { type: 'string', description: 'Require this password for AUTH' });
+    sub.option('log', { type: 'boolean', description: 'Log commands to stdout' });
+  }, (argv) => {
+    const { createRedisServer } = require('../lib/redis_server');
+    const srv = createRedisServer({
+      port: argv.port != null ? argv.port : 6379,
+      host: argv.host || '127.0.0.1',
+      dataDir: argv['data-dir'],
+      password: argv.auth || null,
+      onQuery: argv.log ? (c) => console.log('[redis]', c.join(' ')) : null,
+    });
+    srv.listen();
+    console.log(`jsql-neo Redis server on ${argv.host || '127.0.0.1'}:${argv.port != null ? argv.port : 6379}${argv['data-dir'] ? ' (data: ' + argv['data-dir'] + ')' : ''}`);
+    setInterval(() => {}, 1 << 30);
+  })
   .command('version', 'Show version', null, () => {
     console.log(require('../package.json').version);
+  })
+  .command('server', 'Run the MySQL-compatible server in background', (sub) => {
+    sub.option('port', { alias: 'p', type: 'number', description: 'Listen port (default 3306)' });
+    sub.option('host', { type: 'string', description: 'Listen host (default 127.0.0.1)' });
+    sub.option('data-dir', { type: 'string', description: 'Directory to store databases (default in-memory)' });
+    sub.option('auth', { alias: 'a', type: 'string', description: 'User credential: user:password[:db1,db2] (repeatable)' });
+    sub.option('config', { type: 'string', description: 'Path to config file (JSON)' });
+    sub.option('no-auth', { type: 'boolean', description: 'Allow connections without authentication (local dev only)' });
+  }, (argv) => {
+    const { serverControl } = require('./jsql-server-control');
+    const action = argv._[0];
+    const fail = (err) => {
+      console.error(`Error: ${err.message}`);
+      process.exitCode = 1;
+    };
+    const options = {};
+    if (argv.config) options.config = argv.config;
+    if (argv.port != null) options.port = argv.port;
+    if (argv.host != null) options.host = argv.host;
+    if (argv['data-dir'] != null) options.dataDir = argv['data-dir'];
+    if (argv['no-auth'] === true) options.noAuth = true;
+    const authSpecs = [];
+    for (let i = 0; i < RAW_ARGV.length; i++) {
+      const a = RAW_ARGV[i];
+      if (a === '--auth' || a === '-a') {
+        if (RAW_ARGV[i + 1]) authSpecs.push(RAW_ARGV[++i]);
+      } else if (a.startsWith('--auth=')) {
+        authSpecs.push(a.slice(7));
+      }
+    }
+    if (authSpecs.length > 0) options.auth = authSpecs;
+
+    try {
+      switch (action) {
+        case 'start': {
+          serverControl.start(options).then(
+            (msg) => console.log(msg),
+            (err) => fail(err)
+          );
+          break;
+        }
+        case 'stop': {
+          serverControl.stop(options).then(
+            (msg) => console.log(msg),
+            (err) => fail(err)
+          );
+          break;
+        }
+        case 'status': {
+          serverControl.status(options).then(
+            (msg) => console.log(msg),
+            (err) => fail(err)
+          );
+          break;
+        }
+        case undefined:
+          return fail(new Error("Missing action. Usage: jsql server <start|stop|status>"));
+        default:
+          return fail(new Error(`Unknown server action: ${action}`));
+      }
+    } catch (e) {
+      fail(e);
+    }
   });
 
 cli.run(process.argv.slice(2)).catch(e => {

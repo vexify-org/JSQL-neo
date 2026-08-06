@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSQL-NEO Playground</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 13.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0d1117; color: #e6edf3; display: flex; height: 100vh; }
+    .side { width: 300px; border-right: 1px solid #21262d; padding: 14px; overflow: auto; }
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    h1 { font-size: 15px; margin: 0 0 6px; color: #7ee787; }
+    .sub { color: #8b949e; font-size: 12px; margin-bottom: 14px; }
+    .seed { margin: 14px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+    .seed button { background: #21262d; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 5px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+    .seed button:hover { background: #30363d; }
+    h2 { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 6px; }
+    .tbl { cursor: pointer; padding: 3px 8px; border-radius: 5px; color: #79c0ff; }
+    .tbl:hover { background: #21262d; }
+    .tbl .cols { color: #8b949e; font-size: 11.5px; }
+    #sql { flex: 1; margin: 12px 12px 8px; padding: 10px; background: #010409; color: #e6edf3; border: 1px solid #21262d; border-radius: 8px; resize: none; font: inherit; outline: none; }
+    #sql:focus { border-color: #388bfd; }
+    .bar { display: flex; align-items: center; gap: 12px; padding: 0 12px; }
+    button.run { background: #238636; border: 0; color: #fff; padding: 7px 18px; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 600; }
+    button.run:hover { background: #2ea043; }
+    button.run:disabled { background: #21262d; cursor: wait; }
+    .status { color: #8b949e; font-size: 12px; }
+    .status.ok { color: #3fb950; }
+    .status.err { color: #f85149; }
+    #res { flex: 1.2; overflow: auto; margin: 10px 12px 12px; border: 1px solid #21262d; border-radius: 8px; background: #010409; min-height: 120px; }
+    table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+    th, td { border: 1px solid #21262d; padding: 4px 10px; text-align: left; white-space: pre; }
+    th { background: #161b22; position: sticky; top: 0; }
+    tr:nth-child(even) td { background: #0d1117; }
+    .hint { color: #8b949e; font-size: 11.5px; padding: 10px; white-space: pre-wrap; }
+    .dbsize { margin-top: 10px; color: #8b949e; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="side">
+    <h1>JSQL-NEO Playground</h1>
+    <div class="sub">Full SQL engine in your browser — WASM + IndexedDB. No server.</div>
+    <div class="seed">
+      <button onclick="seed()">Seed demo data</button>
+      <button onclick="wipe()">Reset database</button>
+    </div>
+    <h2>Tables</h2>
+    <div id="tbls"></div>
+    <div class="dbsize" id="dbsize"></div>
+  </div>
+  <div class="main">
+    <textarea id="sql" spellcheck="false" placeholder="Type SQL, e.g.&#10;SELECT name, age FROM users WHERE age > 25 ORDER BY age DESC&#10;Ctrl+Enter to run">SELECT * FROM users LIMIT 50</textarea>
+    <div class="bar">
+      <button class="run" id="run">Run (Ctrl+Enter)</button>
+      <span class="status" id="status">initializing…</span>
+    </div>
+    <div id="res"><div class="hint">Results appear here. Start with "Seed demo data" (data persists in your browser).</div></div>
+  </div>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

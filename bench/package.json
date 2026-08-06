@@ -1,0 +1,13 @@
+{
+  "name": "jsql-neo-bench",
+  "private": true,
+  "version": "1.0.0",
+  "description": "JSQL-NEO benchmark suite (native vs pure JS vs better-sqlite3 vs sql.js)",
+  "scripts": {
+    "bench": "node bench.js"
+  },
+  "devDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "sql.js": "^1.10.0"
+  }
+}
