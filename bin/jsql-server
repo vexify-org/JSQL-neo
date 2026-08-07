@@ -1,0 +1,90 @@
+#!/usr/bin/env node
+// © Vexify 2026 All Rights Reserved.
+// jsql-neo 后台常驻服务入口 — 由 `jsql start` 以 detached 子进程方式拉起。
+// 用法: node bin/jsql-server --config <config.json>
+// 支持 SIGTERM/SIGINT 优雅关闭。
+
+const path = require('path');
+const fs = require('fs');
+const { createMysqlServer } = require('../lib/mysql_server');
+
+function parseArgs(argv) {
+  const args = { _: [] };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--config') { args.config = argv[++i]; }
+    else if (a.startsWith('--config=')) { args.config = a.slice(9); }
+    else args._.push(a);
+  }
+  return args;
+}
+
+function loadConfig(configPath) {
+  const cfg = { port: 3306, host: '127.0.0.1' };
+  if (configPath && fs.existsSync(configPath)) {
+    Object.assign(cfg, JSON.parse(fs.readFileSync(configPath, 'utf8')));
+  }
+  return cfg;
+}
+
+function buildAuth(cfg) {
+  if (cfg.auth) {
+    if (typeof cfg.auth !== 'object' || Array.isArray(cfg.auth)) {
+      throw new Error('config.auth must be an object map { user: "password" | { password, databases } }');
+    }
+    return cfg.auth;
+  }
+  if (cfg.user != null || cfg.password != null) {
+    const auth = {};
+    auth[cfg.user || 'root'] = cfg.password || '';
+    return auth;
+  }
+  return null;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const cfg = loadConfig(args.config);
+  const auth = buildAuth(cfg);
+  const options = {
+    port: cfg.port || 3306,
+    host: cfg.host || '127.0.0.1',
+    dataDir: cfg.dataDir || null,
+    maxConnections: cfg.maxConnections,
+    idleTimeout: cfg.idleTimeout,
+    handshakeTimeout: cfg.handshakeTimeout,
+    safety: cfg.safety !== false,
+    allowComments: cfg.allowComments === true,
+    noAuth: cfg.noAuth === true,
+  };
+  if (auth) options.auth = auth;
+  if (cfg.onSecurityEvent) options.onSecurityEvent = cfg.onSecurityEvent;
+
+  const server = createMysqlServer(options);
+
+  let closing = false;
+  const shutdown = (code) => {
+    if (closing) return;
+    closing = true;
+    server.close(() => process.exit(code));
+    setTimeout(() => process.exit(code), 2000).unref();
+  };
+  process.on('SIGTERM', () => shutdown(0));
+  process.on('SIGINT', () => shutdown(0));
+
+  server.listen(err => {
+    if (err) {
+      console.error(`[jsql-server] failed to start: ${err.message}`);
+      process.exit(1);
+      return;
+    }
+    const addr = server.address;
+    console.log(`[jsql-server] listening on ${options.host}:${addr ? addr.port : options.port} (dataDir: ${options.dataDir || 'in-memory'})`);
+    console.log(`[jsql-server] pid ${process.pid}`);
+  });
+}
+
+main().catch(e => {
+  console.error(`[jsql-server] ${e.message}`);
+  process.exit(1);
+});
