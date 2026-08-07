@@ -13,3 +13,6 @@ examples/*/dist/
 *.tmp
 data.rdb.json
 nativesrc/**/*.node
+
+coverage/
+testdb.json
