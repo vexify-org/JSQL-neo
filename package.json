@@ -1,6 +1,6 @@
 {
   "name": "jsql-neo",
-  "version": "4.5.0",
+  "version": "4.5.1",
   "description": "JSQL-NEO — Rust-powered embedded database with WASM, REST API, B-Tree indexes, WAL, crash recovery",
   "main": "index.js",
   "types": "index.d.ts",
