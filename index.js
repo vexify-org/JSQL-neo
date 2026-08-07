@@ -23,6 +23,39 @@ const migrate = require('./lib/migrate');
 const { WebUI } = require('./lib/web_ui');
 const { RedisServer, createRedisServer } = require('./lib/redis_server');
 
+/**
+ * 全局注入：把项目内 `require('mysql2')` 全部替换为 jsql-neo 内存引擎兼容层。
+ * 调用一次后，TypeORM / Drizzle / MikroORM / Kysely 等直接依赖 mysql2 的库
+ * 无需改代码即可享受本地内存速度。
+ */
+function enableMySQLCompat() {
+  const fs = require('fs');
+  const path = require('path');
+  const seen = new Set();
+  const bases = new Set();
+  if (require.main && Array.isArray(require.main.paths)) {
+    for (const p of require.main.paths) bases.add(p);
+  }
+  if (process.env.NODE_PATH) {
+    for (const p of process.env.NODE_PATH.split(path.delimiter)) if (p) bases.add(p);
+  }
+  bases.add(path.join(process.cwd(), 'node_modules'));
+  const inject = (p, mod) => {
+    try {
+      const resolved = p;
+      if (seen.has(resolved)) return;
+      if (!fs.existsSync(resolved)) return;
+      seen.add(resolved);
+      require.cache[resolved] = { exports: mod, id: resolved, filename: resolved, loaded: true, children: [] };
+    } catch (e) { /* ignore */ }
+  };
+  for (const base of bases) {
+    inject(path.join(base, 'mysql2', 'index.js'), mysqlCompat);
+    inject(path.join(base, 'mysql2', 'promise.js'), mysqlCompat);
+  }
+  return mysqlCompat;
+}
+
 module.exports = {
     JSQL: WasmClient.JSQL,
     NativeJSQL: NativeClient.JSQL,
@@ -45,6 +78,8 @@ module.exports = {
     createConnection: mysqlCompat.createConnection,
     createPool: mysqlCompat.createPool,
     mysql: mysqlCompat,
+    mysql2: mysqlCompat,
+    enableMySQLCompat,
     createMysqlServer,
     MysqlServer,
     // 迁移工具: mysqldump 导入 / JSON / CSV

@@ -1,6 +1,6 @@
 {
   "name": "jsql-neo",
-  "version": "4.4.3",
+  "version": "4.5.0",
   "description": "JSQL-NEO — Rust-powered embedded database with WASM, REST API, B-Tree indexes, WAL, crash recovery",
   "main": "index.js",
   "types": "index.d.ts",
@@ -13,6 +13,8 @@
       "default": "./index.js"
     },
     "./cli": "./bin/jsql",
+    "./mysql2": "./lib/mysql_compat.js",
+    "./mysql": "./lib/mysql_compat.js",
     "./wasm/browser.mjs": {
       "types": "./wasm/browser.d.ts",
       "default": "./wasm/browser.mjs"
