@@ -10,6 +10,31 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ---
 
+## [5.0.0] — 2026-08-08
+
+### Added
+
+- **better-sqlite3 full API compatibility layer** (`jsql-neo/sqlite`, `lib/sqlite_compat.js`) — drop-in replacement for `better-sqlite3` backed by the JSQL-NEO engine via a worker-thread synchronous bridge:
+  - `new Database(path)`, `db.exec()`, `db.pragma()` (incl. `user_version = N` setters), `db.transaction()`, `db.serialize()` / `db.deserialize()`, `db.backup()`, `db.function()`, `db.aggregate()` (functional and `{start,step,result}` forms).
+  - `Statement` — `run()` / `get()` / `all()` / `raw()` / `pluck()` / `iterate()` / `columns()` / `bind()`, positional (`?`, `?N`), named (`@name`, `:name`, `$name`) parameters, `last_insert_rowid()`, `changes`.
+  - Registered as subpath export `jsql-neo/sqlite`.
+- Custom aggregate functions recognized in `GROUP BY` and whole-table aggregate output.
+- `PRAGMA user_version = N` (and other settable pragmas) now persist per connection.
+
+### Fixed
+
+- `last_insert_rowid()` returned 0: worker `executeStatement` was synchronous over an async `executeSQL`, so the last-inserted id was never tracked.
+- Named-parameter objects (`{name: 'y'}`) were misinterpreted as engine options; now pre-bound via `applyParams`.
+- `cnt(*)` / custom aggregates with `*` failed to parse (`Expected value or column, got '*'`).
+- `serialize()` Buffer was flattened to a plain object across the worker bridge; now passed through intact.
+- `pragma()` returned bare scalars instead of row objects for simple pragmas.
+
+### Changed
+
+- License: **MIT → Apache-2.0**.
+
+---
+
 ## [4.4.1] — 2026-08-06
 
 Big engineering pass: protocol servers, web UI, CLI tooling, types, benchmarks, CI.

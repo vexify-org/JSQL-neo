@@ -284,6 +284,6 @@ CI (`.github/workflows/ci.yml`): engine smoke tests on Node 18/20/22 + a full OR
 
 ## License
 
-MIT — use it, ship it, love it.
+[Apache-2.0](LICENSE) — free to use, modify, and distribute with attribution.
 
 *JSQL-NEO: Rust-powered. Protocol-native. One package.*
