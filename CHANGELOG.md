@@ -10,7 +10,7 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ---
 
-## [5.0.0] — 2026-08-08
+## [5.0.1] — 2026-08-08
 
 ### Added
 
