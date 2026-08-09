@@ -1,5 +1,5 @@
 /**
- * JSQL-NEO v3.1.0 — Rust-Powered Embedded Database (WASM + HTTP)
+ * JSQL-NEO v5.1.1 — Rust-Powered Embedded Database (WASM + HTTP)
  *
  * @example
  * const jsql = require('jsql-neo');
@@ -46,6 +46,8 @@ function enableMySQLCompat() {
       if (seen.has(resolved)) return;
       if (!fs.existsSync(resolved)) return;
       seen.add(resolved);
+      // 不覆盖已加载的真实 mysql2，避免全局劫持副作用
+      if (require.cache[resolved]) return;
       require.cache[resolved] = { exports: mod, id: resolved, filename: resolved, loaded: true, children: [] };
     } catch (e) { /* ignore */ }
   };
