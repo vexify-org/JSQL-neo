@@ -16,3 +16,4 @@ nativesrc/**/*.node
 
 coverage/
 testdb.json
+examples/orms/data/

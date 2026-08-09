@@ -10,6 +10,25 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ---
 
+## [5.1.2] — 2026-08-09
+
+### Fixed
+
+- **B-Tree 删除崩溃（Issue #3 Bug #1）**：删除改为惰性叶子删除，不再操作内部节点结构，消除 `children[index + 1]` undefined 崩溃。
+- **B-Tree `entries()` 乱序重复（Issue #3 Bug #2）**：`entries()` 改为只遍历叶子链表（内部分隔键是叶子副本，不再重复计入）。
+- **B-Tree 唯一索引失效（Issue #3 Bug #3）**：唯一索引插入遇到重复键时不再追加 values，`search` 只返回真实叶子数据。
+- **B-Tree 内部节点分裂结构错误**：`_splitChild` 分裂内部节点时错误地保留中间键，导致 `children !== keys + 1`，整棵树从一开始就结构非法；现按叶子/内部节点分别处理。
+- **B-Tree 插入/删除/查找路由歧义**：新增 `_route()` 统一按左子树最大键判定分隔键副本的真实数据所在子树，避免同一键被插入到两片叶子、查找/删除落到错误子树。
+- **B-Tree 多值键删除**：`_removeFromNode` 只移除目标 rowIndex；key 仍存在时不再 `_size--`（size 语义为不同 key 数）。
+- **`parseFieldShorthand` 关键字回填**：各子句基于累积清理后的 type 逐项 strip，`'integer primary key auto_increment'` 不再解析出 `'integer primary key'`。
+
+### Added
+
+- **`test/btree.test.js`**：Issue #3 三 bug 复现 + 多阶数随机插入/删除压力 + 随机混合操作对照参考模型，151 项断言。
+- **`test/regress-5.1.0.js`**：43 项回归，覆盖 5.1.0/5.1.1 全部修复项（M1–M6、H1/H3、S1–S6、N1/N2）。
+
+---
+
 ## [5.1.1] — 2026-08-09
 
 ### Fixed
