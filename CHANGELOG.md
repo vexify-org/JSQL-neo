@@ -10,6 +10,38 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ---
 
+## [5.1.1] — 2026-08-09
+
+### Fixed
+
+- **CLI `--version` 报告 `1.0.0`**：`yaggs()` 现在传入包的 `pkg`，`jsql --version` 输出与包版本一致。
+- **WebUI 无 token 时 CORS 默认 `*`**：无 `authToken` 且未显式 `allowOrigin` 时不再输出 `Access-Control-Allow-Origin`（含预检），任意站点无法跨域读写；有 `authToken` 时保持回显 Origin，显式 `allowOrigin` 仍可跨域。
+
+---
+
+## [5.1.0] — 2026-08-09
+
+### Fixed
+
+- **B-Tree 删除后索引陈旧**：swap-pop 删除时同步维护 hash `_indexes`（`remove`/`removeById` 两处），并让 `_applyFilterOptimized` 真正利用 hash 索引做等值加速。
+- **B-Tree 区间边界**：`greaterThan` / `lessThan` 改为严格开区间，不再包含边界值。
+- **`removeById`/`removeByIds` 索引维护**：有主键时走 `table.removeById`（正确维护 PK/hash/BTree），无主键时删除后重建索引。
+- **事务快照深拷贝**：`begin()` 的 REPEATABLE_READ 快照改为深拷贝，嵌套对象字段可正确回滚。
+- **字段简写解析**：新增 `parseFieldShorthand`，正确解析 `'integer primary key'`、`'integer primary key auto_increment'`、`'string unique'`、`'string not null'`、`'string default x'`；重复主键/唯一值现在抛 `ER_DUP_ENTRY`。
+- **migrate `importFromJSON`**：兼容单表 `{table, schema, rows}` 形状；默认不再静默 dropTable 覆盖已有表，需显式 `{ overwrite: true }`。
+- **Redis 认证跨连接共享**：认证状态改为每连接独立，任一台 AUTH 不再放行其它连接；同时修复 `-new Error(...)` 产生 `:NaN` 响应的问题。
+- **Web UI 默认暴露**：默认监听 host 收紧到 `127.0.0.1`；新增 `authToken` Bearer 认证；CORS 不再无条件 `*`，开启认证时回显请求 Origin。
+- **MySQL ACL 漏洞**：`dropDatabase` 补 ACL 校验；`SHOW TABLES FROM db` 与 `db.table` 跨库引用路径补 `_canAccessDb`（errno 1044）。
+- **native `encodeBatch`**：先精确计算缓冲区大小再编码，消除长字符串越界崩溃与列数截断。
+- **mysql_compat 池引擎**：`_sharedEngineFor` 优先使用池的 `filename`，不再恒建 `:memory:` 丢失写入。
+- **`enableMySQLCompat`**：不再覆盖已加载的真实 mysql2。
+
+### Changed
+
+- CLI 所有 `alias` 选项改为数组形式，修复 `--help` 崩溃。
+
+---
+
 ## [5.0.1] — 2026-08-08
 
 ### Added

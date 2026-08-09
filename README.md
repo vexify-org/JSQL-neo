@@ -154,8 +154,19 @@ MySQL DDL forms (`int unsigned`, `auto_increment`, `ENGINE=InnoDB`, `DEFAULT CHA
 
 ```js
 const { createMysqlServer } = require('jsql-neo');
+// 开发环境：本地无认证
 createMysqlServer({ port: 3306, dataDir: './data', noAuth: true }).listen();
+
+// 生产环境：用户名/密码 + 每用户数据库白名单（ACL）
+createMysqlServer({
+  port: 3306,
+  dataDir: './data',
+  auth: { app: { password: 's3cret', databases: ['app', 'analytics'] } },
+}).listen();
 ```
+
+`auth` 里的 `databases` 数组即该用户的数据库白名单：越权访问（跨库引用、`SHOW TABLES FROM db`、
+`DROP DATABASE`）统一返回 `ER_DBACCESS_DENIED_ERROR` (1044)。省略 `databases` 时不限制库。
 
 ---
 
@@ -176,8 +187,14 @@ Snapshot persistence to `data.rdb.json` — debounced writes (500ms) plus a guar
 
 ```js
 const { createRedisServer } = require('jsql-neo');
+// 本地无认证
 createRedisServer({ port: 6379, dataDir: './redis-data' }).listen();
+
+// 带密码：每连接独立认证，任一客户端 AUTH 成功不影响其它连接
+createRedisServer({ port: 6379, dataDir: './redis-data', password: 's3cret' }).listen();
 ```
+
+设置了 `password` 后，未认证连接上的命令返回 `NOAUTH Authentication required.`；认证状态按连接隔离。
 
 ---
 
@@ -202,6 +219,18 @@ createRedisServer({ port: 6379, dataDir: './redis-data' }).listen();
 A zero-dependency HTTP management console: browse databases and tables, run SQL in the browser,
 see results as a table. Perfect for dev tools, admin panels, and demos.
 
+> **安全默认值（5.1.0）**：默认只监听 `127.0.0.1`（不再暴露到所有网卡）。生产环境请设置
+> `authToken`，所有 `/api/*` 请求需携带 `Authorization: Bearer <token>`，未认证返回 401。
+
+```js
+const { WebUI } = require('jsql-neo');
+const ui = new WebUI({ port: 8080, dataDir: './data', authToken: 'change-me' });
+await ui.start();
+```
+
+可用选项：`host`（默认 `127.0.0.1`）、`port`、`dataDir`、`readonly`、`authToken`（Bearer 认证）、
+`allowOrigin`（CORS 允许的源；不设置时开启认证仅回显请求 Origin，未开启认证时为 `*`）。
+
 ### Migration tools (`migrate`)
 
 ```js
@@ -209,6 +238,11 @@ const { importDumpFile, exportToFile, importFromCSV, exportAllToJSON } = require
 await importDumpFile(db, './backup.sql', { strict: true });   // real mysqldump format
 await exportToFile(db, 'users', './users.csv');               // CSV round-trip
 ```
+
+`importFromJSON` / `importDumpFile` 从 5.1.0 起：
+
+- 兼容两种 JSON 形状：整库 `{ "users": { schema, rows } }` 与单表 `{ table, schema, rows }`。
+- 目标表已存在时**默认抛错**，不会静默覆盖；需显式传入 `{ overwrite: true }` 才重建表。
 
 ### Browser playground
 
