@@ -21,12 +21,12 @@ const manager = new ModuleManager();
 
 const RAW_ARGV = process.argv.slice(2);
 
-const cli = yaggs()
+const cli = yaggs({ pkg: require('../package.json') })
   .usage('jsql <command> [options]')
-  .option('help', { alias: 'h', type: 'boolean', description: 'Show help' })
+  .option('help', { alias: ['h'], type: 'boolean', description: 'Show help' })
   .command('mod', 'Module management', (sub) => {
     sub.option('address', {
-      alias: 'a',
+      alias: ['a'],
       type: 'string',
       description: 'Path to module file'
     });
@@ -149,7 +149,7 @@ const cli = yaggs()
     } catch (e) { fail(e); }
   })
   .command('serve', 'Run the MySQL-compatible server in the foreground', (sub) => {
-    sub.option('port', { alias: 'p', type: 'number', description: 'Listen port (default 3306)' });
+    sub.option('port', { alias: ['p'], type: 'number', description: 'Listen port (default 3306)' });
     sub.option('host', { type: 'string', description: 'Listen host (default 127.0.0.1)' });
     sub.option('data-dir', { type: 'string', description: 'Directory to store databases' });
     sub.option('no-auth', { type: 'boolean', description: 'Allow connections without authentication' });
@@ -194,26 +194,29 @@ const cli = yaggs()
     } catch (e) { console.error(`Error: ${e.message}`); process.exitCode = 1; }
   })
   .command('ui', 'Serve the built-in web management console', (sub) => {
-    sub.option('port', { alias: 'p', type: 'number', description: 'HTTP port (default 8080)' });
-    sub.option('host', { type: 'string', description: 'Listen host (default 0.0.0.0)' });
+    sub.option('port', { alias: ['p'], type: 'number', description: 'HTTP port (default 8080)' });
+    sub.option('host', { type: 'string', description: 'Listen host (default 127.0.0.1)' });
     sub.option('data-dir', { type: 'string', description: 'Directory containing *.json databases (default .)' });
+    sub.option('auth-token', { type: 'string', description: 'Require this Bearer token for /api/*' });
     sub.option('readonly', { type: 'boolean', description: 'Never write back to disk' });
   }, async (argv) => {
     const { WebUI } = require('../lib/web_ui');
     const ui = new WebUI({
       port: argv.port != null ? argv.port : 8080,
-      host: argv.host || '0.0.0.0',
+      host: argv.host,
       dataDir: argv['data-dir'] || '.',
+      authToken: argv['auth-token'],
       readonly: argv.readonly === true,
     });
     try {
       const port = await ui.start();
-      console.log(`JSQL-NEO web UI on http://${argv.host || '0.0.0.0'}:${port} (data: ${ui.dataDir})`);
+      const host = argv.host || ui.host;
+      console.log(`JSQL-NEO web UI on http://${host}:${port} (data: ${ui.dataDir})${ui.authToken ? ' [auth]' : ''}`);
       setInterval(() => {}, 1 << 30);
     } catch (e) { console.error(`Error: ${e.message}`); process.exitCode = 1; }
   })
   .command('redis', 'Run the Redis-compatible server', (sub) => {
-    sub.option('port', { alias: 'p', type: 'number', description: 'Listen port (default 6379)' });
+    sub.option('port', { alias: ['p'], type: 'number', description: 'Listen port (default 6379)' });
     sub.option('host', { type: 'string', description: 'Listen host (default 127.0.0.1)' });
     sub.option('data-dir', { type: 'string', description: 'Directory for data.rdb.json snapshot' });
     sub.option('auth', { type: 'string', description: 'Require this password for AUTH' });
@@ -235,10 +238,10 @@ const cli = yaggs()
     console.log(require('../package.json').version);
   })
   .command('server', 'Run the MySQL-compatible server in background', (sub) => {
-    sub.option('port', { alias: 'p', type: 'number', description: 'Listen port (default 3306)' });
+    sub.option('port', { alias: ['p'], type: 'number', description: 'Listen port (default 3306)' });
     sub.option('host', { type: 'string', description: 'Listen host (default 127.0.0.1)' });
     sub.option('data-dir', { type: 'string', description: 'Directory to store databases (default in-memory)' });
-    sub.option('auth', { alias: 'a', type: 'string', description: 'User credential: user:password[:db1,db2] (repeatable)' });
+    sub.option('auth', { alias: ['a'], type: 'string', description: 'User credential: user:password[:db1,db2] (repeatable)' });
     sub.option('config', { type: 'string', description: 'Path to config file (JSON)' });
     sub.option('no-auth', { type: 'boolean', description: 'Allow connections without authentication (local dev only)' });
   }, (argv) => {
