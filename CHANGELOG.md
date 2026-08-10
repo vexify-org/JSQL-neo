@@ -6,6 +6,12 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+- Planned: GitHub Releases for tagged versions, coverage badge, more storage plugins.
+
+---
+
+## [5.1.3] — 2026-08-10
+
 ### Fixed
 
 - **SQL JOIN 未匹配行空列填充错误**：LEFT/RIGHT JOIN 未匹配行此前不补对端表的前缀 null 列，限定列名（如 `b.id`/`a.id`）会回退到未前缀副本拿到左/右表的错误值；现按对端表 schema 生成 `prefix.column` 为 null 的补齐行。
