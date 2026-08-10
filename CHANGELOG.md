@@ -6,7 +6,17 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
-- Planned: GitHub Releases for tagged versions, coverage badge, more storage plugins.
+### Fixed
+
+- **SQL JOIN 未匹配行空列填充错误**：LEFT/RIGHT JOIN 未匹配行此前不补对端表的前缀 null 列，限定列名（如 `b.id`/`a.id`）会回退到未前缀副本拿到左/右表的错误值；现按对端表 schema 生成 `prefix.column` 为 null 的补齐行。
+- **UPDATE/DELETE 主键定位（非 `id` 主键表）**：行 ID 不再硬编码 `id`，改用实际主键字段值（`_rowPkId`）。
+- **`information_schema.*` 限定表名解析**：`.TABLES` 等关键字表名不再被误判为非法。
+- **autoIncrement 批量预分配**：`insertMany` 批量插入先扫描显式提供的最大值，一次性推进计数器，再在循环内用本地序号分配，避免显式大 ID 与自动 ID 交错时的计数不连续。
+- **Query builder RIGHT JOIN 未匹配行**：右表数据保留、本地表字段补 null（`_rightNullRow`）。
+
+### Added
+
+- `test/join.test.js`：LEFT/RIGHT/INNER JOIN 空列填充、WHERE 过滤、自连接、链式 JOIN 回归测试（11 断言）。
 
 ---
 
