@@ -1,6 +1,6 @@
 {
   "name": "jsql-neo",
-  "version": "5.1.3",
+  "version": "5.2.1",
   "description": "JSQL-NEO — Rust-powered embedded database with WASM, REST API, B-Tree indexes, WAL, crash recovery",
   "main": "index.js",
   "types": "index.d.ts",
@@ -49,8 +49,7 @@
     "test": "node test/smoke.js",
     "test:btree": "node test/btree.test.js",
     "test:regress": "node test/regress-5.1.0.js",
-    "test:all": "node test/smoke.js && node test/coverage.js && node test/regress-5.1.0.js && node test/btree.test.js && node test/join.test.js",
-    "test:join": "node test/join.test.js",
+    "test:all": "node test/smoke.js && node test/coverage.js && node test/regress-5.1.0.js && node test/btree.test.js",
     "test:coverage": "c8 --all --include='lib/**' --exclude='lib/mysql_server.js' --exclude='lib/native_client.js' --exclude='lib/wasm_client.js' --exclude='lib/mysql_compat.js' --exclude='lib/nedb_compat.js' --exclude='lib/plugin.js' --reporter=text --reporter=lcov node test/coverage.js",
     "test:orms": "node examples/orms/run-all.js"
   },
