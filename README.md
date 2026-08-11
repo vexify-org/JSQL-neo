@@ -1,10 +1,13 @@
 # JSQL-NEO
 
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
-> MySQL protocol. Redis protocol. SQL. TypeScript. The browser. **And it fits in one npm package.**
+> MySQL protocol. PostgreSQL protocol. Redis protocol. SQL. TypeScript. The browser. **And it fits in one npm package.**
+
+> **v5.2.1** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
+![PostgreSQL](https://img.shields.io/badge/protocol-PostgreSQL%20compatible-336791)
 ![Redis](https://img.shields.io/badge/protocol-Redis%20RESP2-f03c15)
 ![ZERO](https://img.shields.io/badge/dependencies-ZERO-8957e5)
 ![WASM](https://img.shields.io/badge/runs%20in-Browser%20%28WASM%29-79c0ff)
@@ -13,8 +16,6 @@
 
 ## Why JSQL-NEO?
 
-My web ： https://jsql.vexify.top/
-
 Most embedded databases make you choose: *native speed*, *portable WASM*, or *a familiar file format*.
 JSQL-NEO gives you **all three in one install** — plus drop-in compatibility with the **two most popular
 database protocols in the world**.
@@ -22,6 +23,7 @@ database protocols in the world**.
 - ⚡ **Rust core** — N-API native addon, ~2× faster than better-sqlite3 (see [Benchmark](#benchmark))
 - 🧩 **WASM build** — the *same engine* runs in Node.js **and any browser**, zero native deps
 - 🐘 **MySQL protocol** — Sequelize, Knex, TypeORM, mysql2, phpMyAdmin … **just work**, no plugin
+- 🐘 **PostgreSQL protocol** — node-postgres, psql, pgAdmin — SCRAM-SHA-256 auth, prepared statements, JSONB, ILIKE, `ON CONFLICT`, SERIAL/BIGSERIAL auto-increment
 - 🐇 **Redis protocol** — ioredis, node-redis, redis-cli — strings, hashes, lists, sets, TTL, snapshots
 - 🌐 **Built-in Web UI** — a zero-dependency management console ships with the package
 - 🗃️ **Three storage modes** — memory-first, hybrid (LRU + async flush), and disk
@@ -169,6 +171,30 @@ createMysqlServer({
 
 `auth` 里的 `databases` 数组即该用户的数据库白名单：越权访问（跨库引用、`SHOW TABLES FROM db`、
 `DROP DATABASE`）统一返回 `ER_DBACCESS_DENIED_ERROR` (1044)。省略 `databases` 时不限制库。
+
+---
+
+## Speak PostgreSQL
+
+A PostgreSQL wire-protocol (v3) server that accepts **standard PostgreSQL clients** — `node-postgres`,
+`psql`, `pgAdmin` — with SCRAM-SHA-256 authentication and per-database ACL.
+
+| Feature | Support |
+|---------|---------|
+| Wire protocol v3 (simple + extended query) | ✅ |
+| SCRAM-SHA-256 / MD5 / cleartext authentication | ✅ |
+| Prepared statements (Parse / Bind / Describe / Execute / Sync) | ✅ |
+| Transactions (BEGIN / COMMIT / ROLLBACK) | ✅ |
+| JSONB columns | ✅ |
+| `ILIKE` (case-insensitive LIKE) | ✅ |
+| `ON CONFLICT DO NOTHING` | ✅ |
+| `SERIAL` / `BIGSERIAL` → auto-increment | ✅ |
+| SQLSTATE error mapping（缺表 → `42P01` 等） | ✅ |
+
+```bash
+jsql serve --pg -p 5432 --data-dir ./data
+psql -h 127.0.0.1 -p 5432 -U postgres        # any PostgreSQL client, now
+```
 
 ---
 
