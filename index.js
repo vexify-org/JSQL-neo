@@ -22,6 +22,10 @@ const { createMysqlServer, MysqlServer } = require('./lib/mysql_server');
 const migrate = require('./lib/migrate');
 const { WebUI } = require('./lib/web_ui');
 const { RedisServer, createRedisServer } = require('./lib/redis_server');
+const { PgServer, createPgServer } = require('./lib/pg_server');
+const { MongoServer, createMongoServer } = require('./lib/mongo_server');
+const { MultiServer, createMultiServer } = require('./lib/multiserver');
+const { TUIShell, createTUI } = require('./lib/tui');
 
 /**
  * 全局注入：把项目内 `require('mysql2')` 全部替换为 jsql-neo 内存引擎兼容层。
@@ -99,4 +103,16 @@ module.exports = {
     // Redis 兼容服务器
     RedisServer,
     createRedisServer,
+    // PostgreSQL wire protocol 服务器
+    PgServer,
+    createPgServer,
+    // MongoDB wire protocol 服务器
+    MongoServer,
+    createMongoServer,
+    // 多协议嗅探服务器（MySQL + PG + Redis + Mongo 同端口）
+    MultiServer,
+    createMultiServer,
+    // 交互式 TUI
+    TUIShell,
+    createTUI,
 };
