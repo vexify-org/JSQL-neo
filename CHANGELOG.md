@@ -4,6 +4,18 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [5.3.1] — 2026-08-12
+
+### Fixed
+
+- **`MysqlConnection` 未导出导致多协议服务器 MySQL 路由崩溃**：`lib/mysql_server.js` 定义了
+  `MysqlConnection` 类但从未导出，而 `lib/multiserver.js` 需要 `new MysqlConnection(socket, server)`
+  处理 MySQL 连接（v5.1.1 改动遗留）；现已补全导出。
+
+### Changed
+
+- 版本号升至 5.3.1（package.json / Mongo `buildInfo` 同步）
+
 ## [Unreleased]
 
 - Planned: GitHub Releases for tagged versions, coverage badge, more storage plugins.
