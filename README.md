@@ -14,6 +14,1748 @@
 ![ZERO](https://img.shields.io/badge/dependencies-ZERO-8957e5)
 ![WASM](https://img.shields.io/badge/runs%20in-Browser%20%28WASM%29-79c0ff)
 
+> **🌐 中英双语 Bilingual documentation** — This README is written in both English and Chinese.
+
+---
+
+## 🧭 快速导航 Quick Navigation
+
+- [🌐 English Version](#english-version)
+- [🇨🇳 中文版 Chinese Version](#中文版-chinese-version)
+
+---
+
+## English Version
+
+**JSQL-NEO** is an embedded database that speaks your language: **MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, and the browser** — all in a single npm package with zero runtime dependencies.
+
+- ⚡ **Rust core** — N-API native addon, ~2× faster than better-sqlite3
+- 🧩 **WASM build** — the *same engine* runs in Node.js **and any browser**, zero native deps
+- 🐘 **MySQL protocol** — `mysql2`, Sequelize, Knex, TypeORM, phpMyAdmin … just work, no plugin
+- 🐘 **PostgreSQL protocol** — `pg`, `psql`, pgAdmin — SCRAM-SHA-256 auth, prepared statements, JSONB, ILIKE, `ON CONFLICT`, `SERIAL`
+- 🍃 **MongoDB wire protocol** — official `mongodb` driver, mongosh, Compass — OP_MSG/OP_QUERY/OP_COMPRESSED, BSON, CRUD, aggregation pipeline
+- 🐇 **Redis protocol** — `ioredis`, node-redis, redis-cli — strings, hashes, lists, sets, sorted sets, TTL, snapshots
+- 🔌 **One port. Every protocol.** — protocol sniffing routes MySQL / PostgreSQL / Redis / MongoDB clients to the **same endpoint and the same data**
+- 🖥️ **Zero-dependency TUI** — `jsql tui` interactive terminal: line editing, history, Tab completion, CJK-aligned tables, meta commands
+- 🌐 **Built-in Web UI** — zero-dependency management console + HTTP API
+- 🗃️ **Three storage modes** — memory-first, hybrid (LRU + async flush), and disk
+- 📦 **Zero runtime dependencies** in the database core
+
+For the complete Chinese edition of every topic below, jump to the [中文版](#中文版-chinese-version) section.
+
+### English Table of Contents
+
+- [Why JSQL-NEO?](#why-jsql-neo)
+- [Feature Overview](#feature-overview)
+- [Quick Start](#quick-start)
+  - [Install](#install)
+  - [30-second demo](#30-second-demo)
+  - [Node.js in three lines](#nodejs-in-three-lines)
+  - [Browser / WASM](#browser--wasm)
+- [Multiprotocol Server](#multiprotocol-server)
+  - [One port, every protocol](#one-port-every-protocol)
+  - [Protocol sniffing](#protocol-sniffing)
+  - [Shared data model](#shared-data-model)
+  - [Port & process management](#port--process-management)
+- [Speak MySQL](#speak-mysql)
+  - [Supported clients](#supported-clients)
+  - [Handshake & auth](#handshake--auth)
+  - [System variables & meta tables](#system-variables--meta-tables)
+  - [MySQL-specific syntax](#mysql-specific-syntax)
+  - [MySQL FAQ](#mysql-faq)
+- [Speak PostgreSQL](#speak-postgresql)
+  - [Supported clients](#supported-clients-1)
+  - [Authentication (SCRAM-SHA-256)](#authentication-scram-sha-256)
+  - [Wire protocol v3 coverage](#wire-protocol-v3-coverage)
+  - [PostgreSQL-specific syntax](#postgresql-specific-syntax)
+  - [SQLSTATE mapping](#sqlstate-mapping)
+  - [PostgreSQL FAQ](#postgresql-faq)
+- [Speak MongoDB](#speak-mongodb)
+  - [Supported clients](#supported-clients-2)
+  - [Wire protocol (OP_QUERY / OP_MSG / OP_COMPRESSED)](#wire-protocol-op_query--op_msg--op_compressed)
+  - [BSON support](#bson-support)
+  - [Database & collection mapping](#database--collection-mapping)
+  - [Command reference](#command-reference)
+  - [Query operators](#query-operators)
+  - [Aggregation pipeline](#aggregation-pipeline)
+  - [MongoDB FAQ](#mongodb-faq)
+- [Speak Redis](#speak-redis)
+  - [Supported clients](#supported-clients-3)
+  - [Data types](#data-types)
+  - [Command reference](#command-reference-1)
+  - [TTL & persistence](#ttl--persistence)
+  - [Redis FAQ](#redis-faq)
+- [SQL Reference](#sql-reference)
+  - [Statements](#statements)
+  - [Data types](#data-types-1)
+  - [Scalar functions](#scalar-functions)
+  - [Aggregate functions](#aggregate-functions)
+  - [Operators](#operators)
+    - [Indexes & constraints](#indexes--constraints)
+  - [Views](#views)
+  - [JSON / JSONB](#json--jsonb)
+  - [Prepared statements](#prepared-statements)
+  - [Multi-statement](#multi-statement)
+  - [Safety policy](#safety-policy)
+- [Node.js API Reference](#nodejs-api-reference)
+  - [Database class](#database-class)
+  - [executeSQL](#executesql)
+  - [Data access methods](#data-access-methods)
+  - [Events & hooks](#events--hooks)
+  - [createXxxServer factories](#createxxxserver-factories)
+  - [Multiprotocol server API](#multiprotocol-server-api)
+- [Command Line Interface](#command-line-interface)
+  - [jsql serve](#jsql-serve)
+  - [jsql serve --pg (multiprotocol)](#jsql-serve---pg-multiprotocol)
+  - [jsql redis](#jsql-redis)
+  - [jsql ui (Web console)](#jsql-ui-web-console)
+  - [jsql export / import](#jsql-export--import)
+  - [jsql bench](#jsql-bench)
+  - [jsql mod](#jsql-mod)
+  - [jsql version](#jsql-version)
+- [TUI Interactive Terminal](#tui-interactive-terminal)
+  - [Startup & options](#startup--options)
+  - [Keyboard shortcuts](#keyboard-shortcuts)
+  - [Meta commands](#meta-commands)
+  - [Continuation & statement boundaries](#continuation--statement-boundaries)
+  - [Batch mode](#batch-mode)
+- [Web UI & HTTP API](#web-ui--http-api)
+- [Compatibility Layers](#compatibility-layers)
+- [Migration Tools](#migration-tools)
+- [Storage & Performance](#storage--performance)
+- [Security](#security)
+- [Errors](#errors)
+- [TypeScript](#typescript)
+- [Architecture](#architecture)
+- [FAQ](#faq)
+- [Benchmark](#benchmark)
+- [Contributing](#contributing)
+- [License](#license)
+- [Appendices A–Z](#appendices-a–z)
+
+---
+
+## Why JSQL-NEO?
+
+Most embedded databases force you to pick one: native speed, portable WASM, or a familiar file
+format. JSQL-NEO gives you **all of them in one install**, plus drop-in compatibility with the
+four most popular database protocols in the world.
+
+| Dimension | JSQL-NEO | better-sqlite3 | sql.js (WASM) | LevelDB | local redis/mongo |
+|---|---|---|---|---|---|
+| Native speed (Rust N-API) | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Runs in browser (WASM) | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Zero runtime deps | ✅ | ✅ | ✅ | ✅ | ❌ |
+| MySQL protocol | ✅ | ❌ | ❌ | ❌ | ❌ |
+| PostgreSQL protocol | ✅ | ❌ | ❌ | ❌ | ❌ |
+| MongoDB wire protocol | ✅ | ❌ | ❌ | ❌ | Mongo only |
+| Redis RESP2 | ✅ | ❌ | ❌ | ❌ | Redis only |
+| One port, every protocol | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Interactive TUI | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+Highlights:
+
+- **One engine, three implementations** — `native` (Rust N-API), `wasm` (same Rust core compiled to
+  WebAssembly, runs in browsers), and `js` (pure-JS fallback). Automatic fallback: native → wasm → js.
+- **Real wire protocols, not emulators** — hand-written protocol stacks for MySQL 4.1+, PostgreSQL
+  wire protocol v3 (SCRAM-SHA-256), MongoDB OP_MSG/OP_QUERY (+ compression), and Redis RESP2.
+- **One port for all clients** — first-byte sniffing routes each connection to the right protocol;
+  all protocols operate on the **same data**.
+- **Full SQL** — DDL/DML, JOINs, subqueries, transactions with savepoints, views, indexes,
+  constraints, 89 scalar functions, window functions and CTE basics.
+- **Document semantics** — MongoDB-style operators (`$gt`, `$regex`, `$elemMatch`, …), aggregation
+  pipeline stages (`$match`, `$group`, `$sort`, `$project`, `$unwind`, …) and update operators.
+- **Key-value semantics** — five Redis data types, TTL, and snapshot persistence.
+- **Zero-dependency TUI** — full line editing, persistent history, completion, CJK-aware tables.
+- **Migration tools** — import `mysqldump` output, export/import JSON and CSV.
+
+---
+
+## Feature Overview
+
+1. **Multiprotocol server (the core feature)**
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│                    jsql serve --pg -p 5432                     │
+│                     (single TCP port)                          │
+│                                                                │
+│  mysql2 ──┐                                                   │
+│  Sequelize┤                                                   │
+│  psql     ─┤   ┌─────────────────────────────────┐            │
+│  pgAdmin   ─┤──►│  protocol sniffing (first bytes)│            │
+│  mongosh   ─┤   └─────────────────────────────────┘            │
+│  Compass    ─┤       │        │        │        │             │
+│  ioredis    ─┤       ▼        ▼        ▼        ▼             │
+│  redis-cli  ─┘   ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐         │
+│                   │ MySQL│ │ PG   │ │ Mongo│ │ Redis│         │
+│                   └──────┘ └──────┘ └──────┘ └──────┘         │
+│                       └───────┬───────┘                       │
+│                               ▼                               │
+│                      ┌─────────────────┐                       │
+│                      │  shared engine  │                       │
+│                      │  (one data dir) │                       │
+│                      └─────────────────┘                       │
+└───────────────────────────────────────────────────────────────┘
+```
+
+Write with `psql`, read with `mysql2`, query with `mongosh`, and cache with `redis-cli` —
+same port, same data.
+
+2. **Four semantics in one engine** — MySQL semantics (`AUTO_INCREMENT`, `ON DUPLICATE KEY
+   UPDATE`, `information_schema`, `SHOW`), PostgreSQL semantics (`SERIAL`, `ILIKE`, `ON CONFLICT`,
+   JSONB, `RETURNING`, prepared statements), MongoDB document semantics (operators, `updateOne`/`deleteMany`, aggregation), and Redis key-value semantics (5 types, TTL, snapshots).
+
+3. **Run shapes**
+
+| Shape | Entry point | Use case |
+|---|---|---|
+| Embedded (memory) | `new Database(':memory:')` | tests, dev, cache |
+| Embedded (disk) | `new Database('./data/db')` | single-process apps |
+| Server (4 protocols) | `createMultiServer(...)` / `jsql serve --pg` | multi-client, microservices |
+| Browser (WASM) | `JSQL` (lib/wasm_client) | in-browser queries |
+| Interactive terminal | `jsql tui` | manual admin, debugging |
+
+---
+
+## Quick Start
+
+### Install
+
+```bash
+npm install jsql-neo                         # option 1: npm
+npm install github:vexify-org/JSQL-neo       # option 2: GitHub main
+git clone https://github.com/vexify-org/JSQL-neo.git && cd JSQL-neo
+npm install && npm run build                 # option 3: from source
+```
+
+Verify:
+
+```bash
+node -e "console.log(require('jsql-neo/package.json').version)"   # 5.3.0
+```
+
+### 30-second demo
+
+```bash
+# Terminal 1: multiprotocol server (one port, four protocols)
+jsql serve --pg -p 5432 --data-dir ./data
+
+# Terminal 2: write with a MySQL client
+mysql -h 127.0.0.1 -P 5432 -u root -e "
+  CREATE DATABASE app; USE app;
+  CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(50));
+  INSERT INTO users (name) VALUES ('Alice'), ('Bob');"
+
+# Terminal 3: read with a PostgreSQL client
+psql -h 127.0.0.1 -p 5432 -U root -d app -c "SELECT * FROM users;"
+
+# Terminal 4: query the same table with MongoDB
+mongosh mongodb://127.0.0.1:5432/app --eval "db.users.find({name: 'Alice'})"
+
+# Terminal 5: cache with Redis
+redis-cli -h 127.0.0.1 -p 5432 SET app:users:count 2
+```
+
+### Node.js in three lines
+
+```js
+const { Database, executeSQL } = require('jsql-neo');
+const db = new Database(':memory:', { autoSave: false });
+await executeSQL(db, "CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(50))");
+await executeSQL(db, "INSERT INTO users (name) VALUES ('Alice')");
+const { rows } = await executeSQL(db, "SELECT * FROM users");
+console.log(rows); // [[1, 'Alice']]
+```
+
+Full embedded example:
+
+```js
+const { Database, executeSQL } = require('jsql-neo');
+(async () => {
+  const db = new Database('./data/app');                  // disk mode (auto-save)
+  db.createTable('users', {
+    id:   { type: 'INT', primaryKey: true, autoIncrement: true },
+    name: { type: 'VARCHAR', length: 100 },
+    age:  { type: 'INT' },
+  });
+  db.insert('users', { name: 'Alice', age: 30 });
+  db.insert('users', { name: 'Bob', age: 25 });
+
+  const r1 = db.find('users', { age: { $gte: 26 } });                      // document filter
+  const r2 = await executeSQL(db, 'SELECT * FROM users WHERE age > ?', [25]); // param SQL
+  const r3 = db.query('users').where({ name: 'Alice' }).limit(10).exec();   // chainable
+  db.stop();
+})();
+```
+
+### Browser / WASM
+
+```html
+<script type="module">
+  import { JSQL } from 'jsql-neo/dist/wasm.js';
+  const db = new JSQL();
+  await db.start();
+  await db.createTable('users', { name: { type: 'string' } });
+  await db.insert('users', { name: 'Alice' });
+  console.log(await db.find('users', {}));
+  await db.stop();
+</script>
+```
+
+WASM and native share the same SQL grammar and data API. When no native binary is available,
+`require('jsql-neo')` automatically falls back: **Native → WASM → Pure JS**.
+
+---
+
+## Multiprotocol Server
+
+### One port, every protocol
+
+`createMultiServer` (`jsql serve --pg` in the CLI) listens on **one TCP port** and routes each
+connection to the right wire-protocol handler by sniffing the first packet bytes. Clients of all
+four protocols connect to the same address and operate on **the same data**.
+
+```js
+const { createMultiServer } = require('jsql-neo');
+const srv = createMultiServer({
+  port: 5432, host: '0.0.0.0', dataDir: './data', noAuth: true,
+});
+srv.listen(() => console.log('multiprotocol on 5432'));
+```
+
+CLI equivalent: `jsql serve --pg -p 5432 --data-dir ./data --no-auth`
+
+### Protocol sniffing
+
+| First byte / signature | Protocol | Notes |
+|---|---|---|
+| `0x00` (big-endian Int32 length < 2^24) | PostgreSQL | PG StartupMessage length prefix |
+| `0x0a` / `0x0d` | MySQL | client handshake version byte |
+| Int32LE length + opCode `2004/2012/2013` | MongoDB | OP_QUERY / OP_COMPRESSED / OP_MSG |
+| ASCII command / RESP prefix (`* + $ - :`) | Redis | plain command or RESP array |
+| Silence > 200ms | MySQL | MySQL clients wait for server greeting first |
+
+Implementation: `sniffProtocol(buf)` in `lib/multiserver.js`, judged on the first 16 bytes.
+Redis commands start with printable ASCII; Mongo length prefixes are almost always binary;
+PG starts with `0x00` which never collides with MySQL's `0x0a/0x0d`; a 200 ms timeout covers
+clients that wait for the server handshake (MySQL).
+
+### Shared data model
+
+All four protocols share one `Database` engine instance per database (lazily created):
+
+- MySQL/PG tables ↔ Mongo collections ↔ Redis key namespace
+- A table created via MySQL is immediately visible to Mongo clients (rows = documents)
+- Redis keys use a separate namespace (e.g. `app:users:count`) and never collide with tables
+
+### Port & process management
+
+```js
+srv.listen();                   // idempotent
+srv.address();                  // → { address, port }
+srv.close();                    // graceful: close connections, stop engines (flush), free port
+```
+
+Each engine runs `engine.stop()` (flush + cleanup) on close. Connections are cleaned up
+automatically; a busy port is reported via the `onError` callback.
+
+---
+
+## Speak MySQL
+
+### Supported clients
+
+| Client | Type | Status |
+|---|---|---|
+| `mysql2` (npm) | Node.js driver | ✅ full (incl. promise API) |
+| `mysql` (npm) | Node.js driver | ✅ full |
+| Sequelize | ORM | ✅ (mysql dialect) |
+| Knex | query builder | ✅ (mysql2 dialect) |
+| TypeORM | ORM | ✅ |
+| Prisma | ORM | ✅ |
+| phpMyAdmin | Web GUI | ✅ |
+| HeidiSQL / DBeaver / Navicat | GUI | ✅ |
+| mysql CLI | CLI | ✅ |
+
+```js
+const mysql = require('mysql2/promise');
+const conn = await mysql.createConnection({
+  host: '127.0.0.1', port: 5432, user: 'root', database: 'app',
+});
+const [rows] = await conn.query('SELECT * FROM users WHERE age > ?', [25]);
+await conn.end();
+```
+
+### Handshake & auth
+
+- Protocol: MySQL 4.1+ handshake (server greeting with version, thread id, auth plugin)
+- Auth plugin: `mysql_native_password` (SHA-1 challenge-response)
+- `auth: { user: { password, databases } }` — `databases` accepts `'*'` or a list
+- `noAuth: true` skips authentication (dev only)
+
+```js
+createMysqlServer({
+  port: 3306,
+  auth: {
+    admin:    { password: 'admin123', databases: ['*'] },
+    readonly: { password: 'ro123',    databases: ['app'] },
+  },
+});
+```
+
+Auth failure returns the standard `Access denied for user 'x'@'...' (using password: YES)`.
+
+### System variables & meta tables
+
+The server answers the system probes ORMs and GUI tools run at connect time:
+
+- `SELECT VERSION()` → `8.0.0-jsql-neo`
+- System variables: `@@version`, `@@version_comment`, …
+- `SHOW DATABASES / SHOW TABLES / SHOW COLUMNS / SHOW CREATE TABLE`
+- `information_schema.tables / columns / statistics`
+- `mysql.user` (internal auth metadata)
+
+```sql
+SHOW DATABASES;
+SHOW TABLES;
+SHOW CREATE TABLE users;
+SELECT TABLE_NAME, TABLE_ROWS FROM information_schema.tables WHERE TABLE_SCHEMA = 'app';
+```
+
+### MySQL-specific syntax
+
+| Syntax | Description | Example |
+|---|---|---|
+| `AUTO_INCREMENT` | auto-increment PK (start 1, step 1) | `id INT PRIMARY KEY AUTO_INCREMENT` |
+| `ON DUPLICATE KEY UPDATE` | update on conflict | `INSERT ... ON DUPLICATE KEY UPDATE cnt = cnt + 1` |
+| `INSERT IGNORE` | ignore conflicts | `INSERT IGNORE INTO t VALUES (...)` |
+| `REPLACE INTO` | delete-then-insert on conflict | `REPLACE INTO t VALUES (...)` |
+| `LIMIT off, n` | MySQL pagination | `SELECT ... LIMIT 20, 40` |
+| Backtick identifiers | `` `column` `` | `` SELECT `name` FROM `users` `` |
+| Multi-statement | semicolon-separated batches | `CREATE TABLE ...; INSERT ...; SELECT ...` |
+| `IFNULL` / `GROUP_CONCAT` | MySQL-style functions | `SELECT GROUP_CONCAT(name) FROM users` |
+
+### MySQL FAQ
+
+**Q: Why does the MySQL client wait ~200 ms before the handshake?**
+A: The multiprotocol sniffer needs the first byte or the timeout before replying (MySQL clients
+wait for the server greeting). Single-protocol mode (`createMysqlServer` / `jsql serve`) greets instantly.
+
+**Q: `information_schema` queries come back empty in Sequelize/TypeORM?**
+A: Tables must exist first. Use `SHOW TABLES` to verify; the server answers real metadata only
+for real tables.
+
+**Q: Do stored procedures work?**
+A: No. `CREATE PROCEDURE`/triggers are rejected with a clear error (safety policy). Views are supported.
+
+---
+
+## Speak PostgreSQL
+
+### Supported clients
+
+`pg` (node-postgres), `psql`, pgAdmin 4, DBeaver, TypeORM (postgres dialect), Prisma, Knex, PostgREST-like tools.
+
+```js
+const { Client } = require('pg');
+const client = new Client({ host: '127.0.0.1', port: 5432, user: 'root', database: 'app' });
+await client.connect();
+const res = await client.query('SELECT * FROM users WHERE age > $1', [25]);
+await client.end();
+```
+
+### Authentication (SCRAM-SHA-256)
+
+Full **SCRAM-SHA-256** challenge-response (RFC 5802) over SASL:
+
+1. Client sends `SASLInitialResponse` (username + client-first-message)
+2. Server replies `SASLContinue` (server-first-message: salt + iteration count, i=4096)
+3. Client sends `SASLResponse` (client-final-message with the Proof)
+4. Server verifies the Proof and replies `AuthenticationOk`
+
+Plaintext password auth and noAuth mode are also supported. `psql` and `pg` use SCRAM by default
+with zero configuration.
+
+```js
+createPgServer({
+  port: 5432,
+  auth: { 'jsql-admin': { password: 's3cret', databases: ['*'] } },
+});
+```
+
+### Wire protocol v3 coverage
+
+| Message | Direction | Description |
+|---|---|---|
+| StartupMessage | C→S | protocol 3.0, user/database |
+| PasswordMessage / SASL | C→S | plaintext or SCRAM |
+| Query (`Q`) | C→S | simple query |
+| Parse/Bind/Execute (`P`/`B`/`E`) | C→S | extended protocol (prepared statements) |
+| Describe (`D`) | C→S | statement/portal description |
+| Sync (`S`) / Flush (`H`) | C→S | sync |
+| Terminate (`X`) | C→S | disconnect |
+| AuthenticationOk (`R`) | S→C | auth success |
+| RowDescription (`T`) | S→C | result columns |
+| DataRow (`D`) | S→C | data rows (text/binary format) |
+| CommandComplete (`C`) | S→C | `SELECT n` / `INSERT 0 n` … |
+| ReadyForQuery (`I`) | S→C | txn state `I`/`T`/`E` |
+| ErrorResponse (`E`) | S→C | errors with SQLSTATE |
+| NoticeResponse / ParameterStatus / BackendKeyData | S→C | notices / params / cancel key |
+
+Supported details: extended protocol end-to-end (`$1, $2` params), binary result format codes,
+`INSERT ... RETURNING`, `ON CONFLICT DO NOTHING/UPDATE`, empty query → `EmptyQueryResponse`,
+CancelRequest recognized (ignored — the engine is immediate).
+
+### PostgreSQL-specific syntax
+
+| Syntax | Example |
+|---|---|
+| `SERIAL` / `BIGSERIAL` auto-increment | `id SERIAL PRIMARY KEY` |
+| `ILIKE` case-insensitive match | `WHERE name ILIKE '%alice%'` |
+| `ON CONFLICT (col) DO UPDATE SET ...` | with `EXCLUDED` |
+| `ON CONFLICT (col) DO NOTHING` | ignore |
+| `RETURNING *` | return affected rows |
+| JSONB with `->` / `->>` | `SELECT data->>'name' FROM users` |
+| `$1, $2` placeholders | prepared statements |
+| Double-quoted identifiers | `SELECT "Name" FROM t` |
+| `::` casts | `SELECT '5'::INT` |
+| `EXTRACT` / `AGE` / `TO_CHAR` | date functions |
+
+```sql
+BEGIN;
+CREATE TABLE IF NOT EXISTS accounts (
+  id SERIAL PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  meta JSONB DEFAULT '{}'::jsonb
+);
+INSERT INTO accounts (email) VALUES ('a@x.com')
+  ON CONFLICT (email) DO UPDATE SET meta = EXCLUDED.meta
+  RETURNING *;
+SELECT name, meta->>'plan' FROM accounts WHERE name ILIKE '%ali%';
+COMMIT;
+```
+
+### SQLSTATE mapping
+
+| SQLSTATE | Meaning | Trigger |
+|---|---|---|
+| `42P01` | undefined_table | table missing |
+| `42703` | undefined_column | column missing |
+| `23505` | unique_violation | duplicate key |
+| `23502` | not_null_violation | NOT NULL violated |
+| `23503` | foreign_key_violation | FK violation |
+| `22007` | invalid_datetime_format | bad date |
+| `42601` | syntax_error | SQL syntax |
+| `23000` | integrity_constraint_violation | generic constraint |
+| `3D000` | invalid_catalog_name | database missing |
+| `00000` | successful_completion | OK |
+
+Mapped in `lib/pg_server.js` by message + error code. Unmatched errors fall back to `XX000`/`42601`.
+
+### PostgreSQL FAQ
+
+**Q: `psql` says `no pg_hba.conf entry`?**
+A: The server uses its built-in ACL, not pg_hba.conf. Check the `auth` option or use `noAuth: true`.
+
+**Q: Replication protocol / streaming subscriptions?**
+A: Not supported (`START_REPLICATION`, logical slots). All regular queries, transactions and
+prepared statements work.
+
+**Q: `\dt` shows nothing in psql?**
+A: `\dt` relies on `pg_class` metadata. Use SQL directly:
+`SELECT * FROM information_schema.tables;`
+
+---
+
+## Speak MongoDB
+
+### Supported clients
+
+| Client | Type | Status |
+|---|---|---|
+| `mongodb` (official Node driver) | driver | ✅ full (v4/v5/v6) |
+| `mongosh` | shell | ✅ full |
+| MongoDB Compass | GUI | ✅ |
+| `mongoose` | ODM | ✅ (CRUD + some aggregation) |
+
+```js
+const { MongoClient } = require('mongodb');
+const client = new MongoClient('mongodb://127.0.0.1:5432/app');
+await client.connect();
+const users = client.db('app').collection('users');
+await users.insertOne({ name: 'Alice', age: 30 });
+const alice = await users.findOne({ name: 'Alice' });
+const all = await users.find({ age: { $gte: 18 } }).sort({ age: -1 }).toArray();
+await client.close();
+```
+
+### Wire protocol (OP_QUERY / OP_MSG / OP_COMPRESSED)
+
+Implemented per the official Mongo Wire Protocol spec (header + opCode + payload):
+
+| opCode | Name | Description |
+|---|---|---|
+| `2004` | OP_QUERY | legacy query (`$query` wrapper, skip/return) |
+| `2005` | OP_REPLY | reply: flags, cursorID, startingFrom, numberReturned |
+| `2012` | OP_COMPRESSED | snappy/zlib compressed payload, decompressed then dispatched |
+| `2013` | OP_MSG | modern format: flags, section kind 0/1, checksum |
+
+Handshake notes: the driver first sends `hello`/`ismaster`; the server answers with
+`helloOk: true`, `maxWireVersion`/`minWireVersion`, `maxBsonObjectSize`. OP_QUERY replies encode
+the cursor id as an Int64 via `{ $long: 0 }`. OP_COMPRESSED is decompressed (compressorId 0=snappy,
+1=zlib) before normal dispatch.
+
+### BSON support
+
+| BSON type | code | notes |
+|---|---|---|
+| Double | `0x01` | float |
+| String | `0x02` | UTF-8 |
+| Document | `0x03` | nested |
+| Array | `0x04` | nested |
+| Binary | `0x05` | generic/function/bytes |
+| ObjectId | `0x07` | 12-byte id, auto-generated |
+| Boolean | `0x08` | |
+| Date (UTC) | `0x09` | int64 millis |
+| Null | `0x0A` | |
+| RegExp | `0x0B` | pattern + flags |
+| Int32 | `0x10` | |
+| Int64 | `0x12` | `$long` / `$numberLong` |
+| Decimal128 | `0x13` | decimal |
+| Timestamp | `0x11` | int64 millis |
+
+The encoder supports extended JSON forms (`$oid`, `$numberLong`/`$long`, `$numberDecimal`,
+`$date`, `$regex`, `$binary`, `$timestamp`) with arbitrary nesting.
+
+### Database & collection mapping
+
+- URL: `mongodb://host:port/<database>`
+- Each Mongo database maps to one engine instance (same as a MySQL schema)
+- **Collection = table**: `db.users` ↔ `CREATE TABLE users` — the same data
+- Loose schema: inserting into a missing collection auto-creates the table (`_ensureTable`)
+- BSON ↔ SQL type coercion: `double→REAL`, `string→TEXT`, `int→INTEGER`, …
+
+### Command reference
+
+| Command | Description |
+|---|---|
+| `hello` / `ismaster` / `isMaster` | handshake |
+| `ping` | liveness |
+| `insert` | insert one/many |
+| `find` / `findOne` | query (+sort/limit/skip/projection) |
+| `count` / `countDocuments` | counts (aggregate-backed) |
+| `update` | `{ updates: [{ q, u, upsert, multi }] }` |
+| `delete` | `{ deletes: [{ q, limit }] }` |
+| `findAndModify` | `{ query, update, remove, new, upsert, sort, fields }` |
+| `findOneAndUpdate` / `findOneAndDelete` / `findOneAndReplace` | atomic ops |
+| `distinct` | distinct values of a key |
+| `aggregate` | aggregation pipeline |
+| `create` / `createCollection` | explicit collection |
+| `drop` / `dropCollection` / `dropDatabase` | removal |
+| `listCollections` / `listDatabases` | listing |
+| `serverStatus` / `buildInfo` / `getCmdLineOpts` | metadata |
+| `$cmd` (OP_QUERY) | command wrapper |
+
+```js
+const r = await coll.findOneAndUpdate(
+  { name: 'Alice' },
+  { $set: { age: 31 } },
+  { upsert: true, returnDocument: 'after' }
+);
+```
+
+### Query operators
+
+| Operator | Description | Example |
+|---|---|---|
+| `$eq` / `$ne` | equal / not equal | `{ age: { $eq: 30 } }` |
+| `$gt` / `$gte` / `$lt` / `$lte` | comparisons | `{ age: { $gte: 18 } }` |
+| `$in` / `$nin` | in list / not in | `{ status: { $in: ['a','b'] } }` |
+| `$exists` | field existence | `{ email: { $exists: true } }` |
+| `$regex` + `$options` | regex (i/m/s) | `{ name: { $regex: '^A', $options: 'i' } }` |
+| `$and` / `$or` / `$nor` | logic | `{ $or: [{a:1},{b:2}] }` |
+| `$not` | negation | `{ age: { $not: { $gt: 60 } } }` |
+| `$type` | BSON type match | `{ age: { $type: 'int' } }` |
+| `$size` | array length | `{ tags: { $size: 2 } }` |
+| `$elemMatch` | array element match | `{ scores: { $elemMatch: { $gte: 90 } } }` |
+| `$all` / `$mod` | array/per-mod | `{ tags: { $all: ['a','b'] } }` |
+
+Update operators: `$set $unset $inc $push $addToSet $pull $rename $mul`.
+
+```js
+await coll.find({
+  $and: [
+    { age: { $gte: 18, $lte: 35 } },
+    { $or: [{ plan: 'pro' }, { plan: 'plus' }] },
+    { bio: { $regex: '^developer', $options: 'i' } },
+  ]
+}).sort({ age: -1 }).limit(10).toArray();
+```
+
+### Aggregation pipeline
+
+| Stage | Description |
+|---|---|
+| `$match` | filter documents |
+| `$count` | count |
+| `$limit` / `$skip` | paginate |
+| `$sort` | sort (1/-1, multi-field) |
+| `$project` | projection / derived fields |
+| `$unwind` | flatten arrays (preserveNullAndEmptyArrays) |
+| `$group` | group + aggregates (`$sum $avg $min $max $first $last`) |
+| `$lookup` | basic left-join across collections |
+| `$addFields` | add fields |
+
+Expressions: `$year/$month/$dayOfMonth/$hour/$minute/$second`, `$sum/$avg/$min/$max`, `$add/$subtract/$multiply/$divide/$mod`, `$concat`, `$toUpper/$toLower`, `$substr`, `$size`, `$arrayElemAt`, `$literal`.
+
+```js
+const res = await db.collection('orders').aggregate([
+  { $match: { status: 'paid' } },
+  { $group: { _id: '$customer_id', total: { $sum: '$amount' } } },
+  { $sort: { total: -1 } },
+  { $limit: 5 },
+]).toArray();
+```
+
+### MongoDB FAQ
+
+**Q: mongosh fails authentication?**
+A: mongosh tries SCRAM by default. Either connect without a password (noAuth mode) or match a
+configured user. Recommended for dev: `mongodb://host:port/db`.
+
+**Q: Does mongoose work?**
+A: Basic CRUD works. Driver-managed features like automatic `_id` ObjectIds need model
+config; `save()/find()/updateOne()` work normally.
+
+**Q: Multi-document transactions?**
+A: Not supported — returns a clear "transactions not supported" error. Single-document and
+single-collection operations are atomic.
+
+---
+
+## Speak Redis
+
+### Supported clients
+
+`ioredis`, `node-redis` (v4), `redis-cli`, redis-benchmark, GUI tools.
+
+```js
+const Redis = require('ioredis');
+const redis = new Redis({ host: '127.0.0.1', port: 5432 });
+await redis.set('k', 'v');
+await redis.hset('h', 'field', 'value');
+await redis.zadd('rank', 100, 'alice', 90, 'bob');
+const top = await redis.zrevrange('rank', 0, 1, 'WITHSCORES');
+await redis.quit();
+```
+
+### Data types
+
+| Type | Backed by | Commands |
+|---|---|---|
+| String | internal string | `SET GET MSET MGET SETNX INCR DECR INCRBY DECRBY APPEND STRLEN` |
+| Hash | field-value map | `HSET HGET HGETALL HKEYS HVALS HLEN HEXISTS HDEL` |
+| List | ordered array | `LPUSH RPUSH LPOP RPOP LRANGE LLEN LREM LINDEX` |
+| Set | unique members | `SADD SREM SMEMBERS SISMEMBER SCARD` |
+| Sorted Set | score-ordered | `ZADD ZRANGE ZREVRANGE ZSCORE ZCARD ZREM ZINCRBY` |
+
+All types share one key namespace — `SET a 1` then `LPUSH a x` returns `WRONGTYPE`, just like Redis.
+
+### Command reference
+
+**General** — `PING [msg]`, `SELECT idx`, `AUTH user pass`, `ECHO`, `QUIT`, `INFO [section]`,
+`KEYS pattern`, `DBSIZE`, `FLUSHDB`/`FLUSHALL`, `TYPE key`, `EXPIRE key sec`, `TTL key`, `PERSIST key`.
+
+**String** — `SET key value [EX s] [PX ms] [NX] [XX]`, `GET`, `MSET k v ...`, `MGET k ...`,
+`SETNX`, `INCR`, `INCRBY`, `DECR`, `DECRBY`, `APPEND`, `STRLEN`.
+
+**Hash** — `HSET key f v [f v ...]`, `HGET`, `HGETALL` (flat array), `HKEYS`, `HVALS`, `HLEN`, `HEXISTS`, `HDEL`.
+
+**List** — `LPUSH`/`RPUSH` (multi-value), `LPOP`/`RPOP`, `LRANGE start stop` (negative indexes),
+`LLEN`, `LINDEX`, `LREM count v`.
+
+**Set** — `SADD`, `SREM`, `SMEMBERS`, `SISMEMBER`, `SCARD`.
+
+**Sorted Set** — `ZADD key score member ...`, `ZRANGE start stop [WITHSCORES]` (asc),
+`ZREVRANGE` (desc), `ZSCORE`, `ZCARD`, `ZREM`, `ZINCRBY`.
+
+```bash
+redis-cli -p 5432 ZADD leaderboard 100 alice 90 bob 110 carol
+redis-cli -p 5432 ZREVRANGE leaderboard 0 2 WITHSCORES
+# 1) "carol" 2) "110" 3) "alice" 4) "100" 5) "bob" 6) "90"
+```
+
+### TTL & persistence
+
+- `SET ... EX/PX` and `EXPIRE` both supported; expired keys are removed lazily
+- `TTL` returns remaining seconds; `-1` = no TTL, `-2` = key missing
+- The Redis namespace is persisted with the engine snapshot on `stop()`; full recovery on restart
+- Multi-argument commands (`MSET`, `ZADD`) commit atomically
+
+### Redis FAQ
+
+**Q: `NOAUTH` from redis-cli?**
+A: The server requires auth by default. Use `--no-auth` for dev, or supply a strong password in prod.
+
+**Q: Redis Cluster / Sentinel?**
+A: Not supported. Single-instance semantics are fully compatible.
+
+**Q: pub/sub (`SUBSCRIBE`)?**
+A: Not supported — returns a clear error. All normal commands work.
+
+---
+
+## SQL Reference
+
+### Statements
+
+**DDL** — `CREATE TABLE` (`IF NOT EXISTS`, `AS SELECT`), `DROP TABLE` (`IF EXISTS`),
+`TRUNCATE TABLE`, `ALTER TABLE` (ADD/DROP COLUMN, RENAME TO, RENAME COLUMN),
+`CREATE VIEW` / `DROP VIEW`, `CREATE DATABASE` / `DROP DATABASE`.
+
+```sql
+CREATE TABLE IF NOT EXISTS orders (
+  id         INTEGER PRIMARY KEY AUTO_INCREMENT,
+  user_id    INT NOT NULL,
+  status     VARCHAR(20) DEFAULT 'pending',
+  amount     DECIMAL(10,2),
+  note       TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id),
+  KEY idx_status (status),
+  UNIQUE KEY uq_user_amount (user_id, amount)
+);
+```
+
+**DML** — `SELECT`, `INSERT INTO ... VALUES/SELECT`, `INSERT ... ON DUPLICATE KEY UPDATE`,
+`INSERT ... ON CONFLICT DO NOTHING/UPDATE`, `INSERT IGNORE`, `REPLACE INTO`,
+`UPDATE ... SET ... WHERE`, `DELETE FROM ... WHERE`, all with `RETURNING`.
+
+**SELECT grammar**
+
+```sql
+SELECT [DISTINCT] select_list
+FROM table_reference
+[JOIN table_reference ON condition]
+[WHERE condition]
+[GROUP BY column_list [WITH ROLLUP]]
+[HAVING condition]
+[ORDER BY column [ASC|DESC] [, ...]]
+[LIMIT { count | offset, count | count OFFSET offset }]
+[RETURNING ...]
+```
+
+**JOINs** — `INNER JOIN`, `LEFT JOIN`, `RIGHT JOIN`, `FULL OUTER JOIN`, `CROSS JOIN`,
+implicit `FROM a, b WHERE`, self-joins, multi-table chains.
+
+**Subqueries**
+
+```sql
+SELECT * FROM orders
+WHERE user_id IN (SELECT id FROM users WHERE vip = 1);
+
+SELECT name, (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id) AS order_count
+FROM users u;
+
+SELECT * FROM users u
+WHERE EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id);
+
+SELECT t.dept, COUNT(*) AS cnt
+FROM (SELECT dept FROM emp WHERE salary > 5000) t
+GROUP BY t.dept;
+```
+
+**Transactions** — `BEGIN` / `START TRANSACTION`, `COMMIT`, `ROLLBACK`,
+`SAVEPOINT sp` / `ROLLBACK TO SAVEPOINT` / `RELEASE SAVEPOINT`. Read-committed-equivalent
+isolation; per-statement atomicity without explicit transactions; cross-table transactions;
+rolled-back changes are invisible to other connections until commit.
+
+```sql
+BEGIN;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+SAVEPOINT sp1;
+UPDATE accounts SET balance = balance - 100 WHERE id = 3;
+ROLLBACK TO SAVEPOINT sp1;
+COMMIT;
+```
+
+**Other** — `SHOW DATABASES/TABLES/COLUMNS/CREATE TABLE`, `DESCRIBE t`, `USE db`,
+`EXPLAIN SELECT`, `SET SESSION x = y`, no-table queries (`SELECT VERSION()`), SQLite-style `PRAGMA`.
+
+### Data types
+
+| Type | Aliases | Notes |
+|---|---|---|
+| `INTEGER` | `INT BIGINT SMALLINT TINYINT` | integers |
+| `SERIAL` / `BIGSERIAL` | — | PG auto-increment |
+| `REAL` | `FLOAT DOUBLE DECIMAL(n,m) NUMERIC` | floats/fixed |
+| `TEXT` | `VARCHAR(n) CHAR(n) STRING` | strings |
+| `BOOLEAN` | `BOOL` | |
+| `DATE` / `DATETIME` | `TIMESTAMP TIMESTAMPTZ TIME` | dates/times |
+| `BLOB` | `BYTEA BINARY` | binary (Buffer) |
+| `JSON` / `JSONB` | — | JSON documents |
+
+Coercion rules: numeric strings compare as numbers (`'5' = 5`), `NULL = NULL` → NULL
+(use `IS NULL`), three-valued logic with `IS TRUE/IS FALSE`, explicit casts via
+`CAST(x AS t)`, `x::t`, `CONVERT(x, t)`; flexible date-string parsing.
+
+### Scalar functions
+
+**String** — `CONCAT(a, b, ...)` (NULL → empty), `LOWER`/`UPPER`, `LENGTH` (chars),
+`CHAR_LENGTH`, `OCTET_LENGTH` (UTF-8 bytes), `SUBSTRING(s, start[, len])` / `SUBSTR` / `MID`,
+`LEFT`/`RIGHT`, `TRIM`/`LTRIM`/`RTRIM` (with `BOTH|LEADING|TRAILING`), `REPLACE`, `REVERSE`,
+`REPEAT`, `ASCII`/`CHAR`/`ORD`, `GROUP_CONCAT(x[, SEPARATOR ...])`, `LPAD`/`RPAD`, `SPACE`.
+
+**Numeric** — `ABS`, `SIGN`, `ROUND(x[, n])`, `CEIL`/`CEILING`, `FLOOR`, `TRUNCATE`,
+`POWER`/`POW`, `SQRT`, `EXP`, `LN`, `LOG`/`LOG10`/`LOG(b, x)`, `MOD`/`%`, `RAND([seed])`,
+`GREATEST`/`LEAST`, `HEX`/`UNHEX`/`BIN`, `BIT_COUNT`.
+
+**Date/time** — `NOW()`/`CURRENT_TIMESTAMP`, `CURRENT_DATE`, `CURRENT_TIME`,
+`YEAR`/`MONTH`/`DAY`/`HOUR`/`MINUTE`/`SECOND`, `DATE(t)`/`TIME(t)`,
+`DATE_ADD(d, INTERVAL n unit)`/`DATE_SUB`/`ADDDATE`/`SUBDATE`
+(units: `MICROSECOND SECOND MINUTE HOUR DAY WEEK MONTH QUARTER YEAR`),
+`DATEDIFF`, `TIMESTAMPDIFF(unit, d1, d2)`, `DATE_FORMAT`, `STR_TO_DATE`, `TO_CHAR`, `TO_DATE`,
+`EXTRACT(part FROM d)` (incl. `DOW`, `DOY`, `WEEK`, `QUARTER`, `EPOCH`), `DATE_PART`, `AGE`,
+`DAYOFWEEK`, `DAYNAME`, `MONTHNAME`, `UNIX_TIMESTAMP`, `FROM_UNIXTIME`.
+
+```sql
+SELECT DATE_ADD('2026-08-12', INTERVAL 1 DAY);      -- '2026-08-13 00:00:00'
+SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i');        -- '2026-08-12 10:30'
+SELECT EXTRACT(YEAR FROM '2026-08-12');             -- 2026
+SELECT AGE('2026-08-12', '2020-01-01');             -- '6 years 7 mons 11 days'
+```
+
+**Conditional / null** — `IF(cond, a, b)`, `IIF`, `IFNULL(a, b)`, `COALESCE(...)`, `NULLIF`,
+`ISNULL`, `CASE WHEN ... THEN ... ELSE ... END` (search/simple form, works with aggregates).
+
+**System & misc** — `VERSION()` → `8.0.0-jsql-neo`, `DATABASE()`, `USER()`/`CURRENT_USER`,
+`LAST_INSERT_ID()`, `ROW_COUNT()`, `CAST`/`CONVERT`, `JSON_EXTRACT(doc, '$.path')`,
+`JSON_OBJECT`/`JSON_ARRAY`, `JSON_UNQUOTE`, `JSON_CONTAINS`, `JSON_SET/INSERT/REPLACE/REMOVE`,
+`UUID()`, `TYPEOF(x)`, `PRINT(x)`.
+
+**Full per-function reference with examples**: see the Chinese edition
+[附录 H 函数详解](#附录-h：函数详解与执行语义).
+
+### Aggregate functions
+
+`COUNT(*)` / `COUNT(col)` / `COUNT(DISTINCT col)` / `COUNT(DISTINCT a, b)`, `SUM`,
+`SUM(DISTINCT)`, `AVG`, `MIN`, `MAX`, `GROUP_CONCAT(col[, sep])` (with `DISTINCT`, `ORDER BY`),
+`STDDEV`/`STDDEV_POP`/`STDDEV_SAMP`, `VARIANCE`/`VAR_POP`/`VAR_SAMP`, `FIRST`/`LAST`.
+
+Rules: no `GROUP BY` → single group; `HAVING` filters groups (aggregate aliases allowed);
+multi-column and `WITH ROLLUP` groups; NULL values skipped by `COUNT(col)`/`SUM`/`AVG`.
+
+```sql
+SELECT dept, COUNT(*) AS cnt, AVG(salary) AS avg_sal
+FROM emp WHERE status = 'active'
+GROUP BY dept WITH ROLLUP
+HAVING AVG(salary) > 6000
+ORDER BY avg_sal DESC;
+```
+
+### Operators
+
+**Arithmetic** — `+ - * / % MOD DIV ^` (power, PG style).
+
+**Comparison** — `= <> != < <= > >=`, `IS NULL`, `IS TRUE/FALSE` (three-valued),
+`BETWEEN a AND b`, `IN (...)`, `LIKE`/`NOT LIKE`, `ILIKE` (case-insensitive),
+`RLIKE`/`REGEXP`, `~ ~* !~ !~*` (PG regex), `EXISTS`, `ANY`/`ALL`/`SOME`, `<=>` (NULL-safe).
+
+**Logic** — `AND OR NOT XOR` (short-circuit), MySQL aliases `&&` `||`.
+
+**Bitwise** — `& | ^ ~ << >>`.
+
+**JSON (PG style)** — `->` (JSON result), `->>` (text), `#>`, `#>>` (paths), `@>` `<@`
+(containment), `?` `?|` `?&` (key existence).
+
+### LIKE / ILIKE / regex
+
+- `%` any length, `_` one char, `\` escape (`ESCAPE` clause)
+- `ILIKE` = LIKE, case-insensitive
+- `REGEXP`/`RLIKE`/`~` use the JS RegExp engine; flags `i/m/s`
+
+```sql
+SELECT * FROM users
+WHERE email ~* '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$';
+```
+
+### Indexes & constraints
+
+**Indexes** — `PRIMARY KEY` (implicit), `UNIQUE KEY name (cols)`, `KEY name (cols)`,
+`CREATE [UNIQUE] INDEX`, `DROP INDEX ... ON table`, composite indexes, multiple indexes per table.
+
+```sql
+CREATE INDEX idx_orders_status ON orders (status);
+CREATE UNIQUE INDEX uq_email ON users (email);
+```
+
+**Constraints** — `PRIMARY KEY`, `NOT NULL`, `UNIQUE`, `DEFAULT` (incl. `CURRENT_TIMESTAMP`),
+`CHECK (expr)`, `FOREIGN KEY ... REFERENCES` (with `ON DELETE CASCADE`), `AUTO_INCREMENT`/`SERIAL`,
+named constraints (`CONSTRAINT name ...`).
+
+Violations map to MySQL-style codes: `ER_DUP_ENTRY`, `ER_NO_DEFAULT_FOR_FIELD`,
+`ER_BAD_NULL_ERROR`, `ER_CHECK_CONSTRAINT`, `ER_NO_REFERENCED_ROW`, `ER_ROW_IS_REFERENCED`.
+
+### Views
+
+```sql
+CREATE VIEW active_users AS
+SELECT id, name FROM users WHERE status = 'active' AND deleted_at IS NULL;
+
+SELECT * FROM active_users WHERE age > 30;   -- expands live
+SHOW TABLES;                                  -- views listed alongside tables
+DROP VIEW IF EXISTS active_users;
+```
+
+Views are non-materialized; they participate in JOINs/subqueries/aggregates; DML on views is
+rejected with a clear error; `CREATE OR REPLACE VIEW` is supported.
+
+### JSON / JSONB
+
+```sql
+CREATE TABLE users (id INT PRIMARY KEY, meta JSON, prefs JSONB DEFAULT '{}'::jsonb);
+
+INSERT INTO users (id, meta) VALUES
+  (1, '{"name":"Alice","tags":["admin","ops"],"addr":{"city":"SH"}}');
+
+SELECT meta->>'name' AS name, meta->'addr'->>'city' AS city
+FROM users WHERE meta @> '{"tags":["admin"]}';
+```
+
+JSON columns are fully interoperable with Mongo document views.
+
+### Prepared statements
+
+All three protocols + the embedded API support parameterized queries:
+
+```js
+await executeSQL(db, 'SELECT * FROM users WHERE age > ? AND city = ?', [25, 'SH']);
+await conn.execute('INSERT INTO users (name, age) VALUES (?, ?)', ['Alice', 30]); // mysql2
+await client.query('SELECT * FROM users WHERE age > $1', [25]);                  // pg
+await coll.find({ age: { $gt: 25 } }).toArray();                                 // mongo
+```
+
+Binding rules: positional binding; values coerced to column types; arrays expand to `IN` lists;
+`??` is the identifier placeholder (safe dynamic table/column names).
+
+### Multi-statement
+
+```js
+const { splitStatements } = require('jsql-neo');
+const stmts = splitStatements('SELECT 1; SELECT 2; -- c\nSELECT 3;');
+```
+
+`executeSQL` runs semicolon-separated batches; `splitStatements` correctly skips semicolons
+inside strings and comments.
+
+### Safety policy
+
+- `SELECT ... INTO OUTFILE` → rejected
+- `LOAD_FILE()` → rejected
+- Disabled functions (`SLEEP(...)`) → rejected
+- Versioned comments (`/*!50000 ... */`) → treated as plain comments
+- The parser is tokenizer-based, so quote-escape/comment-bypass injection is structurally impossible
+- Prefer parameterized queries; `escapeId`/`??` for dynamic identifiers
+
+---
+
+## Node.js API Reference
+
+### Database class
+
+```js
+const { Database } = require('jsql-neo');
+const db = new Database(dataDirOrName, options);
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `dataDirOrName` | — | `':memory:'` or `'./data/db'` |
+| `autoSave` | `true` | save after writes |
+| `saveInterval` | `3000` | auto-save interval (ms) |
+| `compression` | per build | `'lz4'` / `'zstd'` / `'none'` |
+| `defaultEngine` | auto | `'native'` / `'wasm'` / `'js'` |
+| `logLevel` | `'info'` | log level |
+
+**Lifecycle** — `init()`, `stop()`, `reset()`, `getEngineType()`, `getDataDir()`,
+`saveTo(file)`, `loadFrom(file)`, `flush()`, `getStats()`, `backupTo(dir)`, `restoreFrom(dir)`.
+
+**Table management** — `createTable(name, schema, opts)`, `dropTable`, `truncateTable`,
+`listTables`, `getTableSchema`, `tableExists`, `renameTable`.
+
+```js
+db.createTable('users', {
+  id:   { type: 'INT', primaryKey: true, autoIncrement: true },
+  name: { type: 'VARCHAR', length: 100, notNull: true },
+  age:  { type: 'INT', default: 0 },
+  meta: { type: 'JSON' },
+  created_at: { type: 'DATETIME', default: 'CURRENT_TIMESTAMP' },
+}, { ifNotExists: true });
+```
+
+### Data access methods
+
+```js
+db.insert('users', row);                 // single → full row
+db.insertMany('users', rows, { upsert: true });
+db.find('users', filter, { sort, limit, skip, fields });
+db.findOne('users', filter);
+db.count('users', filter);
+db.distinct('users', 'city', filter);
+db.update('users', filter, changes);     // → updated count
+db.updateOne / db.updateMany
+db.removeWhere('users', filter);         // → deleted count
+db.removeByIds('users', [1, 2, 3]);
+db.getById('users', 1);
+db.query('users').where({...}).select([...]).sort({...}).skip(n).limit(n).exec();
+db.aggregate('users', [pipelineStages]);
+db.createIndex('users', ['status'], { unique: true });
+db.dropIndex('users', 'idx_status');
+db.beginTransaction(); db.commit(); db.rollback();
+db.transaction(async (txn) => { ... });   // auto commit/rollback
+```
+
+Document operators (`$set $inc $unset $push $pull $addToSet $rename $mul`) work everywhere.
+
+### executeSQL
+
+```js
+const { executeSQL } = require('jsql-neo');
+const result = await executeSQL(db, sql, params);
+```
+
+```js
+{
+  columns: ['id', 'name', 'age'],
+  columnTypes: ['INTEGER', 'VARCHAR', 'INTEGER'],
+  rows: [[1, 'Alice', 30]],
+  rowCount: 2, affectedRows: 0, insertId: 1,
+  message: '2 rows selected', command: 'SELECT',
+  durationMs: 0.42, warnings: [],
+}
+```
+
+Result matrix: SELECT → `rows`; INSERT → `affectedRows` + `insertId`; UPDATE/DELETE →
+`affectedRows`; DDL/txn → `message`. Params: positional `?`, named `:name`, or object maps.
+Multi-statement supported; `SQLExecutor` class runs batched SQL from a string/stream.
+
+### Events & hooks
+
+```js
+db.on('save', ({ file, size }) => {});
+db.on('load', ({ file, tables }) => {});
+db.on('insert', ({ table, rows }) => {});
+db.on('update', ({ table, ids }) => {});
+db.on('delete', ({ table, ids }) => {});
+db.on('error', (err) => {});
+db.on('stop', () => {});
+```
+
+### createXxxServer factories
+
+```js
+const { createMysqlServer, createPgServer, createRedisServer, createMongoServer, createMultiServer } = require('jsql-neo');
+
+createMysqlServer({ port: 3306, host: '0.0.0.0', dataDir: './data',
+  auth: { admin: { password: 'admin123', databases: ['*'] } }, noAuth: false }).listen();
+
+createPgServer({ port: 5432, dataDir: './data', noAuth: true }).listen();
+createRedisServer({ port: 6379, dataDir: './data', auth: 'redispass', snapshotInterval: 5000 }).listen();
+createMongoServer({ port: 27017, dataDir: './data', noAuth: true }).listen();
+```
+
+All share `listen()`, `address()`, `close()`. Omitting `port` picks an ephemeral one
+(read it from `address()`).
+
+### Multiprotocol server API
+
+```js
+const srv = createMultiServer({ port: 5432, dataDir: './data', noAuth: true });
+srv.listen();
+srv.address();                          // { address, port }
+srv.on('connection', (socket, protocol) => {});   // 'mysql'|'pg'|'redis'|'mongo'
+srv.on('error', (err) => {});
+srv.close();
+```
+
+### Helpers
+
+```js
+const { tokenize, parseSQL, splitStatements, applyParams, escapeValue, escapeId,
+        createTUI, TUIShell, renderTable, wswidth, pad } = require('jsql-neo');
+```
+
+---
+
+## Command Line Interface
+
+`jsql` is the CLI shipped with the package (`bin/jsql`), built on `@vexify-org/yaggs`.
+
+```bash
+jsql serve       # MySQL single-protocol server
+jsql serve --pg  # multiprotocol (MySQL+PG+Mongo+Redis on one port)
+jsql redis       # standalone Redis server
+jsql ui          # Web console + HTTP API
+jsql tui         # interactive SQL terminal (zero-dep TUI)
+jsql export      # export (JSON/CSV/SQL)
+jsql import      # import (SQL dump / JSON / CSV)
+jsql bench       # benchmark
+jsql mod         # engine module management
+jsql version     # version info
+```
+
+### jsql serve
+
+```bash
+jsql serve -p 3307 --data-dir ./data --host 0.0.0.0   # port/data-dir/host
+jsql serve --no-auth                                   # skip auth (dev)
+jsql serve --memory                                    # memory-only
+jsql serve --user admin --password secret              # credentials
+jsql serve --tls --cert server.crt --key server.key    # TLS
+jsql serve -q / --verbose                              # log level
+```
+
+### jsql serve --pg (multiprotocol)
+
+```bash
+jsql serve --pg -p 5432 --data-dir ./data --no-auth
+jsql serve --pg -p 5432 --data-dir ./data --user admin --password s3cret
+```
+
+Client examples: `mysql2` (port 5432), `psql -p 5432`, `mongosh mongodb://127.0.0.1:5432`,
+`redis-cli -p 5432`. Connection logs show the detected protocol.
+
+### jsql redis
+
+```bash
+jsql redis -p 6379 --data-dir ./data --no-auth     # standalone Redis
+jsql redis -p 6379 --data-dir ./data --password r3dispass
+jsql redis -p 6379                                  # memory Redis (default)
+```
+
+### jsql ui (Web console)
+
+```bash
+jsql ui --data-dir ./data -p 9090 --db app
+# → http://127.0.0.1:9090  (zero-dependency single-page console)
+```
+
+### jsql export / import
+
+```bash
+jsql export ./data --format json --output backup.json     # full DB
+jsql export ./data --table users --format csv --output users.csv
+jsql export ./data --format sql --output dump.sql
+jsql import ./data dump.sql                                # auto-detect format
+jsql import ./data users.csv --table users --has-header
+```
+
+Options: `--format json|csv|sql`, `--table`, `--output`, `--pretty`, `--no-create`, `--force`,
+`--on-error abort|skip`.
+
+### jsql bench
+
+```bash
+jsql bench --ops 10000 --concurrency 8 --mode memory --json
+# insert / select / update / delete / mixed rates
+```
+
+### jsql mod
+
+```bash
+jsql mod                      # show current + available engines
+jsql mod --engine wasm        # switch engine (restart required)
+```
+
+### jsql version
+
+```bash
+$ jsql version
+jsql-neo v5.3.0
+engine: native (napi) | wasm | js
+node: v22.0.0  platform: linux x64
+```
+
+---
+
+## TUI Interactive Terminal
+
+`jsql tui` is a zero-dependency, raw-mode interactive SQL terminal (`lib/tui.js`). All line
+editing, history, completion and table rendering are built in — identical behavior in any
+terminal (iTerm2, GNOME Terminal, tmux, Windows Terminal).
+
+### Startup & options
+
+```bash
+jsql tui --data-dir ./data --db app --dialect mysql
+jsql tui --memory -q                      # memory mode, quiet
+jsql tui --prompt 'db> ' --no-color
+```
+
+The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=5.3.0`.
+
+### Keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `Enter` | execute statement |
+| `Ctrl+C` | clear line / exit when empty |
+| `Ctrl+D` | exit (EOF) |
+| `Ctrl+L` | clear screen |
+| `Ctrl+A` / `Home` | line start |
+| `Ctrl+E` / `End` | line end |
+| `Ctrl+U` | clear line |
+| `Ctrl+K` | delete to end |
+| `Ctrl+W` | delete word |
+| `←` / `→` | move cursor |
+| `↑` / `↓` | history |
+| `Backspace` / `Delete` | delete |
+| `Tab` | completion (keywords/tables/columns) |
+| `Shift+Tab` | reverse completion |
+| `PgUp` / `PgDn` | history paging |
+| `Ctrl+B/F/P/N` | emacs-style motion/history |
+
+### Meta commands
+
+| Command | Description |
+|---|---|
+| `\q` `\quit` `\exit` `exit` `quit` | quit |
+| `\c [db]` / `\use <db>` | switch database |
+| `\db` | show current db |
+| `\tables` | list tables |
+| `\desc <t>` | table structure |
+| `\indexes [t]` | indexes |
+| `\databases` | list databases |
+| `\help` | help |
+| `\history` | history |
+| `\clear` | clear screen |
+| `\echo <text>` | echo |
+| `\schema [t]` | SHOW CREATE for a table |
+
+### Continuation & statement boundaries
+
+- Statements end with `;` (or the `\g` meta command)
+- Unterminated quotes / unclosed parens enter **continuation mode** (`...>` prompt, indented)
+- `Ctrl+C` in continuation mode cancels the pending statement
+- Boundary detection honors string escapes and comments (`--`, `/* */`)
+
+```
+jsql> SELECT COUNT(*)
+  ...> FROM users
+  ...> WHERE name = 'Alice';
++----------+
+| COUNT(*) |
++----------+
+| 1        |
++----------+
+1 row in set (0.42 ms)
+```
+
+### Batch mode
+
+Non-TTY (pipes, redirects, CI) automatically runs in batch mode:
+
+```bash
+echo "SELECT * FROM users;" | jsql tui --data-dir ./data
+jsql tui --data-dir ./data < script.sql
+```
+
+Batch: executes statements one by one with plain ASCII tables (no ANSI when not a TTY); errors
+don't abort the run (collected and summarized); exit code 0 = all OK, 1 = errors; `-q` prints data only.
+
+---
+
+## Web UI & HTTP API
+
+`jsql ui` ships a zero-dependency management console: one HTML page + HTTP API.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | console page |
+| `GET` | `/api/status` | status (version/engine/dbs/tables) |
+| `GET` / `POST` | `/api/databases` | list / create |
+| `DELETE` | `/api/databases/:name` | drop |
+| `GET` | `/api/databases/:db/tables` | tables |
+| `GET` | `/api/databases/:db/tables/:table` | schema + preview |
+| `POST` | `/api/databases/:db/query` | run SQL `{ sql, params }` |
+| `POST` / `GET` | `/api/databases/:db/import` / `export` | migrate |
+
+```bash
+curl -s -X POST http://127.0.0.1:8080/api/databases/app/query \
+  -H 'Content-Type: application/json' \
+  -d '{"sql": "SELECT * FROM users WHERE age > ?", "params": [18]}'
+```
+
+Console features: db/table tree, SQL editor (multi-statement), result tables + CSV export,
+data preview with pagination, schema inspection, import/export entry points.
+
+> Security: the Web UI has no auth by default. Put it behind a reverse proxy in production,
+> or bind to 127.0.0.1.
+
+---
+
+## Compatibility Layers
+
+**mysql2 compat** (`lib/mysql2_compat.js`) — same API as the `mysql2` driver, no network:
+
+```js
+const { createMysql2Compat } = require('jsql-neo');
+const mysql = createMysql2Compat({ database: ':memory:' });
+const conn = await mysql.createConnection({});
+const [rows] = await conn.query('SELECT * FROM users WHERE id = ?', [1]);
+const [res] = await conn.execute('INSERT INTO users (name) VALUES (?)', ['Alice']);
+console.log(res.insertId);            // → 1
+```
+
+Switch between embedded and a real MySQL by changing the pool factory — business code unchanged.
+
+**NeDB compat** (`lib/nedb_compat.js`) — NeDB-style embedded datastore:
+
+```js
+const { NeDBDatastore } = require('jsql-neo');
+const db = new NeDBDatastore({ filename: './data/nedb.json' });
+await db.loadDatabase();
+await db.insert({ name: 'Alice', age: 30 });
+await db.findOne({ name: 'Alice' });
+await db.find({ age: { $gt: 30 } }).sort({ age: 1 }).exec();
+await db.update({ name: 'Alice' }, { $set: { age: 31 } }, {});
+```
+
+**SQLite compat** (`lib/sqlite_compat.js`) — better-sqlite3 / sqlite3 style API:
+
+```js
+const { SQLiteCompat } = require('jsql-neo');
+const db = new SQLiteCompat(':memory:');
+db.prepare('INSERT INTO users (name, age) VALUES (?, ?)').run('Alice', 30);
+db.prepare('SELECT * FROM users WHERE age > ?').all(18);
+```
+
+---
+
+## Migration Tools
+
+`lib/migrate.js` provides the full migration chain.
+
+**mysqldump import** — import real `mysqldump` output (files or strings, with progress):
+
+```js
+const { importDumpFile, importDump } = require('jsql-neo');
+await importDumpFile(db, './backup/dump.sql');
+await importDump(db, `CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(50));
+INSERT INTO users VALUES (1, 'Alice');`);
+```
+
+Supported dump constructs: `CREATE TABLE` (backticks, `AUTO_INCREMENT`, `KEY`, `UNIQUE`),
+long multi-row `INSERT`, `LOCK TABLES`/`UNLOCK TABLES` (ignored), `SET @@session.*` (ignored),
+versioned comments `/*!40101 SET ... */` (ignored), `USE db;`, comments and blank lines.
+
+**JSON** — full DB export/import with schema:
+
+```js
+const { exportAllToJSON, exportTableToJSON, importFromJSON } = require('jsql-neo');
+const json = await exportAllToJSON(db);
+await importFromJSON(db, json);
+```
+
+**CSV** — `exportTableToCSV(db, table)` and `importFromCSV(db, csv, { table, hasHeader })`;
+quote handling (`""` escapes), `NULL` for empty cells, type inference (disable via `coerceTypes: false`),
+custom `delimiter`.
+
+```bash
+jsql import ./data users.csv --table users
+jsql export ./data --table users --format csv --output users.csv
+```
+
+---
+
+## Storage & Performance
+
+### Three engines
+
+| Engine | Description | Notes |
+|---|---|---|
+| **native** (default) | Rust N-API addon | fastest, ~2× better-sqlite3 |
+| **wasm** | Rust → WebAssembly | browsers, ~80% of native |
+| **js** | pure JS fallback | zero toolchain needed |
+
+Fallback chain: `native → wasm → js`. `jsql mod` shows/switches the engine.
+
+### Memory / hybrid / disk modes
+
+| Mode | Trigger | Behavior |
+|---|---|---|
+| memory | no `dataDir` / `':memory:'` | everything in RAM, lost on exit |
+| disk | `dataDir` given | load snapshot at start, auto-save after writes |
+| hybrid | `autoSave: true` + `saveInterval` | in-memory writes + periodic async flush |
+
+```
+INSERT → memory + change log (tlog) → [saveInterval] → snapshot → file
+                                                     ↑ db.flush() for immediate write
+```
+
+### B-Tree indexes
+
+Each index is an independent B-Tree; PK and UNIQUE keys build indexes automatically;
+composite indexes follow the leftmost-prefix rule; `=` `>` `<` `>=` `<=` `BETWEEN` and
+`ORDER BY` can use indexes; indexes and data live in the same snapshot file.
+
+```js
+db.createIndex('orders', ['user_id']);
+db.createIndex('orders', ['status', 'created_at']);
+```
+
+### WAL & crash recovery
+
+- Every write appends to a transaction log (tlog) before touching memory
+- `flush()` / auto-save: write snapshot → clear log on success
+- Startup: load last snapshot → replay log if present → consistent state
+- Corrupt/truncated logs degrade to the last good snapshot with a warning
+
+### Snapshots & compression
+
+Single-file snapshots (schema + indexes + data + Redis key space); compression via
+build-time `lz4`/`zstd`; auto-save (default on, 3 s interval); manual `saveTo(file)`/`flush()`;
+atomic writes (temp file + rename); idempotent `stop()`.
+
+---
+
+## Security
+
+**Auth & ACL** — same model across all protocol servers:
+
+```js
+createMultiServer({
+  auth: {
+    admin:   { password: 'admin123', databases: ['*'] },
+    analyst: { password: 'ro123',    databases: ['app', 'reporting'] },
+  },
+});
+```
+
+`databases: ['*']` = all; failed auth: MySQL `Access denied` / PG `28000` / Redis `NOAUTH` /
+Mongo `Unauthorized`. `noAuth: true` is dev-only.
+
+**SQL injection protection** — parameterized queries everywhere; tokenizer-based parser
+(quote-escape and comment-bypass structurally impossible); `escapeId`/`??` for dynamic
+identifiers; dangerous functions (`SLEEP`, `LOAD_FILE`, `INTO OUTFILE`) rejected at parse time.
+
+**Dangerous statement detection** — `INTO OUTFILE`, `LOAD_FILE`, `SLEEP` → `ER_NOT_SUPPORTED`; path
+normalization on data dirs and import/export paths; Web UI db-name whitelist (no `..`, no `/`).
+
+---
+
+## Errors
+
+**MySQL-style codes** (`lib/errors.js`, 33 codes): `1049` unknown db, `1050` table exists,
+`1054` unknown column, `1062` duplicate entry, `1146` unknown table, `1064` parse error,
+`1115` not supported, `1364` no default, `1406` data too long, `1451/1452` FK errors,
+`3819` check violation, `1045` access denied, `1205` lock timeout, `1264` out of range,
+`1292` invalid date, `1007/1008` db exists/drop, plus view/trigger/plugin codes.
+
+**SQLSTATE** (PG protocol): `42P01` `42703` `23505` `23502` `23503` `22007` `42601` `23000`
+`3D000` — full table in the Chinese edition [SQLSTATE 错误映射](#sqlstate-错误映射).
+
+**JSQL_Error structure:**
+
+```js
+{
+  code: 'ER_NO_SUCH_TABLE',   // internal key
+  sqlState: '42P01',          // PG mapping (protocol layer)
+  mysqlCode: 1146,            // MySQL code (protocol layer)
+  message: "Table 'users' doesn't exist",
+  sql: 'SELECT * FROM users', // optional
+}
+```
+
+---
+
+## TypeScript
+
+Type declarations ship in `index.d.ts` — `Database`, `executeSQL`, all server factories,
+TUI, migration tools and compat layers are covered out of the box:
+
+```ts
+import { Database, executeSQL } from 'jsql-neo';
+import type { QueryResult, RowFilter } from 'jsql-neo';
+
+const db = new Database(':memory:');
+const res: QueryResult = await executeSQL(db, 'SELECT * FROM users WHERE id = ?', [1]);
+const rows = db.find('users', { age: { $gte: 18 } satisfies RowFilter });
+```
+
+---
+
+## Architecture
+
+### Module layout
+
+```
+jsql-neo/
+├── bin/jsql                  # CLI entry (yaggs framework)
+├── lib/
+│   ├── database.js           # ★ core: tables/indexes/txn/persistence
+│   ├── sql.js                # ★ SQL tokenizer/parser/executor
+│   ├── engine.js             #   engine abstraction (native/wasm/js)
+│   ├── native.js | wasm.js | js_engine.js
+│   ├── errors.js             #   MySQL-style error codes
+│   ├── mysql_server.js       #   MySQL wire protocol
+│   ├── pg_server.js          #   PG wire protocol (SCRAM/SQLSTATE)
+│   ├── mongo_server.js       #   Mongo wire protocol (OP_MSG/BSON/aggregation)
+│   ├── redis_server.js       #   Redis RESP2 (5 types/TTL/snapshots)
+│   ├── multiserver.js        #   multiprotocol sniffer/router
+│   ├── tui.js                #   zero-dep TUI
+│   ├── migrate.js            #   dump/JSON/CSV migration
+│   ├── mysql2_compat.js | nedb_compat.js | sqlite_compat.js
+│   └── wasm_client.js        #   browser WASM client
+├── index.js                  # ★ public API
+├── index.d.ts                # TypeScript declarations
+├── test/                     # test suite
+└── src/rust/                 # Rust engine source (native + wasm)
+```
+
+### Query pipeline
+
+```
+SQL text → tokenize() → parseSQL() (AST) → SQLExecutor.feed() (multi-statement)
+→ executeSelect() (index choice/join order) → Database.find/update/removeWhere (B-Tree or scan)
+→ result envelope { columns, types, rows, affectedRows, insertId }
+```
+
+Three parallel paths over one engine core: **SQL** (parser → Database), **document**
+(Mongo commands → `_match` filter → Database), **key-value** (Redis commands → key namespace).
+
+### How protocol layers share the engine
+
+Connections → protocol handlers (mysql/pg/mongo/redis) → `Database` instance pool (one per
+database, lazily created). Writes are serialized by an engine-level write lock; reads run in
+parallel; Redis keys live in a separate namespace; `close()` stops in reverse order
+(connections → engines → port).
+
+---
+
+## FAQ
+
+**Q: Do I need Rust to use it?** No — prebuilt native binaries ship with the package; the
+fallback chain covers everything else. `npm run build` is only for building from source.
+
+**Q: Windows/macOS/Linux?** Yes — prebuilt native binaries for all three (x64/arm64),
+plus WASM/JS fallback.
+
+**Q: File format?** Custom binary snapshots (optionally lz4/zstd compressed). Use
+`jsql export` (SQL/JSON/CSV) to interoperate with other tools.
+
+**Q: SQLite vs JSQL-NEO?** SQLite is a single-process file DB; JSQL-NEO adds real
+MySQL/PG/Mongo/Redis wire servers, browser WASM, and Mongo/Redis semantics — one package
+replaces four local services.
+
+**Q: How large can an in-memory DB be?** Bound by the JS heap (~2–4 GB by default).
+Use disk mode + indexes for large datasets, or `node --max-old-space-size=8192`.
+
+**Q: Concurrent writes safe?** Yes — engine-level write lock, lock-free parallel reads,
+atomic writes across all four protocols.
+
+**Q: Can multiple processes share one data dir?** No (no cross-process lock). Use server
+mode (one `jsql serve` process, many clients).
+
+**Q: Browsers can run servers?** No — browsers run the embedded WASM engine only; wire
+protocols need TCP (Node.js).
+
+**Q: Encryption?** Snapshot compression is built in; disk encryption via the filesystem
+(LUKS etc.).
+
+**Q: How to debug connection issues?** `--verbose` shows protocol detection; single-protocol
+mode rules out sniffing; `jsql tui --data-dir <dir>` verifies the data file directly.
+
+---
+
+## Benchmark
+
+```bash
+jsql bench --ops 100000 --concurrency 8
+```
+
+```
+Benchmark: 100,000 ops, concurrency 8, engine native
+  insert:  82,410 ops/s
+  select: 621,905 ops/s
+  update:  95,332 ops/s
+  delete: 108,244 ops/s
+  mixed:   89,673 ops/s
+```
+
+Tuning tips: disable `autoSave` and batch `flush()` for write-heavy loads; `insertMany` /
+multi-row VALUES; indexes for hot WHERE columns; projection instead of `SELECT *`; pagination
+for big results; connection pooling; larger `saveInterval` + compressed snapshots.
+
+---
+
+## Contributing
+
+```bash
+git clone https://github.com/vexify-org/JSQL-neo.git && cd JSQL-neo
+npm install && npm run build      # build Rust engine (optional)
+npm test                          # all tests
+npm run test:core                 # engine core
+npm run test:protocols            # protocol E2E (needs real drivers)
+npm run lint && npm run typecheck
+```
+
+Conventions: feature branch + PR; tests for new SQL/commands; Conventional Commits
+(`feat:` / `fix:` / `docs:`); new Mongo/Redis commands register in their command tables +
+`TYPE_SIGNATURES`; error handling reuses `lib/errors.js` keys; README stays in sync (bilingual).
+
+---
+
+## License
+
+MIT License — see the Chinese edition [License 许可证](#license-许可证) for the full text.
+
+---
+
+## Appendices A–Z
+
+The complete deep-dive material lives in the Chinese edition below. Index:
+
+| Appendix | Topic | Applies to |
+|---|---|---|
+| A | MySQL wire protocol internals (handshake, commands, resultset, prepared stmts, auth) | protocol devs |
+| B | PostgreSQL wire protocol internals (SCRAM flow, extended protocol, formats) | protocol devs |
+| C | Redis RESP internals (formats, wrongtype, snapshot layout) | protocol devs |
+| D | MongoDB wire internals (OP_MSG/OP_COMPRESSED layout, BSON codec, dispatch) | protocol devs |
+| E | Complete SQL grammar (EBNF) | everyone |
+| F | Full Database API signatures | Node devs |
+| G | 10 end-to-end recipes | everyone |
+| H | Per-function reference with examples | SQL users |
+| I | Full CLI options | ops/devs |
+| J | Deployment (systemd/Docker/PM2) | ops |
+| K | Environment variables & runtime config | ops/devs |
+| L | WASM & browser deep dive | frontend |
+| M | TUI programmatic API | tool devs |
+| N | CHANGELOG | everyone |
+| O | Migration guides from other databases | migration engineers |
+| P | SQL dialect differences (MySQL/PG/JSQL) | SQL users |
+| Q | Performance tuning | ops/architects |
+| R | Glossary | newcomers |
+| S | Test matrix | contributors |
+| T | Client connection references | everyone |
+| U | Full error-message catalog | troubleshooters |
+| V | JSON data-format spec | integrators |
+| W | Performance numbers | architects |
+| X | Contributors | contributors |
+| Y | Cheat sheets (SQL/Mongo/Redis/Node/CLI) | everyone |
+| Z | Links & resources | everyone |
+
+---
+
+*JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
+---
+
+## 中文版 Chinese Version
+
+> Code, tables and command examples are language-neutral and shared by both readers.
+
 ---
 
 ## 📑 目录 Table of Contents
