@@ -215,6 +215,19 @@ const cli = yaggs({ pkg: require('../package.json') })
       setInterval(() => {}, 1 << 30);
     } catch (e) { console.error(`Error: ${e.message}`); process.exitCode = 1; }
   })
+  .command('tui', 'Interactive SQL terminal (zero-dependency TUI)', (sub) => {
+    sub.option('data-dir', { alias: ['d'], type: 'string', description: 'Data directory (default: in-memory)' });
+    sub.option('db', { type: 'string', description: 'Database name (default: default)' });
+    sub.option('dialect', { alias: ['t'], type: 'string', description: 'SQL dialect: mysql|pg (default: mysql)' });
+  }, (argv) => {
+    const { createTUI } = require('../lib/tui');
+    const tui = createTUI({
+      dataDir: argv['data-dir'],
+      db: argv.db || 'default',
+      dialect: argv.dialect || 'mysql',
+    });
+    tui.run().catch((e) => { console.error(`Error: ${e.message}`); process.exit(1); });
+  })
   .command('redis', 'Run the Redis-compatible server', (sub) => {
     sub.option('port', { alias: ['p'], type: 'number', description: 'Listen port (default 6379)' });
     sub.option('host', { type: 'string', description: 'Listen host (default 127.0.0.1)' });
