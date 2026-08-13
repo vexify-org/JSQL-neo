@@ -25,7 +25,7 @@
 
 ---
 
-## English Version
+## English Version由li63050a协助完成
 
 **JSQL-NEO** is an embedded database that speaks your language: **MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, and the browser** — all in a single npm package with zero runtime dependencies.
 
