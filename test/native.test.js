@@ -100,6 +100,53 @@ function ok(name, cond, extra) {
     db2.close();
   }
 
+  /* ---------- non-auto pk: id resolution by pk value ---------- */
+  {
+    const db = new JSQL();
+    await db.start();
+    await db.createTable('config', { key: { type: 'string', primaryKey: true }, value: 'string' });
+    const ids = await db.insert('config', [{ key: 'a', value: '1' }, { key: 'b', value: '2' }]);
+    ok('non-auto pk insert returns pk values', JSON.stringify(ids) === JSON.stringify(['a', 'b']), ids);
+
+    const a = db.findById('config', 'a');
+    ok('findById resolves string pk', a && a.value === '1' && !('fields' in a), a);
+    ok('findById pk miss returns null', db.findById('config', 'nope') === null);
+
+    db.updateById('config', 'b', { value: '22' });
+    await new Promise(r => setTimeout(r, 150));
+    ok('updateById resolves string pk', db.findById('config', 'b').value === '22', db.findById('config', 'b'));
+
+    db.removeById('config', 'a');
+    await new Promise(r => setTimeout(r, 150));
+    ok('removeById resolves string pk', (await db.count('config')) === 1, await db.count('config'));
+
+    db.updateByIds('config', [['b', { value: '222' }]]);
+    await new Promise(r => setTimeout(r, 150));
+    ok('updateByIds resolves string pk', db.findById('config', 'b').value === '222', db.findById('config', 'b'));
+
+    db.removeByIds('config', ['b']);
+    await new Promise(r => setTimeout(r, 150));
+    ok('removeByIds resolves string pk', (await db.count('config')) === 0, await db.count('config'));
+    await db.stop();
+  }
+
+  /* ---------- transaction aliases (beginTransaction / rollback / commit) ---------- */
+  {
+    const db = new JSQL();
+    await db.start();
+    await db.createTable('tx', { id: 'integer primary key auto_increment', name: 'string' });
+    await db.insert('tx', { name: 'n1' });
+    await db.beginTransaction();
+    await db.insert('tx', { name: 'n2' });
+    await db.rollback();
+    ok('rollback reverts insert', (await db.count('tx')) === 1, await db.count('tx'));
+    await db.beginTransaction();
+    await db.insert('tx', { name: 'n3' });
+    await db.commit();
+    ok('commit keeps insert', (await db.count('tx')) === 2, await db.count('tx'));
+    await db.stop();
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })().catch(e => {
