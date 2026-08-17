@@ -4,6 +4,26 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [5.2.0-beta.1] — 2026-08-17
+
+### Changed
+
+- 版本号重新基线为 `5.2.0-beta.1`（package.json / Mongo `buildInfo` / README 同步）
+
+### Added
+
+- **主键感知的 by-id CRUD**：`findById` / `findByIds` / `updateById` / `updateByIds` /
+  `removeById` / `removeByIds` 在表存在主键时按主键值解析（字符串主键如
+  `findById('config', 'a')` 直接可用），与 `Database._resolveId` 语义一致
+- 非自增主键表 `insert` 返回值回填主键值（`insert('config', {key:'a'}) → ['a']`）
+- `NativeJSQL` 新增 `beginTransaction()` / `commit()` / `rollback()` 别名（自动跟踪 txId）
+- 原生/ WASM 客户端新增 9 个回归测试（字符串主键 CRUD + 事务回滚/提交）
+
+### Fixed
+
+- `findById` 返回嵌套 `{id, fields:{...}}` 结构的问题（表存在主键时）
+- `examples/playground` 依赖解析指向旧版 v5.1.2 副本的问题（重新 `npm install`）
+
 ## [5.3.1] — 2026-08-12
 
 ### Fixed
