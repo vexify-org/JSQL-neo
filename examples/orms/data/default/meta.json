@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "tables": {
+    "posts": {
+      "file": "posts.jsql",
+      "schema": {
+        "id": {
+          "type": "integer",
+          "unsigned": true,
+          "required": true,
+          "autoIncrement": true,
+          "primaryKey": true,
+          "unique": true
+        },
+        "title": {
+          "type": "string",
+          "length": 100,
+          "maxLength": 100,
+          "required": true
+        },
+        "likes": {
+          "type": "integer",
+          "default": "0"
+        }
+      }
+    },
+    "users": {
+      "file": "users.jsql",
+      "schema": {
+        "id": {
+          "type": "integer",
+          "required": true,
+          "autoIncrement": true,
+          "primaryKey": true
+        },
+        "name": {
+          "type": "string",
+          "length": 100,
+          "maxLength": 100,
+          "required": true
+        },
+        "age": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}
