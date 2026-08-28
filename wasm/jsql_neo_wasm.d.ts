@@ -1,6 +1,10 @@
 /* tslint:disable */
 /* eslint-disable */
 
+export function jsql_begin_tx(): string;
+
+export function jsql_commit_tx(tx_id: string): string;
+
 export function jsql_count(table: string): string;
 
 export function jsql_create_table(name: string, schema_json: string): string;
@@ -26,6 +30,8 @@ export function jsql_remove_by_id(table: string, id: bigint): string;
 export function jsql_remove_by_ids(table: string, ids_json: string): string;
 
 export function jsql_reset(): void;
+
+export function jsql_rollback_tx(tx_id: string): string;
 
 export function jsql_update_by_id(table: string, id: bigint, data_json: string): string;
 

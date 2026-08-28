@@ -1,6 +1,6 @@
 {
   "name": "jsql-neo-wasm",
-  "version": "0.1.0",
+  "version": "5.2.0-beta.1",
   "files": [
     "jsql_neo_wasm_bg.wasm",
     "jsql_neo_wasm.js",

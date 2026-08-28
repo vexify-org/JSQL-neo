@@ -1,12 +1,45 @@
-let wasm;
-
 /* @ts-self-types="./jsql_neo_wasm.d.ts" */
+
+/**
+ * @returns {string}
+ */
+export function jsql_begin_tx() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.jsql_begin_tx();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * @param {string} tx_id
+ * @returns {string}
+ */
+export function jsql_commit_tx(tx_id) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(tx_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.jsql_commit_tx(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
 
 /**
  * @param {string} table
  * @returns {string}
  */
-function jsql_count(table) {
+export function jsql_count(table) {
     let deferred2_0;
     let deferred2_1;
     try {
@@ -26,7 +59,7 @@ function jsql_count(table) {
  * @param {string} schema_json
  * @returns {string}
  */
-function jsql_create_table(name, schema_json) {
+export function jsql_create_table(name, schema_json) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -47,7 +80,7 @@ function jsql_create_table(name, schema_json) {
  * @param {string} name
  * @returns {string}
  */
-function jsql_drop_table(name) {
+export function jsql_drop_table(name) {
     let deferred2_0;
     let deferred2_1;
     try {
@@ -69,7 +102,7 @@ function jsql_drop_table(name) {
  * @param {number} offset
  * @returns {string}
  */
-function jsql_find(table, filter_json, limit, offset) {
+export function jsql_find(table, filter_json, limit, offset) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -91,7 +124,7 @@ function jsql_find(table, filter_json, limit, offset) {
  * @param {bigint} id
  * @returns {string}
  */
-function jsql_find_by_id(table, id) {
+export function jsql_find_by_id(table, id) {
     let deferred2_0;
     let deferred2_1;
     try {
@@ -111,7 +144,7 @@ function jsql_find_by_id(table, id) {
  * @param {string} ids_json
  * @returns {string}
  */
-function jsql_find_by_ids(table, ids_json) {
+export function jsql_find_by_ids(table, ids_json) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -133,7 +166,7 @@ function jsql_find_by_ids(table, ids_json) {
  * @param {string} data_json
  * @returns {string}
  */
-function jsql_insert(table, data_json) {
+export function jsql_insert(table, data_json) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -155,7 +188,7 @@ function jsql_insert(table, data_json) {
  * @param {Uint8Array} data
  * @returns {string}
  */
-function jsql_insert_buf(table, data) {
+export function jsql_insert_buf(table, data) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -177,7 +210,7 @@ function jsql_insert_buf(table, data) {
  * @param {Uint8Array} data
  * @returns {string}
  */
-function jsql_insert_buf_count(table, data) {
+export function jsql_insert_buf_count(table, data) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -199,7 +232,7 @@ function jsql_insert_buf_count(table, data) {
  * @param {string} json
  * @returns {string}
  */
-function jsql_insert_json(table, json) {
+export function jsql_insert_json(table, json) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -221,7 +254,7 @@ function jsql_insert_json(table, json) {
  * @param {bigint} id
  * @returns {string}
  */
-function jsql_remove_by_id(table, id) {
+export function jsql_remove_by_id(table, id) {
     let deferred2_0;
     let deferred2_1;
     try {
@@ -241,7 +274,7 @@ function jsql_remove_by_id(table, id) {
  * @param {string} ids_json
  * @returns {string}
  */
-function jsql_remove_by_ids(table, ids_json) {
+export function jsql_remove_by_ids(table, ids_json) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -258,8 +291,27 @@ function jsql_remove_by_ids(table, ids_json) {
     }
 }
 
-function jsql_reset() {
+export function jsql_reset() {
     wasm.jsql_reset();
+}
+
+/**
+ * @param {string} tx_id
+ * @returns {string}
+ */
+export function jsql_rollback_tx(tx_id) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(tx_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.jsql_rollback_tx(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
 }
 
 /**
@@ -268,7 +320,7 @@ function jsql_reset() {
  * @param {string} data_json
  * @returns {string}
  */
-function jsql_update_by_id(table, id, data_json) {
+export function jsql_update_by_id(table, id, data_json) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -290,7 +342,7 @@ function jsql_update_by_id(table, id, data_json) {
  * @param {string} batch_json
  * @returns {string}
  */
-function jsql_update_by_ids(table, batch_json) {
+export function jsql_update_by_ids(table, batch_json) {
     let deferred3_0;
     let deferred3_1;
     try {
@@ -423,7 +475,15 @@ function passStringToWasm0(arg, malloc, realloc) {
 
 let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
 cachedTextDecoder.decode();
+const MAX_SAFARI_DECODE_BYTES = 2146435072;
+let numBytesDecoded = 0;
 function decodeText(ptr, len) {
+    numBytesDecoded += len;
+    if (numBytesDecoded >= MAX_SAFARI_DECODE_BYTES) {
+        cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+        cachedTextDecoder.decode();
+        numBytesDecoded = len;
+    }
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
 
@@ -442,21 +502,96 @@ if (!('encodeInto' in cachedTextEncoder)) {
 
 let WASM_VECTOR_LEN = 0;
 
-
-
-export async function init(input) {
-  cachedDataViewMemory0 = null;
-  cachedUint8ArrayMemory0 = null;
-  let bytes;
-  if (input instanceof Uint8Array) bytes = input;
-  else if (input instanceof ArrayBuffer) bytes = new Uint8Array(input);
-  else if (input instanceof Response) bytes = new Uint8Array(await input.arrayBuffer());
-  else if (input instanceof WebAssembly.Module) { wasm = new WebAssembly.Instance(input, __wbg_get_imports()).exports; wasm.__wbindgen_start(); return wasm; }
-  else bytes = new Uint8Array(await (await fetch(input || new URL('./jsql_neo_wasm_bg.wasm', import.meta.url))).arrayBuffer());
-  const result = await WebAssembly.instantiate(bytes, __wbg_get_imports());
-  wasm = result.instance.exports;
-  wasm.__wbindgen_start();
-  return wasm;
+let wasmModule, wasmInstance, wasm;
+function __wbg_finalize_init(instance, module) {
+    wasmInstance = instance;
+    wasm = instance.exports;
+    wasmModule = module;
+    cachedDataViewMemory0 = null;
+    cachedUint8ArrayMemory0 = null;
+    wasm.__wbindgen_start();
+    return wasm;
 }
 
-export { jsql_count, jsql_create_table, jsql_drop_table, jsql_find, jsql_find_by_id, jsql_find_by_ids, jsql_insert, jsql_insert_buf, jsql_insert_buf_count, jsql_insert_json, jsql_remove_by_id, jsql_remove_by_ids, jsql_reset, jsql_update_by_id, jsql_update_by_ids, __wbg_get_imports };
+async function __wbg_load(module, imports) {
+    if (typeof Response === 'function' && module instanceof Response) {
+        if (typeof WebAssembly.instantiateStreaming === 'function') {
+            try {
+                return await WebAssembly.instantiateStreaming(module, imports);
+            } catch (e) {
+                const validResponse = module.ok && expectedResponseType(module.type);
+
+                if (validResponse && module.headers.get('Content-Type') !== 'application/wasm') {
+                    console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
+
+                } else { throw e; }
+            }
+        }
+
+        const bytes = await module.arrayBuffer();
+        return await WebAssembly.instantiate(bytes, imports);
+    } else {
+        const instance = await WebAssembly.instantiate(module, imports);
+
+        if (instance instanceof WebAssembly.Instance) {
+            return { instance, module };
+        } else {
+            return instance;
+        }
+    }
+
+    function expectedResponseType(type) {
+        switch (type) {
+            case 'basic': case 'cors': case 'default': return true;
+        }
+        return false;
+    }
+}
+
+function initSync(module) {
+    if (wasm !== undefined) return wasm;
+
+
+    if (module !== undefined) {
+        if (Object.getPrototypeOf(module) === Object.prototype) {
+            ({module} = module)
+        } else {
+            console.warn('using deprecated parameters for `initSync()`; pass a single object instead')
+        }
+    }
+
+    const imports = __wbg_get_imports();
+    if (!(module instanceof WebAssembly.Module)) {
+        module = new WebAssembly.Module(module);
+    }
+    const instance = new WebAssembly.Instance(module, imports);
+    return __wbg_finalize_init(instance, module);
+}
+
+async function __wbg_init(module_or_path) {
+    if (wasm !== undefined) return wasm;
+
+
+    if (module_or_path !== undefined) {
+        if (Object.getPrototypeOf(module_or_path) === Object.prototype) {
+            ({module_or_path} = module_or_path)
+        } else {
+            console.warn('using deprecated parameters for the initialization function; pass a single object instead')
+        }
+    }
+
+    if (module_or_path === undefined) {
+        module_or_path = new URL('jsql_neo_wasm_bg.wasm', import.meta.url);
+    }
+    const imports = __wbg_get_imports();
+
+    if (typeof module_or_path === 'string' || (typeof Request === 'function' && module_or_path instanceof Request) || (typeof URL === 'function' && module_or_path instanceof URL)) {
+        module_or_path = fetch(module_or_path);
+    }
+
+    const { instance, module } = await __wbg_load(await module_or_path, imports);
+
+    return __wbg_finalize_init(instance, module);
+}
+
+export { initSync, __wbg_init as default };

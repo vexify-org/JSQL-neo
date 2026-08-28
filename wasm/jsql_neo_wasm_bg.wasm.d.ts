@@ -1,6 +1,8 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const jsql_begin_tx: () => [number, number];
+export const jsql_commit_tx: (a: number, b: number) => [number, number];
 export const jsql_count: (a: number, b: number) => [number, number];
 export const jsql_create_table: (a: number, b: number, c: number, d: number) => [number, number];
 export const jsql_drop_table: (a: number, b: number) => [number, number];
@@ -13,6 +15,7 @@ export const jsql_insert_buf_count: (a: number, b: number, c: number, d: number)
 export const jsql_insert_json: (a: number, b: number, c: number, d: number) => [number, number];
 export const jsql_remove_by_id: (a: number, b: number, c: bigint) => [number, number];
 export const jsql_remove_by_ids: (a: number, b: number, c: number, d: number) => [number, number];
+export const jsql_rollback_tx: (a: number, b: number) => [number, number];
 export const jsql_update_by_id: (a: number, b: number, c: bigint, d: number, e: number) => [number, number];
 export const jsql_update_by_ids: (a: number, b: number, c: number, d: number) => [number, number];
 export const jsql_reset: () => void;

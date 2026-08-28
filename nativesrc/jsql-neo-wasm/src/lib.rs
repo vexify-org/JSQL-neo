@@ -421,3 +421,27 @@ pub fn jsql_find_by_ids(table: &str, ids_json: &str) -> String {
         }
     })
 }
+
+#[wasm_bindgen]
+pub fn jsql_begin_tx() -> String {
+    ENGINE.with(|eng| match eng.borrow_mut().begin_tx() {
+        Ok(tx_id) => serde_json::json!({ "ok": true, "txId": tx_id }).to_string(),
+        Err(e) => format!(r#"{{"ok":false,"error":"{}"}}"#, e),
+    })
+}
+
+#[wasm_bindgen]
+pub fn jsql_commit_tx(tx_id: &str) -> String {
+    ENGINE.with(|eng| match eng.borrow_mut().commit_tx(tx_id) {
+        Ok(()) => r#"{"ok":true}"#.to_string(),
+        Err(e) => format!(r#"{{"ok":false,"error":"{}"}}"#, e),
+    })
+}
+
+#[wasm_bindgen]
+pub fn jsql_rollback_tx(tx_id: &str) -> String {
+    ENGINE.with(|eng| match eng.borrow_mut().rollback_tx(tx_id) {
+        Ok(()) => r#"{"ok":true}"#.to_string(),
+        Err(e) => format!(r#"{{"ok":false,"error":"{}"}}"#, e),
+    })
+}

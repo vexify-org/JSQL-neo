@@ -12,12 +12,17 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Added
 
+- **WASM 事务支持**：`jsql-neo-wasm` 新增 `jsql_begin_tx` / `jsql_commit_tx` / `jsql_rollback_tx`
+  绑定，`JSQL`（WASM 客户端）新增 `beginTransaction()` / `commit()` / `rollback()` 别名，
+  与 `NativeJSQL` 事务行为一致
 - **主键感知的 by-id CRUD**：`findById` / `findByIds` / `updateById` / `updateByIds` /
   `removeById` / `removeByIds` 在表存在主键时按主键值解析（字符串主键如
   `findById('config', 'a')` 直接可用），与 `Database._resolveId` 语义一致
 - 非自增主键表 `insert` 返回值回填主键值（`insert('config', {key:'a'}) → ['a']`）
+- **整串简写 schema**：`createTable(name, 'id integer primary key auto_increment, name string')`
+  逗号分隔整串直接可用（原生 + WASM）
 - `NativeJSQL` 新增 `beginTransaction()` / `commit()` / `rollback()` 别名（自动跟踪 txId）
-- 原生/ WASM 客户端新增 9 个回归测试（字符串主键 CRUD + 事务回滚/提交）
+- 新增 `test/wasm.test.js`（20 项：CRUD / 主键 / 主键回填 / 整串简写 / 事务），并纳入 `test:all`
 
 ### Fixed
 
