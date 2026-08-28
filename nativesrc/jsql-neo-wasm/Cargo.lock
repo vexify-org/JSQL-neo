@@ -171,7 +171,7 @@ dependencies = [
 
 [[package]]
 name = "jsql-neo-core"
-version = "0.1.0"
+version = "5.2.0-beta.1"
 dependencies = [
  "bincode",
  "chrono",
@@ -187,7 +187,7 @@ dependencies = [
 
 [[package]]
 name = "jsql-neo-wasm"
-version = "0.1.0"
+version = "5.2.0-beta.1"
 dependencies = [
  "js-sys",
  "jsql-neo-core",

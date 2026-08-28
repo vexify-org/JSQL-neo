@@ -1,6 +1,43 @@
 /* @ts-self-types="./jsql_neo_wasm.d.ts" */
 
 /**
+ * @returns {string}
+ */
+function jsql_begin_tx() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.jsql_begin_tx();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+exports.jsql_begin_tx = jsql_begin_tx;
+
+/**
+ * @param {string} tx_id
+ * @returns {string}
+ */
+function jsql_commit_tx(tx_id) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(tx_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.jsql_commit_tx(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+exports.jsql_commit_tx = jsql_commit_tx;
+
+/**
  * @param {string} table
  * @returns {string}
  */
@@ -272,6 +309,26 @@ function jsql_reset() {
     wasm.jsql_reset();
 }
 exports.jsql_reset = jsql_reset;
+
+/**
+ * @param {string} tx_id
+ * @returns {string}
+ */
+function jsql_rollback_tx(tx_id) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(tx_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.jsql_rollback_tx(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+exports.jsql_rollback_tx = jsql_rollback_tx;
 
 /**
  * @param {string} table

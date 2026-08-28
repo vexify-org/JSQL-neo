@@ -59,6 +59,10 @@ function ok(name, cond, extra) {
     await db.insert('t3', { id: 7, name: 'b' });
     ok('snake_case pk respected', db.findById('t3', 7).name === 'b', db.findById('t3', 7));
     ok('explicit pk bumps next id', db.findById('t3', 1).name === 'a');
+
+    await db.createTable('cfg', 'key string primary key, value string');
+    const cfgIds = await db.insert('cfg', { key: 'a', value: '1' });
+    ok('full shorthand string schema', cfgIds[0] === 'a' && db.findById('cfg', 'a').value === '1', cfgIds);
     await db.stop();
   }
 
