@@ -5,3 +5,4 @@ bench/report.md
 examples/orms/node_modules/
 examples/orms/data/examples/playground/node_modules/
 nativesrc/**/target/
+bin/jsql-neo-server
