@@ -1,0 +1,86 @@
+{
+  "name": "jsql-neo",
+  "version": "5.4.0",
+  "description": "JSQL-NEO — Rust-powered embedded database with WASM, REST API, B-Tree indexes, WAL, crash recovery",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "browser": "./wasm/browser.mjs",
+      "import": "./index.js",
+      "require": "./index.js",
+      "default": "./index.js"
+    },
+    "./cli": "./bin/jsql",
+    "./mysql2": "./lib/mysql_compat.js",
+    "./mysql": "./lib/mysql_compat.js",
+    "./wasm/browser.mjs": {
+      "types": "./wasm/browser.d.ts",
+      "default": "./wasm/browser.mjs"
+    },
+    "./wasm/browser.d.ts": "./wasm/browser.d.ts",
+    "./wasm/*": "./wasm/*",
+    "./lib/*.js": "./lib/*.js",
+    "./lib/*": "./lib/*.js",
+    "./package.json": "./package.json",
+    "./sqlite": "./lib/sqlite_compat.js"
+  },
+  "bin": {
+    "jsql": "./bin/jsql"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "lib/",
+    "bin/",
+    "wasm/",
+    "native/",
+    "nativesrc/",
+    "!nativesrc/**/target/",
+    "postinstall.js",
+    "test/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "postinstall": "node postinstall.js",
+    "test": "node test/smoke.js",
+    "test:btree": "node test/btree.test.js",
+    "test:native": "node test/native.test.js",
+    "test:regress": "node test/regress-5.1.0.js",
+    "test:all": "node test/smoke.js && node test/native.test.js && node test/wasm.test.js && node test/coverage.js && node test/regress-5.1.0.js && node test/join.test.js && node test/btree.test.js",
+    "test:coverage": "c8 --all --include='lib/**' --exclude='lib/mysql_server.js' --exclude='lib/native_client.js' --exclude='lib/wasm_client.js' --exclude='lib/mysql_compat.js' --exclude='lib/nedb_compat.js' --exclude='lib/plugin.js' --reporter=text --reporter=lcov node test/coverage.js",
+    "test:orms": "node examples/orms/run-all.js"
+  },
+  "keywords": [
+    "database",
+    "sql",
+    "embedded",
+    "rust",
+    "wasm",
+    "json",
+    "javascript",
+    "jsql",
+    "nosql",
+    "rest-api",
+    "high-performance"
+  ],
+  "author": "Vexify",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vexify-org/JSQL-neo.git"
+  },
+  "bugs": "https://github.com/vexify-org/JSQL-neo/issues",
+  "homepage": "https://github.com/vexify-org/JSQL-neo#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "@vexify-org/yaggs": "^8.1.0"
+  },
+  "devDependencies": {
+    "c8": "^10.1.2"
+  }
+}

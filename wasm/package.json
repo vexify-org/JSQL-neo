@@ -1,0 +1,11 @@
+{
+  "name": "jsql-neo-wasm",
+  "version": "5.4.0",
+  "files": [
+    "jsql_neo_wasm_bg.wasm",
+    "jsql_neo_wasm.js",
+    "jsql_neo_wasm.d.ts"
+  ],
+  "main": "jsql_neo_wasm.js",
+  "types": "jsql_neo_wasm.d.ts"
+}
