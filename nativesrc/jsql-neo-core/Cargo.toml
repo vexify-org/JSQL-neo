@@ -1,6 +1,6 @@
 [package]
 name = "jsql-neo-core"
-version = "5.2.0-beta.1"
+version = "5.4.0"
 edition = "2021"
 description = "Embedded database engine — core library (supports WASM)"
 

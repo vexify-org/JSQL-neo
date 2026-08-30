@@ -4,6 +4,22 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [5.4.0] — 2026-08-30
+
+### Added
+
+- **WASM 事务支持**：`jsql_begin_tx` / `jsql_commit_tx` / `jsql_rollback_tx` 绑定，
+  WASM 客户端 `beginTransaction()` / `commit()` / `rollback()` 与 `NativeJSQL` 一致
+- **整串简写 schema**：`createTable(name, 'id integer primary key auto_increment, name string')`
+- `test/wasm.test.js`（20 项）纳入 `test:all`，`test:all` 补入 `test/join.test.js`
+
+### Changed
+
+- 版本号升至 5.4.0（package.json / Cargo.toml / Mongo `buildInfo` / README 同步）
+- 仓库瘦身：移除 `nativesrc/*/target/`（1155 个构建产物）、`bin/jsql-neo-server`（ELF）、
+  根级 `database.js`/`btree.js` 副本、`lib/compress_pool.js` / `lib/compress_worker.js`（死代码）、
+  `bench/report.md`（生成产物）；`.gitignore` 补全 `bin/jsql-neo-server`
+
 ## [5.2.0-beta.1] — 2026-08-17
 
 ### Changed
