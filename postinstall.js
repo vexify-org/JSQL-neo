@@ -79,26 +79,45 @@ function buildNativeFromSource() {
   }
 }
 
-async function ensureNativeNode() {
-  if (fs.existsSync(NATIVE_PATH)) {
+// 尝试加载 native 模块；能成功 require 才算「可用」，否则视为不可用
+function tryLoadNative() {
+  if (!fs.existsSync(NATIVE_PATH)) return false;
+  try {
+    require(NATIVE_PATH);
     fs.chmodSync(NATIVE_PATH, 0o755);
-    console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
-    return;
+    return true;
+  } catch (e) {
+    console.warn(`[jsql-neo] existing native module cannot be loaded (${e.code || e.message}), will re-acquire.`);
+    try { fs.unlinkSync(NATIVE_PATH); } catch (_) { /* ignore */ }
+    return false;
   }
+}
 
-  // 优先从 GitHub Release 通过 gh-proxy.com 加速下载预编译的 .node 二进制
+async function downloadAndVerify() {
   const asset = `jsql-neo-native.${nativeTargetSuffix()}.node`;
   const url = `${GHPROXY}https://github.com/${REPO}/releases/download/${TAG}/${asset}`;
   console.log(`[jsql-neo] downloading native module: ${url}`);
   try {
     await download(url, NATIVE_PATH);
-    fs.chmodSync(NATIVE_PATH, 0o755);
+    if (!tryLoadNative()) {
+      console.warn('[jsql-neo] downloaded module also invalid, removed.');
+      return false;
+    }
     console.log('[jsql-neo] native module downloaded: native/jsql-neo-native.node');
-    return;
+    return true;
   } catch (e) {
     console.warn('[jsql-neo] download failed, falling back to source build:', e.message);
+    return false;
   }
+}
 
+async function ensureNativeNode() {
+  // 已存在且能加载 → 直接用；否则删掉并从 gh-proxy.com 下载，找不到才回退源码编译
+  if (tryLoadNative()) {
+    console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
+    return;
+  }
+  if (await downloadAndVerify()) return;
   buildNativeFromSource();
 }
 
