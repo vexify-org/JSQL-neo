@@ -1,0 +1,59 @@
+name: Build native .node binaries
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-native:
+    name: Build ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            lib: lib
+            ext: .so
+            asset: jsql-neo-native.linux-x64-gnu.node
+          - os: macos-13
+            target: x86_64-apple-darwin
+            lib: lib
+            ext: .dylib
+            asset: jsql-neo-native.darwin-x64.node
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            lib: lib
+            ext: .dylib
+            asset: jsql-neo-native.darwin-arm64.node
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            lib: ''
+            ext: .dll
+            asset: jsql-neo-native.win32-x64-msvc.node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build native module (cargo + napi)
+        shell: bash
+        run: |
+          cd nativesrc/jsql-neo-native
+          cargo build --release --target "${{ matrix.target }}"
+          cp "target/${{ matrix.target }}/release/${{ matrix.lib }}jsql_neo_native${{ matrix.ext }}" "../../${{ matrix.asset }}"
+      - name: Smoke check (Node loads it)
+        shell: bash
+        run: node -e "require('./${{ matrix.asset }}') && console.log('load ok')"
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ matrix.asset }}
+          fail_on_unmatched_files: true
