@@ -97,7 +97,7 @@ jobs:
 
       # 一个 job 一次性上传，不会再有 race condition
       - name: Upload release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*.node
           fail_on_unmatched_files: true
