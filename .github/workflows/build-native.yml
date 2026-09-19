@@ -22,16 +22,14 @@ jobs:
             lib: lib
             ext: .so
             asset: jsql-neo-native.linux-x64-gnu.node
-          - os: macos-13
-            target: x86_64-apple-darwin
-            lib: lib
-            ext: .dylib
-            asset: jsql-neo-native.darwin-x64.node
+          # 删掉 macos-13 Intel 那条！！
           - os: macos-latest
-            target: aarch64-apple-darwin
+            targets: ["aarch64-apple-darwin", "x86_64-apple-darwin"]
             lib: lib
             ext: .dylib
-            asset: jsql-neo-native.darwin-arm64.node
+            assets:
+              - jsql-neo-native.darwin-arm64.node
+              - jsql-neo-native.darwin-x64.node
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             lib: ''
@@ -42,21 +40,47 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust targets for mac
+        if: matrix.os == 'macos-latest'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ join(matrix.targets, ',') }}
+      - name: Install single Rust target
+        if: matrix.os != 'macos-latest'
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
       - name: Build native module (cargo + napi)
         shell: bash
         run: |
           cd nativesrc/jsql-neo-native
+          ${{ matrix.os == 'macos-latest' && '
+          for t in ${{ join(matrix.targets, ' ') }}; do
+            cargo build --release --target "$t"
+          done
+          # copy arm64
+          cp "target/aarch64-apple-darwin/release/libjsql_neo_native.dylib" "../../jsql-neo-native.darwin-arm64.node"
+          # copy x64
+          cp "target/x86_64-apple-darwin/release/libjsql_neo_native.dylib" "../../jsql-neo-native.darwin-x64.node"
+          ' || '
           cargo build --release --target "${{ matrix.target }}"
           cp "target/${{ matrix.target }}/release/${{ matrix.lib }}jsql_neo_native${{ matrix.ext }}" "../../${{ matrix.asset }}"
-      - name: Smoke check (Node loads it)
+          ' }}
+
+      - name: Smoke check
         shell: bash
-        run: node -e "require('./${{ matrix.asset }}') && console.log('load ok')"
+        run: |
+          ${{ matrix.os == 'macos-latest' && '
+          node -e "require(\'./jsql-neo-native.darwin-arm64.node\') && console.log(\'arm64 load ok\')"
+          node -e "require(\'./jsql-neo-native.darwin-x64.node\') && console.log(\'x64 load ok\')"
+          ' || '
+          node -e "require(\'./${{ matrix.asset }}\') && console.log(\'load ok\')"
+          ' }}
+
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: ${{ matrix.asset }}
+          files: ${{ matrix.os == 'macos-latest' && join(matrix.assets, '\n') || matrix.asset }}
           fail_on_unmatched_files: true
