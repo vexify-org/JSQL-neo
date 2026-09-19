@@ -13,30 +13,55 @@ jobs:
   build-native:
     name: Build ${{ matrix.asset }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
+          # ===== Linux glibc =====
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             lib: lib
             ext: .so
             asset: jsql-neo-native.linux-x64-gnu.node
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            lib: lib
+            ext: .so
+            asset: jsql-neo-native.linux-arm64-gnu.node
+
+          # ===== Linux musl (Alpine) =====
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            lib: lib
+            ext: .so
+            asset: jsql-neo-native.linux-x64-musl.node
+            musl: true
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            lib: lib
+            ext: .so
+            asset: jsql-neo-native.linux-arm64-musl.node
+            musl: true
+
+          # ===== macOS =====
           - os: macos-latest
             target: aarch64-apple-darwin
             lib: lib
             ext: .dylib
             asset: jsql-neo-native.darwin-arm64.node
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            lib: lib
-            ext: .dylib
-            asset: jsql-neo-native.darwin-x64.node
+
+          # ===== Windows =====
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             lib: ''
             ext: .dll
             asset: jsql-neo-native.win32-x64-msvc.node
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            lib: ''
+            ext: .dll
+            asset: jsql-neo-native.win32-arm64-msvc.node
 
     steps:
       - uses: actions/checkout@v5
@@ -50,18 +75,19 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # 缓存 cargo 依赖 + 构建产物（按 target 分桶，避免串味）
+      # musl 需要额外装链接器
+      - name: Install musl tools
+        if: matrix.musl
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
       - name: Cache cargo
-        uses: actions/cache@v5
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            nativesrc/jsql-neo-native/target
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('nativesrc/jsql-neo-native/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-cargo-
+          workspaces: nativesrc/jsql-neo-native -> target
+          key: ${{ matrix.target }}
 
       - name: Build
         shell: bash
@@ -72,11 +98,21 @@ jobs:
           cp "target/${{ matrix.target }}/release/${{ matrix.lib }}jsql_neo_native${{ matrix.ext }}" \
              "../../${{ matrix.asset }}"
 
+      # musl 产物不能在 glibc 宿主上直接 require，只能做"文件存在"检查
       - name: Smoke load test
+        if: ${{ !matrix.musl }}
         shell: bash
         run: |
           set -euo pipefail
           node -e "require('./${{ matrix.asset }}'); console.log('${{ matrix.asset }} load ok')"
+
+      - name: Verify artifact (musl)
+        if: matrix.musl
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lh "${{ matrix.asset }}"
+          file "${{ matrix.asset }}" | grep -q "ELF"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
