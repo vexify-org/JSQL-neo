@@ -106,6 +106,12 @@ declare namespace JSQLNeo {
     hasTable(name: string): Promise<boolean>;
     getTables(): Promise<string[]>;
     getTableSchema(name: string): Promise<Schema | null>;
+    /**
+     * 直接执行原生 SQL（本实例即充当 engine）。
+     * @example await db.query("SELECT * FROM users WHERE age > ?", [21])
+     * @returns 单条语句返回单个结果对象（含 columns/rows），多条返回数组。
+     */
+    query(sql: string, paramsOrOpts?: unknown[] | Record<string, unknown>, opts?: Record<string, unknown>): Promise<any>;
   }
 
   export class NativeJSQL extends JSQL {}
