@@ -4,6 +4,57 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [5.6.0] — 2026-09-19
+
+### Fixed
+
+- **相关子查询静默返回 null**（数据正确性问题）：README 首页示例
+  `SELECT name, (SELECT COUNT(*) FROM orders o WHERE o.uid = u.id) FROM users u`
+  能解析通过，但每一行的计数都是 `null`。根因是相关性支持只做在 `EXISTS` 上
+  （`ctx.__outer` 逐行注入），SELECT 列表里的标量子查询与 `IN (SELECT ...)`
+  走 `_materialize` 只求值一次、拿不到外层行，且 `_materialize` 会 `delete expr.select`
+  使节点无法重算。现在统一为 `_collectSubqueries` + `_isCorrelated` + `_evalCorrelated`：
+  只有引用了外层别名的子查询才逐行重算（非相关子查询仍只算一次），
+  SELECT 列表通过新增的 `_projectRows` 做"求值一行、投影一行"交错处理
+- **`WHERE (SELECT ...) > 2` 解析失败**：`parseNot` 把 `(SELECT` 当成普通括号分组，
+  现在先探测 `(SELECT` 再决定是否走分组分支
+- **非相关标量子查询未求值**：`statement.columns[].scalar` 从未进入 `_materialize`，
+  现已纳入
+
+### Added
+
+- **`FULL OUTER JOIN`**（left 与 right 未匹配行都保留）
+- **`RETURNING`**：用于 `INSERT` / `UPDATE` / `DELETE`，结果挂在返回对象的
+  `returning: { columns, rows }` 上（同时填充 `columns` / `rows`）
+- **冲突处理策略统一**：`INSERT IGNORE`、`REPLACE INTO`、
+  `INSERT ... ON CONFLICT (cols) DO NOTHING | DO UPDATE SET ...`，
+  与既有 `ON DUPLICATE KEY UPDATE` 归一为 `_conflictAction()` 的
+  四个动作（throw / ignore / update / replace）；`ignore` 会返回 `duplicateSkipped`
+- **`CREATE [OR REPLACE] VIEW` / `DROP VIEW [IF EXISTS]`**：视图定义存于
+  `engine._views`，查询时由 `_expandViews()` 内联为 FROM 子查询（可嵌套，深度上限 16）
+- **`EXPLAIN [ANALYZE] <stmt>`**：输出 `step` / `detail` 两列的计划结构
+  （无代价模型，只展示扫描/连接/过滤/聚合/排序/限制等步骤）
+- **`WITH ROLLUP`**：在分组结果末尾追加汇总行（分组列置 NULL，聚合列覆盖全部行）
+- **`CAST(expr AS <type>)`**：支持 INTEGER/BIGINT/TINYINT、FLOAT/DOUBLE/DECIMAL、
+  BOOLEAN、TEXT/VARCHAR/CHAR/STRING，以及 `VARCHAR(10)` 这类带长度写法
+- **`ILIKE`**（PG 方言，大小写不敏感 LIKE），含 `NOT ILIKE`
+- **`= ANY (SELECT ...)` / `> ALL (SELECT ...)`**（含 `SOME`）
+- **`ORDER BY <表达式>`**：支持 `ORDER BY a + b DESC`、`ORDER BY UPPER(name)`；
+  纯列名仍解析为字符串形态，不影响既有下游
+- **`FETCH FIRST|NEXT n ROWS ONLY`**：SQL 标准的 LIMIT 写法
+- **`SAVEPOINT` / `RELEASE SAVEPOINT` / `ROLLBACK TO SAVEPOINT`**：前两者解析并登记，
+  **`ROLLBACK TO` 会明确报错**——引擎没有保存点/快照能力，静默假成功比报错更危险
+- `test/sql-parser.test.js` 扩充到 **133 项**（新增 50 项覆盖以上全部能力）
+
+### Changed
+
+- 版本号升至 5.6.0
+- `parseStatement` 允许「未进关键字表」的语句起始词（`EXPLAIN` / `SAVEPOINT` / `RELEASE`），
+  按上下文识别；这些词刻意不进 KEYWORDS，以免影响同名标识符
+- `parseFromItem` 的表别名排除表补入 `FULL` / `OUTER` / `FETCH` / `RETURNING` / `WINDOW`，
+  修复 `FROM t FETCH FIRST ...` 里 FETCH 被当成别名吃掉的问题
+- README 中 `SAVEPOINT` 一节改为如实说明：解析支持，但 `ROLLBACK TO` 因引擎无快照能力而不支持
+
 ## [5.5.0] — 2026-09-19
 
 ### Added

@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser. **And it fits in one npm package.**
 
-> **v5.5.0** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
+> **v5.6.0** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -232,7 +232,7 @@ npm install && npm run build                 # option 3: from source
 Verify:
 
 ```bash
-node -e "console.log(require('jsql-neo/package.json').version)"   # 5.5.0
+node -e "console.log(require('jsql-neo/package.json').version)"   # 5.6.0
 ```
 
 ### 30-second demo
@@ -850,6 +850,63 @@ FROM table_reference
 [RETURNING ...]
 ```
 
+**表达式与函数** — `CAST(expr AS type)`（INTEGER / FLOAT / DECIMAL / BOOLEAN / TEXT 等，
+支持 `VARCHAR(10)` 带长度写法）；`LIKE` / `ILIKE`（大小写不敏感）/ `REGEXP` / `RLIKE`；
+`= ANY (SELECT ...)` / `> ALL (SELECT ...)`（含 `SOME`）；
+`ORDER BY <表达式>`（如 `ORDER BY sal * 12 DESC`、`ORDER BY UPPER(name)`）。
+
+```sql
+SELECT CAST(sal AS TEXT) AS s, CAST(ratio AS FLOAT) AS r FROM emp;
+SELECT name FROM users WHERE name ILIKE 'a%';            -- 大小写不敏感
+SELECT name FROM emp WHERE sal > ALL (SELECT sal FROM emp WHERE dept = 'ops');
+SELECT name FROM emp ORDER BY sal * 12 DESC;
+SELECT name FROM emp FETCH FIRST 10 ROWS ONLY;            -- 等价于 LIMIT 10
+```
+
+**分组汇总** — `GROUP BY ... WITH ROLLUP` 会在结果末尾追加一行汇总
+（分组列置 `NULL`，聚合列覆盖全部行）：
+
+```sql
+SELECT dept, SUM(sal) AS total FROM emp GROUP BY dept WITH ROLLUP;
+-- [['eng', 300], ['ops', 300], [null, 600]]
+```
+
+**写入冲突处理** — 四种写法统一处理主键/唯一键冲突：
+
+| 写法 | 冲突时行为 | 返回字段 |
+|---|---|---|
+| 默认 | 抛 `ER_DUP_ENTRY` | — |
+| `INSERT IGNORE` | 跳过冲突行 | `duplicateSkipped` |
+| `ON CONFLICT (col) DO NOTHING` | 跳过冲突行 | `duplicateSkipped` |
+| `ON DUPLICATE KEY UPDATE ...` / `ON CONFLICT (col) DO UPDATE SET ...` | 更新已有行 | `duplicateUpdated` |
+| `REPLACE INTO` | 删除旧行后插入新行 | — |
+
+**`RETURNING`** — `INSERT` / `UPDATE` / `DELETE` 均可带 `RETURNING *` 或 `RETURNING col, ...`，
+结果在返回对象的 `returning: { columns, rows }` 上（同时填充 `columns` / `rows`）：
+
+```sql
+INSERT INTO emp (name, sal) VALUES ('z', 100) RETURNING id, name;
+UPDATE emp SET sal = 555 WHERE id = 1 RETURNING id, sal;
+DELETE FROM emp WHERE id = 1 RETURNING *;
+```
+
+**视图** — `CREATE [OR REPLACE] VIEW name [(cols)] AS SELECT ...` / `DROP VIEW [IF EXISTS] name`。
+视图定义保存在 `engine._views`，查询时内联为 FROM 子查询（支持视图引用视图，嵌套上限 16 层）：
+
+```sql
+CREATE VIEW v_eng AS SELECT * FROM emp WHERE dept = 'eng';
+SELECT name FROM v_eng;
+CREATE OR REPLACE VIEW v_eng AS SELECT * FROM emp;
+DROP VIEW v_eng;
+```
+
+**`EXPLAIN`** — `EXPLAIN [ANALYZE] <statement>` 输出 `step` / `detail` 两列的计划结构
+（扫描 / 连接 / 过滤 / 聚合 / 排序 / 限制）。**没有代价模型**，只展示计划形态，不预测行数或耗时。
+
+```sql
+EXPLAIN SELECT name FROM emp WHERE sal > 50;
+```
+
 **JOINs** — `INNER JOIN`, `LEFT JOIN`, `RIGHT JOIN`, `FULL OUTER JOIN`, `CROSS JOIN`,
 implicit `FROM a, b WHERE`, self-joins, multi-table chains.
 
@@ -942,20 +999,21 @@ SELECT name FROM emp e
 WHERE EXISTS (SELECT 1 FROM orders o WHERE o.emp_id = e.id AND o.amount > 1000);
 ```
 
-**Transactions** — `BEGIN` / `START TRANSACTION`, `COMMIT`, `ROLLBACK`,
-`SAVEPOINT sp` / `ROLLBACK TO SAVEPOINT` / `RELEASE SAVEPOINT`. Read-committed-equivalent
-isolation; per-statement atomicity without explicit transactions; cross-table transactions;
-rolled-back changes are invisible to other connections until commit.
+**Transactions** — `BEGIN` / `START TRANSACTION`, `COMMIT`, `ROLLBACK`.
+Read-committed-equivalent isolation; per-statement atomicity without explicit transactions;
+cross-table transactions; rolled-back changes are invisible to other connections until commit.
 
 ```sql
 BEGIN;
 UPDATE accounts SET balance = balance - 100 WHERE id = 1;
 UPDATE accounts SET balance = balance + 100 WHERE id = 2;
-SAVEPOINT sp1;
-UPDATE accounts SET balance = balance - 100 WHERE id = 3;
-ROLLBACK TO SAVEPOINT sp1;
 COMMIT;
 ```
+
+> **SAVEPOINT — 部分支持。** `SAVEPOINT name` 与 `RELEASE SAVEPOINT name` 可以解析并登记，
+> 但 **`ROLLBACK TO SAVEPOINT` 会抛出明确错误**：引擎没有保存点/快照能力，
+> 无法只回退到某个保存点。用 `ROLLBACK` 回滚整个事务。
+> 这里刻意选择"报错"而不是"静默成功"——假装回滚成功会让调用方误以为数据已还原。
 
 **Other** — `SHOW DATABASES/TABLES/COLUMNS/CREATE TABLE`, `DESCRIBE t`, `USE db`,
 `EXPLAIN SELECT`, `SET SESSION x = y`, no-table queries (`SELECT VERSION()`), SQLite-style `PRAGMA`.
@@ -1223,7 +1281,7 @@ Multi-statement supported; `SQLExecutor` class runs batched SQL from a string/st
 // 1) 数组入参 —— 执行前用 applyParams 内联替换（转义安全，默认路径）
 await executeSQL(db, 'SELECT * FROM emp WHERE salary > ?', [5000]);
 
-// 2) 原生 ? 占位符 —— 解析成 AST 节点，在执行期绑定（5.5.0+）
+// 2) 原生 ? 占位符 —— 解析成 AST 节点，在执行期绑定（5.6.0+）
 await executeSQL(db, 'SELECT * FROM emp WHERE salary > ?', { params: [5000] });
 
 // 支持顺序 ? 、编号 ?1 与标识符占位 ??
@@ -1232,7 +1290,7 @@ await executeSQL(db, 'SELECT * FROM emp WHERE dept = ?1 OR salary > ?2', { param
 
 ### AST access & rewrite
 
-`parseSQL()` 返回普通对象树。5.5.0 起提供 `lib/ast.js`（同时从 `lib/sql.js` 导出 `AST`、`walk`、
+`parseSQL()` 返回普通对象树。5.6.0 起提供 `lib/ast.js`（同时从 `lib/sql.js` 导出 `AST`、`walk`、
 `transform`、`visit`）用于遍历、查找与改写这棵树，无需了解每种节点类型。
 
 ```js
@@ -1399,7 +1457,7 @@ jsql mod --engine wasm        # switch engine (restart required)
 
 ```bash
 $ jsql version
-jsql-neo v5.5.0
+jsql-neo v5.6.0
 engine: native (napi) | wasm | js
 node: v22.0.0  platform: linux x64
 ```
@@ -1420,7 +1478,7 @@ jsql tui --memory -q                      # memory mode, quiet
 jsql tui --prompt 'db> ' --no-color
 ```
 
-The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=5.5.0`.
+The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=5.6.0`.
 
 ### Keyboard shortcuts
 
@@ -3984,7 +4042,7 @@ Data dir: /root/.jsql-neo/data
 
 ```bash
 $ jsql version
-jsql-neo v5.5.0
+jsql-neo v5.6.0
 engine: native (napi) | wasm | js
 node: v22.0.0
 platform: linux x64
@@ -5061,7 +5119,7 @@ Apache License
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v5.5.0 · 最后更新：2026-08-12*
+*文档版本：v5.6.0 · 最后更新：2026-08-12*
 
 ---
 
@@ -6831,7 +6889,7 @@ Usage: jsql version
 
 输出版本与环境信息：
 
-  jsql-neo v5.5.0
+  jsql-neo v5.6.0
   engine: native (napi) | wasm | js
   node: v22.0.0
   platform: linux x64
