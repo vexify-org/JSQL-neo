@@ -23,65 +23,64 @@ jobs:
             ext: .so
             asset: jsql-neo-native.linux-x64-gnu.node
           - os: macos-latest
-            targets: ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+            target: aarch64-apple-darwin
             lib: lib
             ext: .dylib
-            assets:
-              - jsql-neo-native.darwin-arm64.node
-              - jsql-neo-native.darwin-x64.node
+            asset: jsql-neo-native.darwin-arm64.node
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            lib: lib
+            ext: .dylib
+            asset: jsql-neo-native.darwin-x64.node
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             lib: ''
             ext: .dll
             asset: jsql-neo-native.win32-x64-msvc.node
+
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-node@v5
         with:
           node-version: 24
 
-      - name: Install Rust toolchain (Mac, two targets)
-        if: matrix.os == 'macos-latest'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ join(matrix.targets, ',') }}
-
-      - name: Install Rust toolchain (Linux / Windows single target)
-        if: matrix.os != 'macos-latest'
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      # ===== Mac单独编译步骤 =====
-      - name: Build Mac aarch64 + x86_64
-        if: matrix.os == 'macos-latest'
-        shell: bash
-        run: |
-          cd nativesrc/jsql-neo-native
-          for t in ${{ join(matrix.targets, ' ') }}; do
-            cargo build --release --target "$t"
-          done
-          cp "target/aarch64-apple-darwin/release/libjsql_neo_native.dylib" "../../jsql-neo-native.darwin-arm64.node"
-          cp "target/x86_64-apple-darwin/release/libjsql_neo_native.dylib" "../../jsql-neo-native.darwin-x64.node"
+      # 缓存 cargo 依赖 + 构建产物（按 target 分桶，避免串味）
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            nativesrc/jsql-neo-native/target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('nativesrc/jsql-neo-native/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
 
-      # ===== Linux / Windows 编译步骤 =====
-      - name: Build single target (linux/windows)
-        if: matrix.os != 'macos-latest'
+      - name: Build
         shell: bash
         run: |
+          set -euo pipefail
           cd nativesrc/jsql-neo-native
           cargo build --release --target "${{ matrix.target }}"
-          cp "target/${{ matrix.target }}/release/${{ matrix.lib }}jsql_neo_native${{ matrix.ext }}" "../../${{ matrix.asset }}"
+          cp "target/${{ matrix.target }}/release/${{ matrix.lib }}jsql_neo_native${{ matrix.ext }}" \
+             "../../${{ matrix.asset }}"
 
-      # Smoke test
       - name: Smoke load test
         shell: bash
         run: |
-          ${{ matrix.os == 'macos-latest' && 'node -e "require(\'./jsql-neo-native.darwin-arm64.node\') && console.log(\'arm64 load ok\')"' || 'node -e "require(\'./${{ matrix.asset }}\') && console.log(\'load ok\')"' }}
+          set -euo pipefail
+          node -e "require('./${{ matrix.asset }}'); console.log('${{ matrix.asset }} load ok')"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: ${{ matrix.os == 'macos-latest' && join(matrix.assets, '\n') || matrix.asset }}
+          files: ${{ matrix.asset }}
           fail_on_unmatched_files: true
