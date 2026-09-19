@@ -1,5 +1,8 @@
 name: Build native .node binaries
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -35,7 +38,7 @@ jobs:
             ext: .dll
             asset: jsql-neo-native.win32-x64-msvc.node
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 24
