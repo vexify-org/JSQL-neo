@@ -1,5 +1,5 @@
 /**
- * JSQL-NEO v5.1.2 — Rust-Powered Embedded Database (WASM + HTTP)
+ * JSQL-NEO v5.5.0 — Rust-Powered Embedded Database (WASM + HTTP)
  *
  * @example
  * const jsql = require('jsql-neo');
@@ -80,6 +80,12 @@ module.exports = {
     SQL: sql,
     executeSQL: sql.executeSQL,
     parseSQL: sql.parseSQL,
+    // AST 访问与改写（5.5.0+）
+    AST: sql.AST,
+    walk: sql.walk,
+    transform: sql.transform,
+    tokenize: sql.tokenize,
+    splitStatements: sql.splitStatements,
     Datastore,
     createConnection: mysqlCompat.createConnection,
     createPool: mysqlCompat.createPool,

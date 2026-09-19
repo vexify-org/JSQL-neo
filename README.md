@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser. **And it fits in one npm package.**
 
-> **v5.4.0** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
+> **v5.5.0** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -232,7 +232,7 @@ npm install && npm run build                 # option 3: from source
 Verify:
 
 ```bash
-node -e "console.log(require('jsql-neo/package.json').version)"   # 5.4.0
+node -e "console.log(require('jsql-neo/package.json').version)"   # 5.5.0
 ```
 
 ### 30-second demo
@@ -835,6 +835,7 @@ CREATE TABLE IF NOT EXISTS orders (
 **SELECT grammar**
 
 ```sql
+WITH [RECURSIVE] cte_name [(col, ...)] AS (SELECT ...)[, ...]   -- CTE，见下节
 SELECT [DISTINCT] select_list
 FROM table_reference
 [JOIN table_reference ON condition]
@@ -843,6 +844,9 @@ FROM table_reference
 [HAVING condition]
 [ORDER BY column [ASC|DESC] [, ...]]
 [LIMIT { count | offset, count | count OFFSET offset }]
+[UNION [ALL|DISTINCT] SELECT ...]
+[INTERSECT [ALL|DISTINCT] SELECT ...]
+[EXCEPT [ALL|DISTINCT] SELECT ...]
 [RETURNING ...]
 ```
 
@@ -864,6 +868,78 @@ WHERE EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id);
 SELECT t.dept, COUNT(*) AS cnt
 FROM (SELECT dept FROM emp WHERE salary > 5000) t
 GROUP BY t.dept;
+```
+
+**CTE（公用表表达式）** — `WITH [RECURSIVE] name [(cols)] AS (SELECT ...)`，
+可声明多个，后面的 CTE 可以引用前面的。执行层把 CTE 内联为 `FROM` 子查询，
+不需要引擎侧临时表。
+
+```sql
+WITH engineers AS (
+  SELECT * FROM emp WHERE dept = 'eng'
+)
+SELECT name, salary FROM engineers WHERE salary > 8000;
+
+-- 多个 CTE，后者引用前者
+WITH all_emp AS (SELECT * FROM emp),
+     high    AS (SELECT * FROM all_emp WHERE salary > 8000)
+SELECT dept, COUNT(*) AS n FROM high GROUP BY dept;
+
+-- 显式列名清单
+WITH t (who, howmuch) AS (SELECT name, salary FROM emp)
+SELECT who FROM t;
+
+-- CTE 也可接 INSERT / UPDATE / DELETE
+WITH src AS (SELECT * FROM emp WHERE dept = 'eng')
+INSERT INTO eng_backup SELECT * FROM src;
+```
+
+**窗口函数** — `function() OVER ( [PARTITION BY ...] [ORDER BY ...] [frame] )`。
+在 `WHERE` / `GROUP BY` / `HAVING` 之后、`DISTINCT` / `ORDER BY` / `LIMIT` 之前求值，
+符合 SQL 标准求值顺序。窗口聚合**不会**把结果塌缩成一行。
+
+| 函数 | 说明 |
+|---|---|
+| `ROW_NUMBER()` | 分区内连续行号 |
+| `RANK()` / `DENSE_RANK()` | 排名（并列时 `RANK` 跳号、`DENSE_RANK` 不跳号） |
+| `NTILE(n)` | 把分区切成 n 个桶 |
+| `LAG(expr[, n[, default]])` / `LEAD(...)` | 取分区内前/后第 n 行的值 |
+| `FIRST_VALUE(expr)` / `LAST_VALUE(expr)` | 帧内首/末行的值 |
+| `SUM/AVG/MIN/MAX/COUNT(...) OVER (...)` | 窗口聚合 |
+
+```sql
+SELECT name, dept, salary,
+       ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) AS rn,
+       RANK()       OVER (ORDER BY salary DESC)                   AS rk,
+       SUM(salary)  OVER (PARTITION BY dept)                      AS dept_total,
+       LAG(salary)  OVER (PARTITION BY dept ORDER BY salary)      AS prev
+FROM emp;
+
+-- 窗口帧
+SELECT name,
+       AVG(salary) OVER (ORDER BY salary
+                         ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS moving_avg
+FROM emp;
+```
+
+**集合运算符** — `UNION [ALL|DISTINCT]`、`INTERSECT [ALL|DISTINCT]`、`EXCEPT [ALL|DISTINCT]`。
+三者默认都是 `DISTINCT`；`UNION ALL` 保留重复行。
+
+```sql
+SELECT dept FROM emp WHERE salary > 5000
+INTERSECT
+SELECT dept FROM emp WHERE salary < 20000;
+
+SELECT dept FROM emp
+EXCEPT
+SELECT dept FROM emp WHERE salary < 5000;
+```
+
+**`EXISTS` / `NOT EXISTS`** — 支持**相关子查询**（逐行求值，外层行的列可在子查询中引用）：
+
+```sql
+SELECT name FROM emp e
+WHERE EXISTS (SELECT 1 FROM orders o WHERE o.emp_id = e.id AND o.amount > 1000);
 ```
 
 **Transactions** — `BEGIN` / `START TRANSACTION`, `COMMIT`, `ROLLBACK`,
@@ -1141,6 +1217,56 @@ Result matrix: SELECT → `rows`; INSERT → `affectedRows` + `insertId`; UPDATE
 `affectedRows`; DDL/txn → `message`. Params: positional `?`, named `:name`, or object maps.
 Multi-statement supported; `SQLExecutor` class runs batched SQL from a string/stream.
 
+#### 参数绑定：两种方式
+
+```js
+// 1) 数组入参 —— 执行前用 applyParams 内联替换（转义安全，默认路径）
+await executeSQL(db, 'SELECT * FROM emp WHERE salary > ?', [5000]);
+
+// 2) 原生 ? 占位符 —— 解析成 AST 节点，在执行期绑定（5.5.0+）
+await executeSQL(db, 'SELECT * FROM emp WHERE salary > ?', { params: [5000] });
+
+// 支持顺序 ? 、编号 ?1 与标识符占位 ??
+await executeSQL(db, 'SELECT * FROM emp WHERE dept = ?1 OR salary > ?2', { params: ['eng', 5000] });
+```
+
+### AST access & rewrite
+
+`parseSQL()` 返回普通对象树。5.5.0 起提供 `lib/ast.js`（同时从 `lib/sql.js` 导出 `AST`、`walk`、
+`transform`、`visit`）用于遍历、查找与改写这棵树，无需了解每种节点类型。
+
+```js
+const { parseSQL, AST } = require('jsql-neo');
+
+const ast = parseSQL('SELECT name, salary FROM emp WHERE salary > 100 ORDER BY salary DESC');
+
+AST.tables(ast);    // ['emp']
+AST.columns(ast);   // ['name', 'salary']
+
+// 遍历（返回 false 可跳过子树）
+AST.walk(ast, (node, parent, key) => { console.log(node.type); });
+
+// 查找 / 收集
+AST.find(ast, n => n.type === 'compare');
+AST.collect(ast, n => n.type === 'column');
+
+// 不可变改写（返回新树，原 AST 不变）
+const renamed = AST.transform(ast, (node) => {
+  if (node && node.type === 'column' && node.name === 'name') return { ...node, name: 'NAME' };
+});
+
+// 原地改写
+AST.rewrite(ast, (node) => {
+  if (node && node.type === 'value' && node.value === 100) return { ...node, value: 200 };
+});
+
+// 按节点类型分派的访问器（visitSelect / visitColumn / visitCompare …）
+class Upper extends AST.StatementVisitor {
+  visitColumn(node) { node.name = String(node.name).toUpperCase(); }
+}
+new Upper().run(ast);
+```
+
 ### Events & hooks
 
 ```js
@@ -1273,7 +1399,7 @@ jsql mod --engine wasm        # switch engine (restart required)
 
 ```bash
 $ jsql version
-jsql-neo v5.4.0
+jsql-neo v5.5.0
 engine: native (napi) | wasm | js
 node: v22.0.0  platform: linux x64
 ```
@@ -1294,7 +1420,7 @@ jsql tui --memory -q                      # memory mode, quiet
 jsql tui --prompt 'db> ' --no-color
 ```
 
-The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=5.4.0`.
+The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=5.5.0`.
 
 ### Keyboard shortcuts
 
@@ -3858,7 +3984,7 @@ Data dir: /root/.jsql-neo/data
 
 ```bash
 $ jsql version
-jsql-neo v5.4.0
+jsql-neo v5.5.0
 engine: native (napi) | wasm | js
 node: v22.0.0
 platform: linux x64
@@ -4935,7 +5061,7 @@ Apache License
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v5.4.0 · 最后更新：2026-08-12*
+*文档版本：v5.5.0 · 最后更新：2026-08-12*
 
 ---
 
@@ -6705,7 +6831,7 @@ Usage: jsql version
 
 输出版本与环境信息：
 
-  jsql-neo v5.4.0
+  jsql-neo v5.5.0
   engine: native (napi) | wasm | js
   node: v22.0.0
   platform: linux x64

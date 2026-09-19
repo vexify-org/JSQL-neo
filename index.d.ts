@@ -260,6 +260,32 @@ declare namespace JSQLNeo {
     safety?: boolean;
     maxStatements?: number;
     session?: Record<string, unknown>;
+    /** 5.5.0+：原生 `?` 占位符绑定值（与 applyParams 的数组入参二选一） */
+    params?: unknown[];
+  }
+
+  /** AST 节点：带字符串 type 的普通对象树 */
+  export interface ASTNode {
+    type: string;
+    [key: string]: unknown;
+  }
+
+  /** 5.5.0+：AST 访问与改写 */
+  export namespace AST {
+    function walk(ast: unknown, visitor: (node: ASTNode, parent?: unknown, key?: string) => void | false, opts?: { post?: (node: ASTNode) => void }): unknown;
+    function collect(ast: unknown, predicate: (node: ASTNode) => boolean): ASTNode[];
+    function find(ast: unknown, predicate: (node: ASTNode) => boolean): ASTNode | null;
+    function transform(ast: unknown, fn: (node: unknown) => unknown): unknown;
+    function rewrite(ast: unknown, fn: (node: unknown) => unknown): unknown;
+    function tables(ast: unknown): string[];
+    function columns(ast: unknown): string[];
+    function isNode(value: unknown): boolean;
+    function cloneNode(node: unknown): unknown;
+    class StatementVisitor {
+      run(ast: unknown): unknown;
+      visitDefault?(node: ASTNode): void;
+      [key: string]: unknown;
+    }
   }
 
   export function executeSQL(engine: unknown, sql: string, paramsOrOpts?: unknown[] | SQLOptions, opts?: SQLOptions): Promise<SQLResult>;
@@ -268,6 +294,8 @@ declare namespace JSQLNeo {
   export function applyParams(sql: string, values: unknown[]): string;
   export function escapeValue(value: unknown): string;
   export function escapeId(value: string): string;
+  export function walk(ast: unknown, visitor: (node: ASTNode) => void | false): unknown;
+  export function transform(ast: unknown, fn: (node: unknown) => unknown): unknown;
 
   export interface DatabaseOptions {
     dataDir?: string;

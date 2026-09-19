@@ -4,6 +4,47 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [5.5.0] — 2026-09-19
+
+### Added
+
+- **CTE（公用表表达式）**：`WITH [RECURSIVE] name [(cols)] AS (SELECT ...) [, ...] SELECT|INSERT|UPDATE|DELETE`。
+  支持多个 CTE 串联与 CTE 引用先前 CTE；执行层以内联 FROM 子查询实现，不依赖引擎侧临时表
+- **窗口函数**：`OVER (PARTITION BY ... ORDER BY ... [ROWS|RANGE BETWEEN ... PRECEDING/FOLLOWING AND ...])`
+  支持 `ROW_NUMBER()`、`RANK()`、`DENSE_RANK()`、`NTILE(n)`、`LAG/LEAD(expr[, n[, default]])`、
+  `FIRST_VALUE()`、`LAST_VALUE()`，以及 `SUM/AVG/MIN/MAX/COUNT() OVER (...)` 窗口聚合
+- **集合运算符**：`INTERSECT [ALL|DISTINCT]` 与 `EXCEPT [ALL|DISTINCT]`（默认 DISTINCT，与 `UNION` 一致）；
+  `UNION` 新增 `UNION DISTINCT` 显式写法
+- **`EXISTS` / `NOT EXISTS`**：支持相关子查询（逐行求值，外层行通过 `ctx.__outer` 注入解析）
+- **原生 `?` 占位符**：词法层识别 `?` / `?N` / `??`，生成 `{ type:'param' }` AST 节点；
+  可通过 `executeSQL(db, sql, { params: [...] })` 绑定（原有数组入参走 `applyParams` 的路径不变）
+- **`INSERT INTO t [(cols)] SELECT ...`**
+- **AST 访问与改写**：新增 `lib/ast.js`，提供 `walk` / `collect` / `find` / `transform`（不可变）/
+  `rewrite`（原地）/ `tables` / `columns` / `StatementVisitor`；已从 `lib/sql.js` 导出
+  （`AST`、`walk`、`transform`、`visit`）
+- `test/sql-parser.test.js`（82 项）纳入 `npm test` 与 `test:all`
+
+### Fixed
+
+- **`splitStatements` 反引号标识符被误切分**：`` SELECT `a;b` FROM t `` 中的分号曾被当作语句分隔符，
+  切成两条语句。现在按 MySQL 规则处理反引号（反斜杠不是转义符，`` `` `` 才是转义反引号）
+- **`RLIKE` 无法解析**：`RLIKE` 已在关键字表中，但语法层只处理了 `LIKE` / `REGEXP`。
+  现 `RLIKE` 作为 `REGEXP` 的同义词，`NOT RLIKE` 同样可用
+- **`TRUE` / `FALSE` 不能作为值字面量**：`WHERE a = TRUE` 曾报 “Expected value or column, got 'TRUE'”，
+  而 `IS TRUE` 却可用。现在二者一致，并按 MySQL 语义让 `1 = TRUE`、`0 = FALSE` 成立
+- **限定列静默回退到裸列名**：`resolveOperand` 在 `alias.col` 查不到时会回退到裸列名 `col`，
+  导致相关子查询里 `e.dept` 取到内层行自己的 `dept`，`EXISTS` 恒为真。
+  现在仅当行完全没有前缀键时才回退，未知限定符返回 `undefined`
+- **窗口函数列取值为 null**：SELECT 最终投影走的是内联逻辑，未使用 `scalarColumnValue`，
+  导致窗口列恒为 null、窗口聚合列抛 `n.includes is not a function`。现统一走 `windowColumnValue()`
+
+### Changed
+
+- 版本号升至 5.5.0
+- 关键字表新增 `WITH` / `RECURSIVE` / `INTERSECT` / `EXCEPT`；
+  `OVER` / `PARTITION` / `UNBOUNDED` / `PRECEDING` / `FOLLOWING` **刻意不加入**关键字表，
+  改由语法层 `isWord()` 按上下文匹配，避免 `SELECT rank FROM t` 这类既有语句被破坏
+
 ## [5.4.0] — 2026-08-30
 
 ### Added
