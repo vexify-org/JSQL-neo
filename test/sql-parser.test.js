@@ -268,6 +268,183 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     ok('未绑定参数不应在解析期报错', threw === null);
   }
 
+  /* ================= 5.6.0: 相关子查询（曾静默返回 null） ================= */
+  console.log('\n--- 5.6.0: 相关子查询 ---');
+  {
+    const users = [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }, { id: 3, name: 'Cara' }];
+    const orders = [{ id: 1, uid: 1 }, { id: 2, uid: 1 }, { id: 3, uid: 1 }, { id: 4, uid: 3 }];
+    const rel = {
+      hasTable: () => true, truncate: async () => {}, flush: async () => {},
+      find: async (t) => (t === 'orders' ? orders : users).map(r => ({ ...r })),
+      getTableSchema: async (t) => (t === 'orders'
+        ? { id: { type: 'integer', primaryKey: true }, uid: { type: 'integer' } }
+        : { id: { type: 'integer', primaryKey: true }, name: { type: 'string' } }),
+    };
+    // README 首页示例：修复前每行都是 null
+    const r = await executeSQL(rel, 'SELECT name, (SELECT COUNT(*) FROM orders o WHERE o.uid = u.id) AS c FROM users u', OPTS);
+    ok('SELECT 列表相关标量子查询返回正确计数',
+      JSON.stringify(rowsOf(r)) === '[["Alice",3],["Bob",0],["Cara",1]]', rowsOf(r));
+    const r2 = await executeSQL(rel, 'SELECT name FROM users u WHERE (SELECT COUNT(*) FROM orders o WHERE o.uid = u.id) > 2', OPTS);
+    ok('WHERE 中相关标量子查询', JSON.stringify(rowsOf(r2)) === '[["Alice"]]', rowsOf(r2));
+    const r3 = await executeSQL(rel, 'SELECT name FROM users u WHERE u.id IN (SELECT uid FROM orders o WHERE o.uid = u.id)', OPTS);
+    ok('相关 IN 子查询', JSON.stringify(rowsOf(r3)) === '[["Alice"],["Cara"]]', rowsOf(r3));
+    const r4 = await executeSQL(rel, 'SELECT name FROM users WHERE id IN (SELECT uid FROM orders)', OPTS);
+    ok('非相关 IN 仍正确', JSON.stringify(rowsOf(r4)) === '[["Alice"],["Cara"]]', rowsOf(r4));
+    const r5 = await executeSQL(rel, 'SELECT (SELECT COUNT(*) FROM orders) AS n FROM users LIMIT 1', OPTS);
+    ok('非相关标量子查询仍正确', JSON.stringify(rowsOf(r5)) === '[[4]]', rowsOf(r5));
+    const r6 = await executeSQL(rel, 'SELECT name FROM users WHERE (id = 1 OR id = 3)', OPTS);
+    ok('括号分组未被误判为子查询', JSON.stringify(rowsOf(r6)) === '[["Alice"],["Cara"]]', rowsOf(r6));
+  }
+
+  /* ================= 5.6.0: 表达式与算子 ================= */
+  console.log('\n--- 5.6.0: CAST / ILIKE / ANY / ORDER BY 表达式 / FETCH FIRST ---');
+  {
+    ok('CAST 可解析', parseSQL('SELECT CAST(a AS INTEGER) FROM t').columns[0].scalar.type === 'cast');
+    const c = await executeSQL(engine, 'SELECT CAST(sal AS TEXT) AS s FROM emp LIMIT 1', OPTS);
+    ok('CAST 执行（转字符串）', JSON.stringify(rowsOf(c)) === '[["100"]]', rowsOf(c));
+    const c2 = await executeSQL(engine, 'SELECT CAST(sal AS FLOAT) AS f FROM emp LIMIT 1', OPTS);
+    ok('CAST 执行（转数值）', JSON.stringify(rowsOf(c2)) === '[[100]]', rowsOf(c2));
+
+    ok('ILIKE 解析为大小写不敏感 like',
+      parseSQL("SELECT * FROM t WHERE a ILIKE 'x'").where.ci === true);
+    const i1 = await executeSQL(engine, "SELECT name FROM emp WHERE name ILIKE 'A'", OPTS);
+    ok('ILIKE 大小写不敏感', JSON.stringify(rowsOf(i1)) === '[["a"]]', rowsOf(i1));
+
+    const a1 = await executeSQL(engine, "SELECT name FROM emp WHERE sal = ANY (SELECT sal FROM emp WHERE dept = 'ops')", OPTS);
+    ok('= ANY (SELECT ...)', rowsOf(a1).length === 2, rowsOf(a1));
+
+    ok('ORDER BY 表达式可解析', typeof parseSQL('SELECT * FROM t ORDER BY a + b').orderBy[0].column === 'object');
+    const o1 = await executeSQL(engine, 'SELECT sal FROM emp ORDER BY sal + 0 DESC', OPTS);
+    ok('ORDER BY 表达式排序', JSON.stringify(rowsOf(o1)) === '[[300],[300],[200],[100]]', rowsOf(o1));
+    const o2 = await executeSQL(engine, 'SELECT name FROM emp ORDER BY UPPER(name) DESC', OPTS);
+    ok('ORDER BY 函数排序', JSON.stringify(rowsOf(o2)) === '[["d"],["c"],["b"],["a"]]', rowsOf(o2));
+    const o3 = await executeSQL(engine, 'SELECT name FROM emp ORDER BY sal LIMIT 1', OPTS);
+    ok('ORDER BY 列名 + LIMIT 未被破坏', JSON.stringify(rowsOf(o3)) === '[["a"]]', rowsOf(o3));
+
+    const f1 = await executeSQL(engine, 'SELECT name FROM emp FETCH FIRST 2 ROWS ONLY', OPTS);
+    ok('FETCH FIRST n ROWS ONLY', rowsOf(f1).length === 2, rowsOf(f1));
+    ok('FETCH FIRST 写入 limit', parseSQL('SELECT * FROM t FETCH FIRST 7 ROWS ONLY').limit === 7);
+  }
+
+  /* ================= 5.6.0: FULL OUTER JOIN / WITH ROLLUP / EXPLAIN ================= */
+  console.log('\n--- 5.6.0: FULL OUTER JOIN / WITH ROLLUP / EXPLAIN ---');
+  {
+    ok('FULL OUTER JOIN 可解析',
+      parseSQL('SELECT * FROM a FULL OUTER JOIN b ON a.id = b.id').from.joins[0].type === 'full');
+
+    const roll = await executeSQL(engine, 'SELECT dept, SUM(sal) AS total FROM emp GROUP BY dept WITH ROLLUP', OPTS);
+    ok('WITH ROLLUP 追加汇总行', rowsOf(roll).length === 3 && rowsOf(roll)[2][0] === null, rowsOf(roll));
+    ok('WITH ROLLUP 汇总值正确',
+      rowsOf(roll)[2][1] === (100 + 200 + 300 + 300), rowsOf(roll)[2]);
+    ok('WITH ROLLUP 可解析', parseSQL('SELECT a, SUM(b) FROM t GROUP BY a WITH ROLLUP').rollup === true);
+
+    const ex = await executeSQL(engine, 'EXPLAIN SELECT name FROM emp WHERE sal > 50', OPTS);
+    ok('EXPLAIN 返回计划行', Array.isArray(rowsOf(ex)) && rowsOf(ex).length > 0, rowsOf(ex));
+    ok('EXPLAIN 计划含 SCAN', rowsOf(ex).some(r => String(r[0]).includes('SCAN')), rowsOf(ex));
+    ok('EXPLAIN 展示被扫描的表', rowsOf(ex).some(r => r[1] === 'emp'), rowsOf(ex));
+  }
+
+  /* ================= 5.6.0: 可写引擎上的 DML 能力 ================= */
+  console.log('\n--- 5.6.0: RETURNING / INSERT IGNORE / REPLACE / ON CONFLICT / 视图 ---');
+  {
+    const SCHEMAS = {
+      emp: { id: { type: 'integer', primaryKey: true }, dept: { type: 'string' }, name: { type: 'string' }, sal: { type: 'integer' } },
+    };
+    const mkEngine = () => {
+      const data = { emp: [{ id: 1, dept: 'eng', name: 'a', sal: 100 }] };
+      return {
+        hasTable: (t) => t in data,
+        truncate: async () => {}, flush: async () => {},
+        getTableSchema: async (t) => SCHEMAS[t],
+        find: async (t) => JSON.parse(JSON.stringify(data[t] || [])),
+        insert: async (t, rows) => { data[t] = (data[t] || []).concat(rows); return rows.map(r => r.id); },
+        updateById: async (t, id, patch) => { const r = (data[t] || []).find(x => x.id === id); if (r) Object.assign(r, patch); return 1; },
+        update: async (t, f, patch) => { let n = 0; for (const r of (data[t] || [])) if (Object.entries(f).every(([k, v]) => String(r[k]) === String(v))) { Object.assign(r, patch); n++; } return n; },
+        removeByIds: async (t, ids) => { data[t] = (data[t] || []).filter(r => !ids.includes(r.id)); return ids.length; },
+        removeById: async (t, id) => { data[t] = (data[t] || []).filter(r => r.id !== id); return 1; },
+        dump: () => JSON.parse(JSON.stringify(data.emp)),
+      };
+    };
+
+    ok('RETURNING 可解析', Array.isArray(parseSQL('INSERT INTO t (a) VALUES (1) RETURNING a').returning));
+    ok('REPLACE 可解析', parseSQL('REPLACE INTO t (a) VALUES (1)').replace === true);
+    ok('INSERT IGNORE 可解析', parseSQL('INSERT IGNORE INTO t (a) VALUES (1)').ignore === true);
+    ok('ON CONFLICT DO NOTHING 可解析',
+      parseSQL('INSERT INTO t (a) VALUES (1) ON CONFLICT (a) DO NOTHING').onConflict.action === 'nothing');
+    ok('ON CONFLICT DO UPDATE 可解析',
+      parseSQL('INSERT INTO t (a) VALUES (1) ON CONFLICT (a) DO UPDATE SET a = 2').onConflict.action === 'update');
+    ok('SAVEPOINT 可解析', parseSQL('SAVEPOINT sp1').type === 'savepoint');
+    ok('ROLLBACK TO 可解析', parseSQL('ROLLBACK TO SAVEPOINT sp1').type === 'rollbackTo');
+    ok('RELEASE SAVEPOINT 可解析', parseSQL('RELEASE SAVEPOINT sp1').type === 'releaseSavepoint');
+    ok('CREATE VIEW 可解析', parseSQL('CREATE VIEW v AS SELECT * FROM t').type === 'createView');
+    ok('DROP VIEW IF EXISTS 可解析', parseSQL('DROP VIEW IF EXISTS v').ifExists === true);
+
+    const e1 = mkEngine();
+    const ins = await executeSQL(e1, "INSERT INTO emp (id, dept, name, sal) VALUES (9, 'x', 'z', 1) RETURNING id, name", OPTS);
+    ok('INSERT ... RETURNING 返回指定列',
+      JSON.stringify(ins.returning.rows) === '[[9,"z"]]', ins.returning);
+
+    const e2 = mkEngine();
+    const del = await executeSQL(e2, 'DELETE FROM emp WHERE id = 1 RETURNING *', OPTS);
+    ok('DELETE ... RETURNING 返回被删行',
+      del.returning.rows.length === 1 && del.returning.rows[0][0] === 1, del.returning);
+
+    const e3 = mkEngine();
+    const up = await executeSQL(e3, 'UPDATE emp SET sal = 555 WHERE id = 1 RETURNING id, sal', OPTS);
+    ok('UPDATE ... RETURNING 返回更新后行',
+      JSON.stringify(up.returning.rows) === '[[1,555]]', up.returning);
+
+    const e4 = mkEngine();
+    let dupErr = null;
+    try { await executeSQL(e4, "INSERT INTO emp (id, dept) VALUES (1, 'dup')", OPTS); } catch (err) { dupErr = err; }
+    ok('默认主键冲突仍报 ER_DUP_ENTRY', dupErr && /ER_DUP_ENTRY/.test(dupErr.message));
+
+    const e5 = mkEngine();
+    const ig = await executeSQL(e5, "INSERT IGNORE INTO emp (id, dept) VALUES (1, 'ignored')", OPTS);
+    ok('INSERT IGNORE 跳过冲突且不改数据',
+      ig.affectedRows === 0 && ig.duplicateSkipped === 1 && e5.dump().length === 1, { ig, rows: e5.dump() });
+
+    const e6 = mkEngine();
+    const oc = await executeSQL(e6, "INSERT INTO emp (id, dept) VALUES (1, 'x') ON CONFLICT (id) DO NOTHING", OPTS);
+    ok('ON CONFLICT DO NOTHING 跳过', oc.affectedRows === 0 && e6.dump()[0].dept === 'eng', e6.dump());
+
+    const e7 = mkEngine();
+    await executeSQL(e7, "INSERT INTO emp (id, dept) VALUES (1, 'x') ON CONFLICT (id) DO UPDATE SET dept = 'upd2'", OPTS);
+    ok('ON CONFLICT DO UPDATE 生效', e7.dump()[0].dept === 'upd2', e7.dump());
+
+    const e8 = mkEngine();
+    await executeSQL(e8, "REPLACE INTO emp (id, dept, name, sal) VALUES (1, 'replaced', 'r', 7)", OPTS);
+    ok('REPLACE INTO 替换整行', e8.dump()[0].name === 'r' && e8.dump()[0].sal === 7, e8.dump());
+
+    // 视图
+    const e9 = mkEngine();
+    await executeSQL(e9, "INSERT INTO emp (id, dept, name, sal) VALUES (2, 'ops', 'b', 200)", OPTS);
+    await executeSQL(e9, "CREATE VIEW v_eng AS SELECT * FROM emp WHERE dept = 'eng'", OPTS);
+    const vq = await executeSQL(e9, 'SELECT name FROM v_eng', OPTS);
+    ok('视图可查询', JSON.stringify(rowsOf(vq)) === '[["a"]]', rowsOf(vq));
+    let viewErr = null;
+    try { await executeSQL(e9, 'CREATE VIEW v_eng AS SELECT * FROM emp', OPTS); } catch (err) { viewErr = err; }
+    ok('重复创建视图报错', viewErr && /already exists/.test(viewErr.message));
+    await executeSQL(e9, 'CREATE OR REPLACE VIEW v_eng AS SELECT * FROM emp', OPTS);
+    const vq2 = await executeSQL(e9, 'SELECT COUNT(*) AS n FROM v_eng', OPTS);
+    ok('CREATE OR REPLACE VIEW 覆盖生效', JSON.stringify(rowsOf(vq2)) === '[[2]]', rowsOf(vq2));
+    await executeSQL(e9, 'DROP VIEW v_eng', OPTS);
+    let goneErr = null;
+    try { await executeSQL(e9, 'SELECT name FROM v_eng', OPTS); } catch (err) { goneErr = err; }
+    ok('DROP VIEW 后视图不可查', goneErr !== null);
+    const skippedDrop = await executeSQL(e9, 'DROP VIEW IF EXISTS nope', OPTS);
+    ok('DROP VIEW IF EXISTS 不报错', skippedDrop && skippedDrop.skipped === true);
+
+    // 保存点：明确不支持，绝不静默假装成功
+    const e10 = mkEngine();
+    const sp = await executeSQL(e10, 'SAVEPOINT sp1', OPTS);
+    ok('SAVEPOINT 返回登记结果', sp && sp.type === 'savepoint');
+    let rbErr = null;
+    try { await executeSQL(e10, 'ROLLBACK TO SAVEPOINT sp1', OPTS); } catch (err) { rbErr = err; }
+    ok('ROLLBACK TO 明确报不支持（不静默假成功）',
+      rbErr instanceof Error && /not supported/.test(rbErr.message));
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();
