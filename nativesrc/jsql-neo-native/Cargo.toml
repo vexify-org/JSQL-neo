@@ -14,3 +14,11 @@ serde_json = "1"
 
 [build-dependencies]
 napi-build = "2"
+
+# 体积更小 + 运行更快：全图 LTO 去掉跨 crate 死代码，单 codegen-unit 换取更好的内联与优化，
+# strip 去掉符号表（不影响 napi 动态导出符号与 dlopen 加载）。
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"

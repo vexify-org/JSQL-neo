@@ -161,6 +161,32 @@ fn millis_to_string(ms: u64) -> String {
     }
 }
 
+/// 行内时间戳格式化缓存：批量写入的行共享同一个毫秒时间戳，
+/// 命中缓存可避免每行都做一次 chrono/JS Date 格式化与字符串分配。
+#[derive(Default)]
+pub struct TimeCache {
+    last_ms: u64,
+    last_str: String,
+    valid: bool,
+}
+
+impl TimeCache {
+    pub fn new() -> Self {
+        Self { last_ms: 0, last_str: String::new(), valid: false }
+    }
+
+    #[inline]
+    fn write(&mut self, out: &mut String, ms: u64) {
+        if !self.valid || self.last_ms != ms {
+            self.last_str.clear();
+            self.last_str.push_str(&millis_to_string(ms));
+            self.last_ms = ms;
+            self.valid = true;
+        }
+        out.push_str(&self.last_str);
+    }
+}
+
 impl Table {
     pub fn new(name: String, schema: &[(String, FieldSchema)]) -> Self {
         let pk_field = schema.iter()
@@ -417,6 +443,18 @@ impl Table {
         })
     }
 
+    /// 预解析过滤条件：字段名 → 行内下标，避免逐行重复做 HashMap 查找。
+    fn filter_positions<'a>(&self, filter: &'a Option<HashMap<String, serde_json::Value>>)
+        -> Vec<(usize, &'a serde_json::Value)>
+    {
+        match filter {
+            Some(f) => f.iter()
+                .filter_map(|(k, v)| self.field_index.get(k).map(|&pos| (pos, v)))
+                .collect(),
+            None => Vec::new(),
+        }
+    }
+
     pub fn get_row(&self, id: u64) -> Option<Row> {
         let idx = *self.pk_index.get(&id)?;
         self.rows.get(idx).map(|r| self.to_row(r))
@@ -429,6 +467,7 @@ impl Table {
 
     pub fn get_rows_json(&self, ids: &[u64]) -> String {
         let mut out = String::with_capacity(ids.len() * 128);
+        let mut tc = TimeCache::new();
         out.push('[');
         let mut first = true;
         for &id in ids {
@@ -436,7 +475,7 @@ impl Table {
                 if let Some(rs) = self.rows.get(idx) {
                     if !first { out.push(','); }
                     first = false;
-                    out.push_str(&self.to_row_json_string(rs));
+                    self.write_row_json_into(rs, &mut out, &mut tc);
                 }
             }
         }
@@ -458,30 +497,42 @@ impl Table {
     }
 
     fn to_row_json_string(&self, rs: &RowStore) -> String {
-        let vals = self.get_row_values(rs);
         let mut out = String::with_capacity(160);
+        let mut tc = TimeCache::new();
+        self.write_row_json_into(rs, &mut out, &mut tc);
+        out
+    }
+
+    /// 直接把一行写成 JSON 追加到 `out`。
+    /// 相比先构造 `Row`（HashMap<String, Value>）再 serde 序列化，
+    /// 省掉了每个字段一次的字符串分配与一次完整的二次序列化。
+    pub fn write_row_json_into(&self, rs: &RowStore, out: &mut String, tc: &mut TimeCache) {
+        let vals = self.get_row_values(rs);
         out.push_str(r#"{"id":"#);
         out.push_str(itoa::Buffer::new().format(rs.id));
         out.push_str(r#","fields":{"#);
         for (i, name) in self.field_order.iter().enumerate() {
             if i > 0 { out.push(','); }
-            write_json_string(&mut out, name);
+            write_json_string(out, name);
             out.push(':');
-            if let Some(v) = vals.get(i) {
-                v.write_json(&mut out);
-            } else {
-                out.push_str("null");
+            match vals.get(i) {
+                Some(v) => v.write_json(out),
+                None => out.push_str("null"),
             }
         }
-        out.push_str(r#"},"created_at":"#);
-        write_json_string(&mut out, &millis_to_string(rs.created_at));
-        out.push_str(r#","updated_at":"#);
-        write_json_string(&mut out, &millis_to_string(rs.updated_at));
-        out.push_str("}");
-        out
+        out.push_str(r#"},"created_at":""#);
+        tc.write(out, rs.created_at);
+        out.push_str(r#"","updated_at":""#);
+        tc.write(out, rs.updated_at);
+        out.push_str(r#""}"#);
     }
 
     pub fn update_row(&mut self, id: u64, data: HashMap<String, serde_json::Value>) -> bool {
+        self.update_row_ref(id, &data)
+    }
+
+    /// 借用版本：批量按 filter 更新时复用同一份 data，避免每行都克隆整个 HashMap。
+    pub fn update_row_ref(&mut self, id: u64, data: &HashMap<String, serde_json::Value>) -> bool {
         let idx = match self.pk_index.get(&id) {
             Some(i) => *i,
             None => return false,
@@ -492,9 +543,9 @@ impl Table {
             let nv = row.num_values;
             let s = row.values_start;
             for (k, v) in data {
-                if let Some(&pos) = self.field_index.get(&k) {
+                if let Some(&pos) = self.field_index.get(k) {
                     if pos < nv {
-                        self.values[s + pos] = FieldValue::from_json(v);
+                        self.values[s + pos] = FieldValue::from_json(v.clone());
                     }
                 }
             }
@@ -651,6 +702,65 @@ impl Table {
         Ok(())
     }
 
+    /// 与 `find_rows` 语义一致，但直接把结果写成 JSON 字符串。
+    /// - 无排序时流式扫描，凑够 limit 立刻停止，不再先收集全表行指针
+    /// - 命中 limit 后仍多探一行，用于判断是否还有下一页（has_more）
+    /// 返回 (json, has_more)
+    pub fn find_rows_json(&self,
+                          filter: &Option<HashMap<String, serde_json::Value>>,
+                          limit: Option<usize>, offset: Option<usize>,
+                          order_by: &Option<String>, order: &Option<String>) -> (String, bool) {
+        let o = offset.unwrap_or(0);
+        let cap = limit.unwrap_or(usize::MAX);
+        let positions = self.filter_positions(filter);
+
+        let mut out = String::with_capacity(128);
+        out.push('[');
+        let mut written = 0usize;
+        let mut has_more = false;
+        let mut tc = TimeCache::new();
+
+        let ordered = order_by.as_ref().and_then(|f| {
+            self.field_index.get(f).map(|&p| (p, order.as_deref() == Some("desc")))
+        });
+
+        match ordered {
+            Some((pos, desc)) => {
+                // 排序路径必须先收集全部匹配行
+                let mut matched: Vec<&RowStore> = self.rows.iter()
+                    .filter(|r| matches_positions(self.get_row_values(r), &positions))
+                    .collect();
+                matched.sort_by(|a, b| {
+                    let cmp = cmp_field_values(
+                        self.get_row_values(a).get(pos),
+                        self.get_row_values(b).get(pos),
+                    );
+                    if desc { cmp.reverse() } else { cmp }
+                });
+                has_more = limit.is_some() && matched.len().saturating_sub(o) > cap;
+                for r in matched.into_iter().skip(o).take(cap) {
+                    if written > 0 { out.push(','); }
+                    self.write_row_json_into(r, &mut out, &mut tc);
+                    written += 1;
+                }
+            }
+            None => {
+                let mut skipped = 0usize;
+                for r in &self.rows {
+                    if !matches_positions(self.get_row_values(r), &positions) { continue; }
+                    if skipped < o { skipped += 1; continue; }
+                    if written >= cap { has_more = true; break; }
+                    if written > 0 { out.push(','); }
+                    self.write_row_json_into(r, &mut out, &mut tc);
+                    written += 1;
+                }
+            }
+        }
+
+        out.push(']');
+        (out, has_more)
+    }
+
     pub fn find_rows(&self, filter: &Option<HashMap<String, serde_json::Value>>,
                      limit: Option<usize>, offset: Option<usize>,
                      order_by: &Option<String>, order: &Option<String>) -> Vec<Row> {
@@ -684,6 +794,13 @@ impl Table {
         let l = limit.unwrap_or(usize::MAX);
         results.into_iter().skip(o).take(l).map(|r| self.to_row(r)).collect()
     }
+}
+
+#[inline]
+pub(crate) fn matches_positions(vals: &[FieldValue], positions: &[(usize, &serde_json::Value)]) -> bool {
+    positions.iter().all(|(pos, v)| {
+        vals.get(*pos).map_or(false, |fv| fv.eq_json(v))
+    })
 }
 
 fn cmp_field_values(a: Option<&FieldValue>, b: Option<&FieldValue>) -> std::cmp::Ordering {

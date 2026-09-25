@@ -46,6 +46,16 @@ pub trait Engine {
             limit: Option<usize>, offset: Option<usize>,
             cursor: Option<String>,
             order_by: &Option<String>, order: &Option<String>) -> Result<(Vec<Row>, Option<String>, bool), String>;
+    /// 与 `find` 等价，但直接产出 JSON 字符串，省掉 `Row` / `HashMap<String, Value>`
+    /// 中间表示与随之而来的二次序列化。默认实现回退到 `find`。
+    fn find_json(&self, table: &str, filter: &Option<HashMap<String, serde_json::Value>>,
+                 limit: Option<usize>, offset: Option<usize>,
+                 cursor: Option<String>,
+                 order_by: &Option<String>, order: &Option<String>) -> Result<(String, Option<String>, bool), String> {
+        let (rows, cursor, has_more) = self.find(table, filter, limit, offset, cursor, order_by, order)?;
+        let json = serde_json::to_string(&rows).unwrap_or_else(|_| "[]".to_string());
+        Ok((json, cursor, has_more))
+    }
     fn count(&self, table: &str) -> Result<usize, String>;
     fn update_by_id(&mut self, table: &str, id: u64, data: HashMap<String, serde_json::Value>) -> Result<bool, String>;
     fn update_by_ids(&mut self, table: &str, batch: Vec<(u64, HashMap<String, serde_json::Value>)>) -> Result<usize, String>;

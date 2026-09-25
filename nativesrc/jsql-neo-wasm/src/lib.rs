@@ -328,8 +328,8 @@ pub fn jsql_find(table: &str, filter_json: &str, limit: usize, offset: usize) ->
     ENGINE.with(|eng| {
         let filter: Option<std::collections::HashMap<String, serde_json::Value>> =
             if filter_json.is_empty() { None } else { serde_json::from_str(filter_json).ok() };
-        match eng.borrow().find(table, &filter, Some(limit), Some(offset), None, &None, &None) {
-            Ok((rows, _, _)) => serde_json::to_string(&rows).unwrap_or_else(|_| "[]".to_string()),
+        match eng.borrow().find_json(table, &filter, Some(limit), Some(offset), None, &None, &None) {
+            Ok((json, _, _)) => json,
             Err(e) => format!(r#"{{"error":"{}"}}"#, e),
         }
     })

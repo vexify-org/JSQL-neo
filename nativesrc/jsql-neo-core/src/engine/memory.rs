@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::engine::table::Table;
+use crate::engine::table::{Table, matches_positions};
 use crate::engine::{validate_table_name, Engine};
 use crate::types::{Row, TableDefinition};
 
@@ -82,6 +82,18 @@ impl Engine for MemoryEngine {
         Ok((rows, next_cursor, has_more))
     }
 
+    fn find_json(&self, table: &str, filter: &Option<HashMap<String, serde_json::Value>>,
+                 limit: Option<usize>, offset: Option<usize>,
+                 cursor: Option<String>,
+                 order_by: &Option<String>, order: &Option<String>) -> Result<(String, Option<String>, bool), String> {
+        let t = self.tables.get(table).ok_or_else(|| format!("table '{}' not found", table))?;
+        let off = cursor.as_deref().and_then(|c| c.strip_prefix('c')?.parse().ok()).or(offset);
+        let off_val = off.unwrap_or(0);
+        let (json, has_more) = t.find_rows_json(filter, limit, off, order_by, order);
+        let next_cursor = if has_more { Some(format!("c{}", off_val + limit.unwrap())) } else { None };
+        Ok((json, next_cursor, has_more))
+    }
+
     fn count(&self, table: &str) -> Result<usize, String> {
         let t = self.tables.get(table).ok_or_else(|| format!("table '{}' not found", table))?;
         Ok(t.count())
@@ -109,17 +121,22 @@ impl Engine for MemoryEngine {
 
     fn update_by_filter(&mut self, table: &str, filter: &Option<HashMap<String, serde_json::Value>>,
                         data: HashMap<String, serde_json::Value>) -> Result<usize, String> {
-        let ids: Vec<u64> = {
-            let t = self.tables.get(table).ok_or_else(|| format!("table '{}' not found", table))?;
-            t.rows.iter()
-                .filter(|r| filter.as_ref().map_or(true, |f| t.row_matches(r, f)))
-                .map(|r| r.id)
-                .collect()
+        let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
+        let ids: Vec<u64> = match filter {
+            Some(f) => {
+                let positions: Vec<(usize, &serde_json::Value)> = f.iter()
+                    .filter_map(|(k, v)| t.field_index.get(k).map(|&pos| (pos, v)))
+                    .collect();
+                t.rows.iter()
+                    .filter(|r| matches_positions(t.get_row_values(r), &positions))
+                    .map(|r| r.id)
+                    .collect()
+            }
+            None => t.rows.iter().map(|r| r.id).collect(),
         };
         let count = ids.len();
         for id in &ids {
-            let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
-            t.update_row(*id, data.clone());
+            t.update_row_ref(*id, &data);
         }
         Ok(count)
     }
@@ -127,19 +144,21 @@ impl Engine for MemoryEngine {
     fn remove_by_filter(&mut self, table: &str, filter: &Option<HashMap<String, serde_json::Value>>) -> Result<usize, String> {
         let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
         let len_before = t.rows.len();
-        if filter.is_none() {
-            t.rows.clear();
-            t.pk_index.clear();
-            return Ok(len_before);
-        }
-        let f = filter.as_ref().unwrap();
-        let mut to_remove = Vec::new();
-        for (i, r) in t.rows.iter().enumerate() {
-            let matches = f.iter().all(|(k, v)| {
-                t.field_index.get(k).and_then(|&pos| t.get_row_values(r).get(pos)).map_or(false, |fv| fv.eq_json(v))
-            });
-            if matches { to_remove.push(i); }
-        }
+        let f = match filter {
+            None => {
+                t.rows.clear();
+                t.pk_index.clear();
+                return Ok(len_before);
+            }
+            Some(f) => f,
+        };
+        let positions: Vec<(usize, &serde_json::Value)> = f.iter()
+            .filter_map(|(k, v)| t.field_index.get(k).map(|&pos| (pos, v)))
+            .collect();
+        let to_remove: Vec<usize> = t.rows.iter().enumerate()
+            .filter(|(_, r)| matches_positions(t.get_row_values(r), &positions))
+            .map(|(i, _)| i)
+            .collect();
         for i in to_remove.into_iter().rev() {
             t.remove_row_by_idx(i);
         }
