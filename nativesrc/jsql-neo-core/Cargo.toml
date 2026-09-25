@@ -16,6 +16,8 @@ itoa = "1"
 ryu = "1"
 rustc-hash = "2"
 bincode = "1"
+# 线性时间、无回溯的正则引擎：用于 $like / $regex 模糊查询（无 ReDoS 风险）
+regex-lite = "0.1"
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
 

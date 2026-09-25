@@ -440,7 +440,7 @@ impl Table {
     }
 
     /// 预解析过滤条件：字段名 → 行内下标 + 条件，避免逐行重复做 HashMap 查找。
-    /// 支持字段级操作符（$eq/$ne/$gt/$gte/$lt/$lte/$in/$nin/$between/$exists），
+    /// 支持字段级操作符（$eq/$ne/$gt/$gte/$lt/$lte/$in/$nin/$between/$exists/$like/$regex），
     /// 一个字段多个操作符（如 {$gte:18,$lte:65}）会展开成多条，需同时满足。
     pub(crate) fn parse_filter<'a>(&self, filter: &'a HashMap<String, serde_json::Value>)
         -> Vec<(usize, Cond<'a>)>
@@ -824,6 +824,11 @@ pub(crate) enum Cond<'a> {
     /// 闭区间 [lo, hi]
     Between(&'a serde_json::Value),
     Exists(bool),
+    /// `$like`：SQL 风格通配（`%` = 任意多字符，`_` = 单字符），大小写不敏感。
+    /// 模式在解析阶段编译一次，逐行只做匹配。
+    Like(Box<regex_lite::Regex>),
+    /// `$regex`：JavaScript 风格正则，大小写敏感。
+    Regex(Box<regex_lite::Regex>),
     /// 不认识的写法：永不匹配（与旧的等值语义一致，避免静默放行全部行）
     Never,
 }
@@ -841,7 +846,54 @@ pub(crate) fn parse_op<'a>(op: &str, target: &'a serde_json::Value) -> Cond<'a> 
         "$nin" => Cond::Nin(target),
         "$between" => Cond::Between(target),
         "$exists" => Cond::Exists(target.as_bool().unwrap_or(true)),
+        // $like / $regex 目标必须是字符串；非法或编译失败的模式退化为「永不匹配」。
+        // regex-lite 为线性时间引擎，不存在灾难性回溯，无需 JS 侧 isSafeRegex 的长度拦截。
+        "$like" => match target.as_str() {
+            Some(p) => regex_lite::Regex::new(&like_to_regex(p))
+                .map(|re| Cond::Like(Box::new(re)))
+                .unwrap_or(Cond::Never),
+            None => Cond::Never,
+        },
+        "$regex" => match target.as_str() {
+            Some(p) => regex_lite::Regex::new(p)
+                .map(|re| Cond::Regex(Box::new(re)))
+                .unwrap_or(Cond::Never),
+            None => Cond::Never,
+        },
         _ => Cond::Never,
+    }
+}
+
+/// 把 SQL LIKE 模式转成锚定的、大小写不敏感的正则：
+/// 先转义正则元字符，再把 `%` 视作 `.*`、`_` 视作 `.`，
+/// 与 lib/table.js 的 `$like` 实现逐字符对齐。
+fn like_to_regex(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len() + 8);
+    out.push_str("(?i)^");
+    for ch in pattern.chars() {
+        match ch {
+            '%' => out.push_str(".*"),
+            '_' => out.push('.'),
+            '.' | '*' | '+' | '?' | '^' | '$' | '{' | '}' | '(' | ')' | '|' | '[' | ']' | '\\' => {
+                out.push('\\');
+                out.push(ch);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('$');
+    out
+}
+
+/// 把存储值转成 JS `String(value)` 的等价字符串（供 `$regex` 语义使用）。
+fn field_value_to_string(v: &FieldValue) -> std::borrow::Cow<'_, str> {
+    use std::borrow::Cow;
+    match v {
+        FieldValue::Null => Cow::Borrowed("null"),
+        FieldValue::Bool(b) => Cow::Owned(b.to_string()),
+        FieldValue::Int(n) => Cow::Owned(n.to_string()),
+        FieldValue::Float(f) => Cow::Owned(f.to_string()),
+        FieldValue::String(s) => Cow::Borrowed(s),
     }
 }
 
@@ -883,6 +935,10 @@ fn match_cond(fv: Option<&FieldValue>, cond: &Cond) -> bool {
             }
             _ => false,
         },
+        // $like 只对字符串字段生效（对齐 lib/table.js：非字符串直接 false）
+        Cond::Like(re) => matches!(fv, Some(FieldValue::String(s)) if re.is_match(s)),
+        // $regex 先把值字符串化再匹配（对齐 lib/table.js 的 String(value)）
+        Cond::Regex(re) => fv.map_or(false, |v| re.is_match(&field_value_to_string(v))),
     }
 }
 
