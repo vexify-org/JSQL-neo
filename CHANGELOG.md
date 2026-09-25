@@ -44,6 +44,31 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   不再用返回值覆盖第一个参数。此前 `args[0]` 恒为表名，覆盖它会污染表名，
   属历史遗留缺陷；需要改写数据时请在钩子内原地修改传入的数组 / 对象。
 
+### TODO（6.0.0-beta1 未完成项，留待后续）
+
+- **WASM 二进制尚未用新核心重新编译**：`wasm/jsql_neo_wasm_bg.wasm` 仍是旧产物，
+  模糊查询（`$like` / `$regex`）在 WASM 引擎下仍会失效；native 引擎已修复。
+  工具链已就绪（`wasm32-unknown-unknown` + `wasm-bindgen 0.2.126`），
+  发布前需执行：`cargo build --release --target wasm32-unknown-unknown`，
+  再以 `--target nodejs`（→ `jsql_neo_wasm.js`）与 `--target web`（→ `browser_bg.mjs`）
+  各生成一次并替换 `wasm/` 下的产物。
+- **`Database`（JS 引擎）的 `use()` 尚未透传第二参数 `opts`**：native / WASM 已支持
+  `db.use('validation', {...})`，JS 引擎暂只支持 `db.use('validation')`，需补齐签名。
+- **native 引擎单行 `insert` 不触发 `afterInsert` 钩子**（既有行为）：仅在批量
+  （`arr.length > 1`）分支调用，导致 `metrics` / `audit` 等插件漏记单行插入，需统一。
+- **内置插件字段需显式建表**：native 引擎只落库 schema 中声明的列，
+  `timestamps` 等插件写入的字段必须在 `createTable` 的 schema 里声明才会持久化。
+
+### Verification
+
+- native 引擎模糊查询手动验证通过：`$like`（大小写不敏感、`%`/`_` 通配、元字符转义）、
+  `$regex`（大小写敏感、`(?i)` 内联标志）、与 `$gte`/`$in` 组合、非法正则不崩溃。
+- 插件系统手动验证通过：`timestamps` / `metrics` / `audit` / `logger` / `validation`
+  内置插件、`db.plugin(name)` 取 API、自定义钩子、`ctx` 扩展接口。
+- `test/native.test.js`、`test/smoke.js`、`test/wasm.test.js` 均通过；
+  `test/regress-5.1.0.js` 中 `$like` 相关用例通过（唯一失败项为环境缺失依赖
+  `@vexify-org/yaggs` 导致的 CLI `--version` 检查，与本次改动无关）。
+
 ## [5.6.0] — 2026-09-19
 
 ### Fixed
