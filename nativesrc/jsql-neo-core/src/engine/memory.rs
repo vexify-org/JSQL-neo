@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::engine::table::{Table, matches_positions};
+use crate::engine::table::{Table, matches_filter};
 use crate::engine::{validate_table_name, Engine};
 use crate::types::{Row, TableDefinition};
 
@@ -124,11 +124,9 @@ impl Engine for MemoryEngine {
         let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
         let ids: Vec<u64> = match filter {
             Some(f) => {
-                let positions: Vec<(usize, &serde_json::Value)> = f.iter()
-                    .filter_map(|(k, v)| t.field_index.get(k).map(|&pos| (pos, v)))
-                    .collect();
+                let conds = t.parse_filter(f);
                 t.rows.iter()
-                    .filter(|r| matches_positions(t.get_row_values(r), &positions))
+                    .filter(|r| matches_filter(t.get_row_values(r), &conds))
                     .map(|r| r.id)
                     .collect()
             }
@@ -152,11 +150,9 @@ impl Engine for MemoryEngine {
             }
             Some(f) => f,
         };
-        let positions: Vec<(usize, &serde_json::Value)> = f.iter()
-            .filter_map(|(k, v)| t.field_index.get(k).map(|&pos| (pos, v)))
-            .collect();
+        let conds = t.parse_filter(f);
         let to_remove: Vec<usize> = t.rows.iter().enumerate()
-            .filter(|(_, r)| matches_positions(t.get_row_values(r), &positions))
+            .filter(|(_, r)| matches_filter(t.get_row_values(r), &conds))
             .map(|(i, _)| i)
             .collect();
         for i in to_remove.into_iter().rev() {

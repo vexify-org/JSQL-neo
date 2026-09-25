@@ -435,24 +435,32 @@ impl Table {
     }
 
     pub fn row_matches(&self, r: &RowStore, filter: &HashMap<String, serde_json::Value>) -> bool {
-        let vals = self.get_row_values(r);
-        filter.iter().all(|(k, v)| {
-            self.field_index.get(k)
-                .and_then(|&pos| vals.get(pos))
-                .map_or(false, |fv| fv.eq_json(v))
-        })
+        let conds = self.parse_filter(filter);
+        matches_filter(self.get_row_values(r), &conds)
     }
 
-    /// 预解析过滤条件：字段名 → 行内下标，避免逐行重复做 HashMap 查找。
-    fn filter_positions<'a>(&self, filter: &'a Option<HashMap<String, serde_json::Value>>)
-        -> Vec<(usize, &'a serde_json::Value)>
+    /// 预解析过滤条件：字段名 → 行内下标 + 条件，避免逐行重复做 HashMap 查找。
+    /// 支持字段级操作符（$eq/$ne/$gt/$gte/$lt/$lte/$in/$nin/$between/$exists），
+    /// 一个字段多个操作符（如 {$gte:18,$lte:65}）会展开成多条，需同时满足。
+    pub(crate) fn parse_filter<'a>(&self, filter: &'a HashMap<String, serde_json::Value>)
+        -> Vec<(usize, Cond<'a>)>
     {
-        match filter {
-            Some(f) => f.iter()
-                .filter_map(|(k, v)| self.field_index.get(k).map(|&pos| (pos, v)))
-                .collect(),
-            None => Vec::new(),
+        let mut out = Vec::with_capacity(filter.len());
+        for (k, v) in filter {
+            // 未知字段用哨兵下标，按「字段不存在」参与匹配（不再静默放行）
+            let pos = self.field_index.get(k).copied().unwrap_or(ABSENT_FIELD);
+            match v {
+                serde_json::Value::Object(map)
+                    if !map.is_empty() && map.keys().all(|kk| kk.starts_with('$')) =>
+                {
+                    for (op, target) in map {
+                        out.push((pos, parse_op(op, target)));
+                    }
+                }
+                other => out.push((pos, Cond::Eq(other))),
+            }
         }
+        out
     }
 
     pub fn get_row(&self, id: u64) -> Option<Row> {
@@ -712,7 +720,7 @@ impl Table {
                           order_by: &Option<String>, order: &Option<String>) -> (String, bool) {
         let o = offset.unwrap_or(0);
         let cap = limit.unwrap_or(usize::MAX);
-        let positions = self.filter_positions(filter);
+        let conds = filter.as_ref().map(|f| self.parse_filter(f)).unwrap_or_default();
 
         let mut out = String::with_capacity(128);
         out.push('[');
@@ -728,7 +736,7 @@ impl Table {
             Some((pos, desc)) => {
                 // 排序路径必须先收集全部匹配行
                 let mut matched: Vec<&RowStore> = self.rows.iter()
-                    .filter(|r| matches_positions(self.get_row_values(r), &positions))
+                    .filter(|r| matches_filter(self.get_row_values(r), &conds))
                     .collect();
                 matched.sort_by(|a, b| {
                     let cmp = cmp_field_values(
@@ -747,7 +755,7 @@ impl Table {
             None => {
                 let mut skipped = 0usize;
                 for r in &self.rows {
-                    if !matches_positions(self.get_row_values(r), &positions) { continue; }
+                    if !matches_filter(self.get_row_values(r), &conds) { continue; }
                     if skipped < o { skipped += 1; continue; }
                     if written >= cap { has_more = true; break; }
                     if written > 0 { out.push(','); }
@@ -764,43 +772,135 @@ impl Table {
     pub fn find_rows(&self, filter: &Option<HashMap<String, serde_json::Value>>,
                      limit: Option<usize>, offset: Option<usize>,
                      order_by: &Option<String>, order: &Option<String>) -> Vec<Row> {
-        let mut results: Vec<&RowStore> = self.rows.iter().collect();
-
-        if let Some(ref f) = filter {
-            let filter_indices: Vec<(usize, &serde_json::Value)> = f.iter()
-                .filter_map(|(k, v)| self.field_index.get(k).map(|&pos| (pos, v)))
-                .collect();
-            results.retain(|r| {
-                let vals = self.get_row_values(r);
-                filter_indices.iter().all(|(pos, v)| {
-                    vals.get(*pos).map_or(false, |fv| fv.eq_json(v))
-                })
-            });
-        }
-
-        if let Some(ref field) = order_by {
-            let desc = order.as_deref() == Some("desc");
-            if let Some(&pos) = self.field_index.get(field) {
-                results.sort_by(|a, b| {
-                    let vals_a = self.get_row_values(a);
-                    let vals_b = self.get_row_values(b);
-                    let cmp = cmp_field_values(vals_a.get(pos), vals_b.get(pos));
-                    if desc { cmp.reverse() } else { cmp }
-                });
-            }
-        }
-
         let o = offset.unwrap_or(0);
         let l = limit.unwrap_or(usize::MAX);
-        results.into_iter().skip(o).take(l).map(|r| self.to_row(r)).collect()
+        let conds = filter.as_ref().map(|f| self.parse_filter(f)).unwrap_or_default();
+
+        if let Some(field) = order_by.as_ref().filter(|f| self.field_index.contains_key(*f)) {
+            let pos = self.field_index[field];
+            let desc = order.as_deref() == Some("desc");
+            let mut results: Vec<&RowStore> = self.rows.iter()
+                .filter(|r| matches_filter(self.get_row_values(r), &conds))
+                .collect();
+            results.sort_by(|a, b| {
+                let cmp = cmp_field_values(
+                    self.get_row_values(a).get(pos),
+                    self.get_row_values(b).get(pos),
+                );
+                if desc { cmp.reverse() } else { cmp }
+            });
+            return results.into_iter().skip(o).take(l).map(|r| self.to_row(r)).collect();
+        }
+
+        // 无排序：流式扫描，凑够 limit 立刻停止，不先收集全表行指针
+        let mut out = Vec::with_capacity(l.min(self.rows.len()));
+        let mut skipped = 0usize;
+        for r in &self.rows {
+            if !matches_filter(self.get_row_values(r), &conds) { continue; }
+            if skipped < o { skipped += 1; continue; }
+            if out.len() >= l { break; }
+            out.push(self.to_row(r));
+        }
+        out
+    }
+}
+
+/// 过滤条件里出现 schema 之外的字段时用它作为哨兵下标：
+/// `vals.get(SENTINEL)` 恒为 None，等价于「该字段不存在」，
+/// 于是 {$exists:false}/{$ne:x} 等语义与 lib/table.js 的 `_matchRow` 一致，
+/// 而 `{noSuchField: 5}` 会正确地匹配 0 行（旧实现会静默放行全部行）。
+const ABSENT_FIELD: usize = usize::MAX;
+
+/// 单字段查询条件（字段名已在解析阶段降为行内下标）
+pub(crate) enum Cond<'a> {
+    Eq(&'a serde_json::Value),
+    Ne(&'a serde_json::Value),
+    Gt(&'a serde_json::Value),
+    Gte(&'a serde_json::Value),
+    Lt(&'a serde_json::Value),
+    Lte(&'a serde_json::Value),
+    In(&'a serde_json::Value),
+    Nin(&'a serde_json::Value),
+    /// 闭区间 [lo, hi]
+    Between(&'a serde_json::Value),
+    Exists(bool),
+    /// 不认识的写法：永不匹配（与旧的等值语义一致，避免静默放行全部行）
+    Never,
+}
+
+/// 解析单个操作符。语义对齐 lib/table.js 的 `_matchOperator`。
+pub(crate) fn parse_op<'a>(op: &str, target: &'a serde_json::Value) -> Cond<'a> {
+    match op {
+        "$eq" => Cond::Eq(target),
+        "$ne" => Cond::Ne(target),
+        "$gt" => Cond::Gt(target),
+        "$gte" => Cond::Gte(target),
+        "$lt" => Cond::Lt(target),
+        "$lte" => Cond::Lte(target),
+        "$in" => Cond::In(target),
+        "$nin" => Cond::Nin(target),
+        "$between" => Cond::Between(target),
+        "$exists" => Cond::Exists(target.as_bool().unwrap_or(true)),
+        _ => Cond::Never,
     }
 }
 
 #[inline]
-pub(crate) fn matches_positions(vals: &[FieldValue], positions: &[(usize, &serde_json::Value)]) -> bool {
-    positions.iter().all(|(pos, v)| {
-        vals.get(*pos).map_or(false, |fv| fv.eq_json(v))
-    })
+pub(crate) fn matches_filter(vals: &[FieldValue], conds: &[(usize, Cond)]) -> bool {
+    // 最常见形态（单字段等值，如按主键点查）走直通，避免逐行做枚举分派
+    if let [(pos, Cond::Eq(t))] = conds {
+        return vals.get(*pos).map_or(false, |fv| fv.eq_json(t));
+    }
+    conds.iter().all(|(pos, c)| match_cond(vals.get(*pos), c))
+}
+
+#[inline]
+fn match_cond(fv: Option<&FieldValue>, cond: &Cond) -> bool {
+    use std::cmp::Ordering;
+    let cmp = |t: &serde_json::Value, want: fn(Ordering) -> bool| {
+        fv.and_then(|v| cmp_to_json(v, t)).map_or(false, want)
+    };
+    match cond {
+        Cond::Never => false,
+        Cond::Exists(want) => fv.is_some() == *want,
+        Cond::Eq(t) => fv.map_or(false, |v| v.eq_json(t)),
+        Cond::Ne(t) => !fv.map_or(false, |v| v.eq_json(t)),
+        Cond::In(t) => match t.as_array() {
+            Some(arr) => fv.map_or(false, |v| arr.iter().any(|e| v.eq_json(e))),
+            None => false,
+        },
+        Cond::Nin(t) => match t.as_array() {
+            Some(arr) => !fv.map_or(false, |v| arr.iter().any(|e| v.eq_json(e))),
+            None => false,
+        },
+        Cond::Gt(t) => cmp(t, |o| o == Ordering::Greater),
+        Cond::Gte(t) => cmp(t, |o| o != Ordering::Less),
+        Cond::Lt(t) => cmp(t, |o| o == Ordering::Less),
+        Cond::Lte(t) => cmp(t, |o| o != Ordering::Greater),
+        Cond::Between(t) => match t.as_array() {
+            Some(arr) if arr.len() == 2 => {
+                cmp(&arr[0], |o| o != Ordering::Less) && cmp(&arr[1], |o| o != Ordering::Greater)
+            }
+            _ => false,
+        },
+    }
+}
+
+/// 存储值与 JSON 目标值比较；类型不可比或含 null/NaN 时返回 None（视为不匹配，
+/// 对齐 JS 里 `value !== null && value > expected` 的写法）。
+fn cmp_to_json(fv: &FieldValue, jv: &serde_json::Value) -> Option<std::cmp::Ordering> {
+    use serde_json::Value as J;
+    match (fv, jv) {
+        (FieldValue::Null, _) | (_, J::Null) => None,
+        (FieldValue::Int(a), J::Number(n)) => match n.as_i64() {
+            Some(b) => Some(a.cmp(&b)),
+            None => n.as_f64().and_then(|b| (*a as f64).partial_cmp(&b)),
+        },
+        (FieldValue::Float(a), J::Number(n)) => n.as_f64().and_then(|b| a.partial_cmp(&b)),
+        (FieldValue::Bool(a), J::Bool(b)) => Some(a.cmp(b)),
+        (FieldValue::String(a), J::String(b)) => Some(a.as_str().cmp(b.as_str())),
+        _ => None,
+    }
 }
 
 fn cmp_field_values(a: Option<&FieldValue>, b: Option<&FieldValue>) -> std::cmp::Ordering {
