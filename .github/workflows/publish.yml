@@ -1,0 +1,41 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (如: 1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.14.0
+          registry-url: https://registry.npmjs.org
+
+      - name: 缓存 node_modules
+        id: cache-node-modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package.json') }}
+
+      - name: 安装依赖
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm install
+
+      - name: 设置版本
+        run: npm version ${{ inputs.version }} --allow-same-version
+
+      - name: 发布到 npm
+        run: npm publish --provenance --access public
