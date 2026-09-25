@@ -13,3 +13,10 @@ serde_json = "1"
 
 [dependencies.js-sys]
 version = "0.3"
+
+# wasm 产物：LTO + 单 codegen-unit 显著减小体积，strip 去掉符号表
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"

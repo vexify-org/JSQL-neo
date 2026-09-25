@@ -152,8 +152,8 @@ pub fn jsql_find(table: String, filter_json: String, limit: i32, offset: i32) ->
     with_engine_ro(|eng| {
         let filter: Option<HashMap<String, serde_json::Value>> =
             if filter_json.is_empty() { None } else { serde_json::from_str(&filter_json).ok() };
-        match eng.find(&table, &filter, Some(limit as usize), Some(offset as usize), None, &None, &None) {
-            Ok((rows, _, _)) => serde_json::to_string(&rows).unwrap_or_else(|_| "[]".to_string()),
+        match eng.find_json(&table, &filter, Some(limit as usize), Some(offset as usize), None, &None, &None) {
+            Ok((json, _, _)) => json,
             Err(e) => format!(r#"{{"error":"{}"}}"#, e),
         }
     })

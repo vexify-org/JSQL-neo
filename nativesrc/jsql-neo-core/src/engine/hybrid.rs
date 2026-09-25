@@ -161,6 +161,13 @@ impl HybridEngine {
 
     /// 把单个表写盘（原子：tmp + rename）
     pub fn flush_table(&self, name: &str) -> Result<(), String> {
+        self.flush_table_inner(name)?;
+        self.save_meta();
+        Ok(())
+    }
+
+    /// 写盘但不落 meta.json —— 批量 flush 时由调用方统一写一次，避免 N 次 meta 写放大
+    fn flush_table_inner(&self, name: &str) -> Result<(), String> {
         if self.store_dir.is_none() { return Ok(()); }
         let json = {
             let mem = self.mem.borrow();
@@ -190,7 +197,6 @@ impl HybridEngine {
         fs::write(&tmp, json).map_err(|e| format!("write {}: {}", tmp.display(), e))?;
         let final_path = self.table_path(name, &file);
         fs::rename(&tmp, &final_path).map_err(|e| format!("rename {}: {}", final_path.display(), e))?;
-        self.save_meta();
         Ok(())
     }
 
@@ -201,7 +207,7 @@ impl HybridEngine {
         if names.is_empty() { return Ok(0); }
         let mut flushed = 0;
         for name in &names {
-            if self.flush_table(name).is_ok() {
+            if self.flush_table_inner(name).is_ok() {
                 self.dirty.borrow_mut().remove(name);
                 flushed += 1;
             }
@@ -212,17 +218,25 @@ impl HybridEngine {
 
     /// LRU 驱逐一个最冷已落盘表（返回被驱逐的表名）
     pub fn evict_one(&self) -> Option<String> {
-        let names: Vec<String> = self.mem.borrow().tables.keys().cloned().collect();
-        let dirty = self.dirty.borrow();
-        let candidates: Vec<String> = names.into_iter()
-            .filter(|n| !dirty.contains(n) && self.meta.borrow().contains_key(n))
-            .collect();
-        if candidates.is_empty() { return None; }
-        let mut sorted = candidates;
-        sorted.sort_by_key(|n| self.last_access.borrow().get(n).copied().unwrap_or(0));
-        let victim = sorted.remove(0);
-        self.mem.borrow_mut().tables.remove(&victim);
-        Some(victim)
+        let victim = {
+            let mem = self.mem.borrow();
+            let dirty = self.dirty.borrow();
+            let meta = self.meta.borrow();
+            let access = self.last_access.borrow();
+            let mut best: Option<(u64, &str)> = None;
+            for name in mem.tables.keys() {
+                if dirty.contains(name) || !meta.contains_key(name) { continue; }
+                let ts = access.get(name).copied().unwrap_or(0);
+                if best.map_or(true, |(bts, _)| ts < bts) {
+                    best = Some((ts, name.as_str()));
+                }
+            }
+            best.map(|(_, n)| n.to_string())
+        };
+        if let Some(ref v) = victim {
+            self.mem.borrow_mut().tables.remove(v);
+        }
+        victim
     }
 
     /// 批量二进制插入（native_client encodeBatch 格式），兼容原 jsql_insert_buf 性能路径
@@ -387,6 +401,16 @@ impl Engine for HybridEngine {
             order_by: &Option<String>, order: &Option<String>) -> Result<(Vec<crate::types::Row>, Option<String>, bool), String> {
         self.ensure_table(table);
         let r = self.mem.borrow().find(table, filter, limit, offset, cursor, order_by, order);
+        if r.is_ok() { self.touch(table); }
+        r
+    }
+
+    fn find_json(&self, table: &str, filter: &Option<HashMap<String, serde_json::Value>>,
+                 limit: Option<usize>, offset: Option<usize>,
+                 cursor: Option<String>,
+                 order_by: &Option<String>, order: &Option<String>) -> Result<(String, Option<String>, bool), String> {
+        self.ensure_table(table);
+        let r = self.mem.borrow().find_json(table, filter, limit, offset, cursor, order_by, order);
         if r.is_ok() { self.touch(table); }
         r
     }
