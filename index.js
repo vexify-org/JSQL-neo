@@ -1,5 +1,5 @@
 /**
- * JSQL-NEO v5.5.0 — Rust-Powered Embedded Database (WASM + HTTP)
+ * JSQL-NEO v6.0.0-beta1 — Rust-Powered Embedded Database (WASM + HTTP)
  *
  * @example
  * const jsql = require('jsql-neo');
@@ -13,7 +13,8 @@
 
 const WasmClient = require('./lib/wasm_client');
 const NativeClient = require('./lib/native_client');
-const { Plugin } = require('./lib/plugin');
+const { Plugin, definePlugin, HOOKS } = require('./lib/plugin');
+const plugins = require('./lib/plugins');
 const { ModuleManager } = require('./lib/mod');
 const sql = require('./lib/sql');
 const { Datastore } = require('./lib/nedb_compat');
@@ -71,6 +72,9 @@ module.exports = {
     BTree: require('./lib/btree'),
     Cache: require('./lib/cache'),
     Plugin,
+    definePlugin,
+    HOOKS,
+    plugins,
     ModuleManager,
     JSQL_Error: require('./lib/errors').JSQL_Error,
     ErrorCodes: require('./lib/errors').ErrorCodes,

@@ -4,6 +4,46 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.0.0-beta1] — 2026-09-25
+
+### Fixed
+
+- **native / WASM 引擎的模糊查询静默失效**：`db.find(table, { field: { $like } })`
+  与 `{ $regex }` 在 Rust 引擎上此前不匹配任何行（回退为「永不匹配」）。
+  现于 `jsql-neo-core` 的过滤条件解析中新增 `Cond::Like` / `Cond::Regex`，
+  引入线性时间、无回溯的 `regex-lite` 引擎（无 ReDoS 风险，因此无需 JS 侧
+  `isSafeRegex` 的长度拦截）：
+  - `$like`：SQL 风格通配（`%`→`.*`、`_`→`.`），转义正则元字符，锚定整串，大小写不敏感；
+  - `$regex`：JavaScript 风格正则，大小写敏感，值先做 `String(value)` 再匹配；
+  - 模式在查询解析阶段编译一次，逐行仅匹配；非法/编译失败的模式退化为不匹配（不崩溃）。
+  行为与 JS 引擎 `lib/table.js` 的语义逐一对齐。
+
+### Added
+
+- **可编程插件系统扩容**（`lib/plugin.js` 统一运行时，native / WASM / JS 三引擎共用）：
+  - 开放四类扩展点：生命周期钩子、事件监听、插件上下文（ctx）、插件 API；
+  - 插件上下文新增 `store`（按插件名隔离的私有存储）、`config`、`log`、
+    `emit`、`hook`（触发自定义钩子）、`use`、`tables/hasTable/getTableSchema`、
+    `expose`（运行期声明 API）；
+  - 未知钩子名自动登记，插件可自定义扩展点；`on` 支持同名多次注册，按序执行；
+  - 引擎新增公开方法 `db.emit()` / `db.runHook()` / `db.plugin(name)`；
+  - `db.use()` 现支持字符串（内置插件名）、插件对象或函数三种形态；
+  - 新增钩子 `beforeQuery` / `afterQuery`，在 native / WASM 的 `query()` 前后触发；
+  - 导出 `Plugin` / `definePlugin` / `HOOKS` / `plugins`。
+
+- **内置插件集**（`lib/plugins`）：
+  - `timestamps`：自动维护 `createdAt` / `updatedAt`（字段名可配）；
+  - `validation`：基于 schema 的插入/更新校验（not null、类型、maxLength、min/max、自定义校验函数）；
+  - `logger`：把操作记录到自定义 logger（可按表过滤）；
+  - `metrics`：统计各类操作次数，`db.plugin('metrics').snapshot()` 读取；
+  - `audit`：内存环形缓冲的变更审计日志，`db.plugin('audit').entries()` 读取。
+
+### Breaking
+
+- 插件钩子的返回值语义收紧：**仅 `false` 有效（中止操作）**，
+  不再用返回值覆盖第一个参数。此前 `args[0]` 恒为表名，覆盖它会污染表名，
+  属历史遗留缺陷；需要改写数据时请在钩子内原地修改传入的数组 / 对象。
+
 ## [5.6.0] — 2026-09-19
 
 ### Fixed
