@@ -1,15 +1,11 @@
-name: Test and Publish
+name: Test
 
 on:
   push:
     branches: [main]
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
-  test-and-publish:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -17,7 +13,6 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22.14.0
-          registry-url: https://registry.npmjs.org
 
       - name: 缓存 node_modules
         id: cache-node-modules
@@ -32,6 +27,3 @@ jobs:
 
       - name: 跑测试
         run: npm test
-
-      - name: 发布到 npm
-        run: npm publish --provenance --access public
