@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser. **And it fits in one npm package.**
 
-> **v5.6.0** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
+> **v6.0.0** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -232,7 +232,7 @@ npm install && npm run build                 # option 3: from source
 Verify:
 
 ```bash
-node -e "console.log(require('jsql-neo/package.json').version)"   # 5.6.0
+node -e "console.log(require('jsql-neo/package.json').version)"   # 6.0.0
 ```
 
 ### 30-second demo
@@ -1281,7 +1281,7 @@ Multi-statement supported; `SQLExecutor` class runs batched SQL from a string/st
 // 1) 数组入参 —— 执行前用 applyParams 内联替换（转义安全，默认路径）
 await executeSQL(db, 'SELECT * FROM emp WHERE salary > ?', [5000]);
 
-// 2) 原生 ? 占位符 —— 解析成 AST 节点，在执行期绑定（5.6.0+）
+// 2) 原生 ? 占位符 —— 解析成 AST 节点，在执行期绑定（6.0.0+）
 await executeSQL(db, 'SELECT * FROM emp WHERE salary > ?', { params: [5000] });
 
 // 支持顺序 ? 、编号 ?1 与标识符占位 ??
@@ -1290,7 +1290,7 @@ await executeSQL(db, 'SELECT * FROM emp WHERE dept = ?1 OR salary > ?2', { param
 
 ### AST access & rewrite
 
-`parseSQL()` 返回普通对象树。5.6.0 起提供 `lib/ast.js`（同时从 `lib/sql.js` 导出 `AST`、`walk`、
+`parseSQL()` 返回普通对象树。6.0.0 起提供 `lib/ast.js`（同时从 `lib/sql.js` 导出 `AST`、`walk`、
 `transform`、`visit`）用于遍历、查找与改写这棵树，无需了解每种节点类型。
 
 ```js
@@ -1457,7 +1457,7 @@ jsql mod --engine wasm        # switch engine (restart required)
 
 ```bash
 $ jsql version
-jsql-neo v5.6.0
+jsql-neo v6.0.0
 engine: native (napi) | wasm | js
 node: v22.0.0  platform: linux x64
 ```
@@ -1478,7 +1478,7 @@ jsql tui --memory -q                      # memory mode, quiet
 jsql tui --prompt 'db> ' --no-color
 ```
 
-The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=5.6.0`.
+The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=6.0.0`.
 
 ### Keyboard shortcuts
 
@@ -4042,7 +4042,7 @@ Data dir: /root/.jsql-neo/data
 
 ```bash
 $ jsql version
-jsql-neo v5.6.0
+jsql-neo v6.0.0
 engine: native (napi) | wasm | js
 node: v22.0.0
 platform: linux x64
@@ -5119,7 +5119,7 @@ Apache License
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v5.6.0 · 最后更新：2026-08-12*
+*文档版本：v6.0.0 · 最后更新：2026-08-12*
 
 ---
 
@@ -6889,7 +6889,7 @@ Usage: jsql version
 
 输出版本与环境信息：
 
-  jsql-neo v5.6.0
+  jsql-neo v6.0.0
   engine: native (napi) | wasm | js
   node: v22.0.0
   platform: linux x64
