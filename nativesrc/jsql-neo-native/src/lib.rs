@@ -112,6 +112,18 @@ pub fn jsql_create_table(name: String, schema_json: String) -> String {
 }
 
 #[napi]
+pub fn jsql_add_column(table: String, name: String, fs_json: String) -> String {
+    let fs: FieldSchema = match serde_json::from_str(&fs_json) {
+        Ok(f) => f,
+        Err(e) => return format!(r#"{{"ok":false,"error":"invalid field schema: {}"}}"#, e),
+    };
+    with_engine_mut(|eng| match eng.add_column(&table, &name, fs) {
+        Ok(()) => r#"{"ok":true}"#.to_string(),
+        Err(e) => format!(r#"{{"ok":false,"error":"{}"}}"#, e),
+    })
+}
+
+#[napi]
 pub fn jsql_drop_table(name: String) -> String {
     with_engine_mut(|eng| match eng.drop_table(&name) {
         Ok(()) => r#"{"ok":true}"#.to_string(),

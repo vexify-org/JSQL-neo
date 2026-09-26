@@ -338,6 +338,19 @@ impl Engine for HybridEngine {
         Ok(())
     }
 
+    fn add_column(&mut self, table: &str, name: &str, fs: FieldSchema) -> Result<(), String> {
+        // 先更新内存表结构（含已有行回填），再同步持久化元数据中的 schema。
+        self.mem.borrow_mut().add_column(table, name, fs.clone())?;
+        if let Some(tm) = self.meta.borrow_mut().get_mut(table) {
+            if !tm.schema.iter().any(|(n, _)| n == name) {
+                tm.schema.push((name.to_string(), fs));
+            }
+            self.save_meta();
+            self.mark_dirty(table);
+        }
+        Ok(())
+    }
+
     fn drop_table(&mut self, name: &str) -> Result<(), String> {
         let in_mem = self.mem.borrow().tables.contains_key(name);
         let in_meta = self.meta.borrow().contains_key(name);

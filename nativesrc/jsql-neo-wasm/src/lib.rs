@@ -34,6 +34,22 @@ pub fn jsql_create_table(name: &str, schema_json: &str) -> String {
     })
 }
 
+/// 运行期加列：扩展表结构并为已有行回填默认值。
+/// fs_json 为单个 FieldSchema 的 JSON，例如 {"type":"integer","nullable":true,"default":0}
+#[wasm_bindgen]
+pub fn jsql_add_column(table: &str, name: &str, fs_json: &str) -> String {
+    ENGINE.with(|eng| {
+        let fs: FieldSchema = match serde_json::from_str(fs_json) {
+            Ok(f) => f,
+            Err(e) => return format!(r#"{{"ok":false,"error":"invalid field schema: {}"}}"#, e),
+        };
+        match eng.borrow_mut().add_column(table, name, fs) {
+            Ok(()) => r#"{"ok":true}"#.to_string(),
+            Err(e) => format!(r#"{{"ok":false,"error":"{}"}}"#, e),
+        }
+    })
+}
+
 #[wasm_bindgen]
 pub fn jsql_drop_table(name: &str) -> String {
     ENGINE.with(|eng| match eng.borrow_mut().drop_table(name) {

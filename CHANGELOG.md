@@ -4,6 +4,17 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.0.0-beta2] — 2026-09-26
+
+### Added
+
+- **`db.addColumn(table, name, def)`**：运行时向已存在的表追加列，无需重建表。
+  - Rust 核心 `jsql-neo-core`：新增 `FieldSchema` 级 `add_column`（内存引擎 + HybridEngine，
+    同步持久化 meta schema 并标记脏页）；
+  - FFI 导出：native（napi `jsqlAddColumn`）与 WASM（wasm-bindgen `jsql_add_column`）双端提供；
+  - JS 客户端层：`lib/native_client.js`、`lib/wasm_client.js`、`wasm/browser.mjs` 三处接入，
+    共享同一 schema 映射与事件钩子（`addColumn` 事件）。
+
 ## [6.0.0-beta1] — 2026-09-25
 
 ### Fixed

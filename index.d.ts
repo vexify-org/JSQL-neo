@@ -92,6 +92,7 @@ declare namespace JSQLNeo {
     stop(): Promise<void>;
     flush(): Promise<void>;
     createTable(name: string, schema: Schema): Promise<unknown>;
+    addColumn(table: string, name: string, def: string | FieldDef): Promise<unknown>;
     dropTable(name: string): Promise<unknown>;
     insert(table: string, data: Record<string, unknown> | Record<string, unknown>[]): Promise<unknown>;
     insertMany(table: string, data: Record<string, unknown>[]): Promise<unknown>;
