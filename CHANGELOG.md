@@ -4,7 +4,7 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
-## [6.0.0-beta3] — 2026-09-26
+## [6.0.0] — 2026-09-26
 
 ### Added
 
@@ -71,19 +71,16 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   不再用返回值覆盖第一个参数。此前 `args[0]` 恒为表名，覆盖它会污染表名，
   属历史遗留缺陷；需要改写数据时请在钩子内原地修改传入的数组 / 对象。
 
-### TODO（核对于 6.0.0-beta3，2026-09-26）
+### TODO（核对于 6.0.0，2026-09-26）
 
 已完成（不要再做）：
 
 - **WASM 已用新核心重新编译**：`wasm/jsql_neo_wasm_bg.wasm` 已导出 `jsql_add_column`，
   并编入 `regex-lite`。`$like` / `$regex` / `addColumn` 在 WASM 上已可用。
   不要再执行 `cargo build --target wasm32-unknown-unknown` 除非改了 `nativesrc/`。
-- **`exists` / `prepare` / B-Tree IN·前缀 LIKE·范围查询** 已落地（见 6.0.0-beta3）。
+- **`exists` / `prepare` / B-Tree IN·前缀 LIKE·范围查询** 已落地（见 6.0.0）。
 - **Git 历史已瘦身**：`nativesrc/*/target/`、`bin/jsql-neo-server`、`*.tgz` 已从历史剔除，
   `.git` ≈ 3.3M。不要再全量 clone 后重复 filter-repo。
-
-已完成（6.0.0-beta3 后续补丁，不要再做）：
-
 - **`Database.use(plugin, opts)` 已透传第二参数**：JS / native / WASM / browser
   四处 `use()` 均把 `opts` 交给 `applyPlugin`（browser 合并进 `plugin.config`）。
 - **单行 `insert` 已触发 `afterInsert`**：native / WASM / browser 在单行 flush
