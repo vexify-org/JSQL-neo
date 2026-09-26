@@ -16,25 +16,22 @@ on:
           - beta
 
 permissions:
-  id-token: write   # OIDC 必需
+  id-token: write   # npm provenance（OIDC，无需 NPM_TOKEN）
   contents: read
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24          # 建议 24，自带 npm >= 11.5.1
-          # 绝对不要加 registry-url
-
-      - name: 升级 npm（Node 24 可省略）
-        run: npm install -g npm@latest
+          node-version: 24
+          registry-url: https://registry.npmjs.org
 
       - name: 缓存 node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules
           key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package.json') }}
@@ -57,5 +54,4 @@ jobs:
           fi
 
       - name: 发布到 npm
-        run: npm publish --access public --tag ${{ steps.dist.outputs.tag }}
-        # 不要传 NODE_AUTH_TOKEN，OIDC 会自动处理
+        run: npm publish --provenance --access public --tag ${{ steps.dist.outputs.tag }}
