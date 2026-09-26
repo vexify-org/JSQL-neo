@@ -1,6 +1,6 @@
 [package]
 name = "jsql-neo-wasm"
-version = "5.6.0"
+version = "6.0.0"
 edition = "2021"
 
 [lib]

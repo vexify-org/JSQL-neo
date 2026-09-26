@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::engine::table::{Table, matches_filter};
 use crate::engine::{validate_table_name, Engine};
-use crate::types::{Row, TableDefinition};
+use crate::types::{Row, TableDefinition, FieldSchema};
 
 pub struct MemoryEngine {
     pub tables: HashMap<String, Table>,
@@ -32,6 +32,14 @@ impl Engine for MemoryEngine {
             return Err(format!("table '{}' already exists", def.name));
         }
         self.tables.insert(def.name.clone(), Table::new(def.name, &def.schema));
+        Ok(())
+    }
+
+    fn add_column(&mut self, table: &str, name: &str, fs: FieldSchema) -> Result<(), String> {
+        let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
+        if !t.add_column(name, &fs) {
+            return Err(format!("column '{}' already exists in table '{}'", name, table));
+        }
         Ok(())
     }
 

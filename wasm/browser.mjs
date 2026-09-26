@@ -1,6 +1,7 @@
 import {
   jsql_reset,
   jsql_create_table,
+  jsql_add_column,
   jsql_drop_table,
   jsql_insert_json,
   jsql_find,
@@ -392,6 +393,17 @@ export class JSQL {
     this._schemas[name] = typeof schema === 'string' ? mapNativeSchema(schema) : schema;
     this._emit('createTable', { name, schema });
     this._runHooks('afterCreateTable', [name, schema]);
+    return r;
+  }
+
+  async addColumn(table, name, def) {
+    await this._flush();
+    const mapped = mapNativeSchema({ [name]: def })[name];
+    const r = safeJsonParse(jsql_add_column(table, name, JSON.stringify(mapped)));
+    if (r && r.ok === false) throw new Error(r.error || 'add column failed');
+    if (!this._schemas[table]) this._schemas[table] = {};
+    this._schemas[table][name] = mapped;
+    this._emit('addColumn', { table, name, def: mapped });
     return r;
   }
 

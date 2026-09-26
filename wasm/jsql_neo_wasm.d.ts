@@ -1,6 +1,12 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * 运行期加列：扩展表结构并为已有行回填默认值。
+ * fs_json 为单个 FieldSchema 的 JSON，例如 {"type":"integer","nullable":true,"default":0}
+ */
+export function jsql_add_column(table: string, name: string, fs_json: string): string;
+
 export function jsql_begin_tx(): string;
 
 export function jsql_commit_tx(tx_id: string): string;
