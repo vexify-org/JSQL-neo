@@ -58,6 +58,22 @@ function validate(bt) {
   ok('non-unique remove value keeps key until last', n.search('a').length === 0 && n.size === 1);
 }
 
+/* ---- 二分查找 / IN / 前缀 ---- */
+{
+  const bt = new BTree(16);
+  for (let i = 0; i < 200; i++) bt.insert(i, i);
+  ok('binary search mid', JSON.stringify(bt.search(123)) === '[123]');
+  ok('searchMany unique', JSON.stringify(bt.searchMany([0, 199, 50, 50]).sort((a, b) => a - b)) === '[0,50,199]');
+  ok('greaterThanEqual last two', JSON.stringify(bt.greaterThanEqual(198).sort((a, b) => a - b)) === '[198,199]');
+  ok('lessThanEqual first two', JSON.stringify(bt.lessThanEqual(1).sort((a, b) => a - b)) === '[0,1]');
+}
+
+{
+  const bt = new BTree(8);
+  ['alpha', 'alpine', 'beta', 'alpine'].forEach((k, i) => bt.insert(k, i));
+  ok('prefix alp', JSON.stringify(bt.prefix('alp').sort((a, b) => a - b)) === '[0,1,3]');
+}
+
 /* ---- 多值键删除只影响目标 rowIndex（size 对照 distinct keys） ---- */
 {
   const bt = new BTree(8);

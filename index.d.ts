@@ -113,6 +113,15 @@ declare namespace JSQLNeo {
      * @returns 单条语句返回单个结果对象（含 columns/rows），多条返回数组。
      */
     query(sql: string, paramsOrOpts?: unknown[] | Record<string, unknown>, opts?: Record<string, unknown>): Promise<any>;
+    exists(table: string, filter?: Record<string, unknown>): Promise<boolean>;
+    prepare(sql: string): PreparedStatement;
+  }
+
+  export interface PreparedStatement {
+    sql: string;
+    all(...params: unknown[]): Promise<any>;
+    get(...params: unknown[]): Promise<Record<string, unknown> | null>;
+    run(...params: unknown[]): Promise<any>;
   }
 
   export class NativeJSQL extends JSQL {}
@@ -309,6 +318,9 @@ declare namespace JSQLNeo {
     createTable(name: string, schema: Schema): Promise<unknown>;
     insert(table: string, data: Record<string, unknown>): Promise<unknown>;
     find(table: string, filter?: Record<string, unknown>): Promise<Row[]>;
+    exists(table: string, filter?: Record<string, unknown>): boolean;
+    prepare(sql: string): PreparedStatement;
+    query(sql: string, paramsOrOpts?: unknown[] | SQLOptions, opts?: SQLOptions): Promise<SQLResult>;
     update(table: string, filter: Record<string, unknown>, data: Record<string, unknown>): Promise<number>;
     remove(table: string, filter: Record<string, unknown>): Promise<number>;
     findOne(table: string, filter?: Record<string, unknown>): Promise<Row | null>;
@@ -322,6 +334,7 @@ declare namespace JSQLNeo {
     constructor(name: string, schema: Schema, db?: unknown);
     insert(data: Record<string, unknown>): Promise<unknown>;
     find(filter?: Record<string, unknown>): Promise<Row[]>;
+    exists(filter?: Record<string, unknown>): boolean;
     updateById(id: number | string, data: Record<string, unknown>): Promise<unknown>;
     removeById(id: number | string): Promise<unknown>;
     count(): Promise<number>;
@@ -329,15 +342,27 @@ declare namespace JSQLNeo {
 
   export class Query {
     constructor(table: unknown);
+    where(conditions: Record<string, unknown>): this;
+    orderBy(field: string, dir?: 'asc' | 'desc'): this;
+    limit(n: number): this;
+    offset(n: number): this;
+    get(): Row[];
+    first(): Row | null;
+    exists(): boolean;
+    count(): number;
     exec(): Promise<Row[]>;
     then(resolve: (rows: Row[]) => unknown, reject?: (err: Error) => unknown): Promise<unknown>;
   }
 
   export class BTree {
-    constructor(order?: number);
+    constructor(order?: number, unique?: boolean);
     insert(key: unknown, value: unknown): void;
-    find(key: unknown): unknown;
-    range(min: unknown, max: unknown): unknown[];
+    search(key: unknown): number[];
+    searchMany(keys: unknown[]): number[];
+    prefix(prefix: string): number[];
+    range(min: unknown, max: unknown): number[];
+    greaterThan(min: unknown): number[];
+    lessThan(max: unknown): number[];
   }
 
   export class Cache {

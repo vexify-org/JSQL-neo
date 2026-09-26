@@ -4,6 +4,19 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.0.0-beta3] — 2026-09-26
+
+### Added
+
+- **`db.exists(table, filter)` / `table.exists(filter)` / `query.exists()`**：只判断是否有匹配行，不物化全量结果。
+- **`db.prepare(sql)`**：预编译 SQL，返回 `{ all, get, run }`，可反复绑定参数执行。JS / native / WASM 三引擎共用。
+- **B-Tree `searchMany` / `prefix` / `greaterThanEqual` / `lessThanEqual`**：等值 IN、前缀 LIKE、单边范围查询走索引。
+
+### Changed
+
+- **仓库历史瘦身**：剔除误提交的 `nativesrc/**/target/` 构建产物与二进制，`.gitignore` 补齐 `target/`、发行产物目录。
+- **查询热路径**：叶子查找改为二分；`$in` / `$like 'prefix%'` / `$gt|$gte|$lt|$lte|$between` 走 B-Tree；RIGHT JOIN 改为哈希探测；`findOne` 不再先克隆全表。
+
 ## [6.0.0-beta2] — 2026-09-26
 
 ### Added

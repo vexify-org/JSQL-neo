@@ -1,6 +1,6 @@
 {
   "name": "jsql-neo",
-  "version": "6.0.0-beta2",
+  "version": "6.0.0-beta3",
   "description": "JSQL-NEO — Rust-powered embedded database with WASM, REST API, B-Tree indexes, WAL, crash recovery",
   "main": "index.js",
   "types": "index.d.ts",
@@ -45,7 +45,7 @@
   ],
   "scripts": {
     "postinstall": "node postinstall.js",
-    "test": "node test/smoke.js && node test/sql-parser.test.js",
+    "test": "node test/smoke.js && node test/sql-parser.test.js && node test/query-opt.test.js",
     "test:parser": "node test/sql-parser.test.js",
     "test:btree": "node test/btree.test.js",
     "test:native": "node test/native.test.js",
