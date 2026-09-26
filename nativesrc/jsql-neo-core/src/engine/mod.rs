@@ -30,10 +30,12 @@ pub fn validate_table_name(name: &str) -> Result<(), String> {
 }
 
 use std::collections::HashMap;
-use crate::types::{Row, TableDefinition};
+use crate::types::{Row, TableDefinition, FieldSchema};
 
 pub trait Engine {
     fn create_table(&mut self, def: TableDefinition) -> Result<(), String>;
+    /// 运行期加列：扩展表结构并为已有行回填默认值（见 `Table::add_column`）。
+    fn add_column(&mut self, table: &str, name: &str, fs: FieldSchema) -> Result<(), String>;
     fn drop_table(&mut self, name: &str) -> Result<(), String>;
     fn has_table(&self, name: &str) -> bool;
     fn list_tables(&self) -> Vec<String>;

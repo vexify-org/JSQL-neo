@@ -241,6 +241,29 @@ impl Table {
         }
     }
 
+    /// 运行期加列（供 `db.addColumn` 使用）：扩展 schema / field_order / field_index，
+    /// 并为已有行按「default → 非空类型默认值 → null」的既有语义回填新列的值。
+    /// 返回 true 表示新增成功；false 表示该列已存在（no-op）。
+    pub fn add_column(&mut self, name: &str, fs: &FieldSchema) -> bool {
+        if self.field_index.contains_key(name) {
+            return false;
+        }
+        let fill = match &fs.default {
+            Some(dv) => FieldValue::from_json(dv.clone()),
+            None => if !fs.nullable { default_value(&fs.field_type) } else { FieldValue::Null },
+        };
+        let pos = self.field_order.len();
+        self.schema.insert(name.to_string(), fs.clone());
+        self.field_order.push(name.to_string());
+        self.field_index.insert(name.to_string(), pos);
+        for i in 0..self.rows.len() {
+            let start = self.rows[i].values_start + self.rows[i].num_values;
+            self.values.insert(start, fill.clone());
+            self.rows[i].num_values += 1;
+        }
+        true
+    }
+
     pub fn add_rows(&mut self, fields_batch: Vec<HashMap<String, serde_json::Value>>) -> Vec<u64> {
         let now = now_millis();
         let batch_len = fields_batch.len();
