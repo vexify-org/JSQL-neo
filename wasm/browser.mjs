@@ -174,9 +174,15 @@ export class JSQL {
     }
   }
 
-  use(plugin) {
+  use(plugin, opts) {
+    if (typeof plugin === 'string') {
+      throw new Error('use: builtin plugin names require the Node plugin runtime; pass a plugin object');
+    }
     if (typeof plugin === 'function') {
       plugin = { install: plugin };
+    }
+    if (opts && plugin && typeof plugin === 'object') {
+      plugin.config = Object.assign({}, plugin.config || {}, opts);
     }
     if (plugin.hooks) {
       for (const [event, fn] of Object.entries(plugin.hooks)) {
@@ -377,7 +383,10 @@ export class JSQL {
     this._buffer[table].push(arr[0]);
     this._bufferSize++;
     const flushed = await this._flush();
-    return flushed && flushed[table] ? flushed[table] : null;
+    const result = flushed && flushed[table] ? flushed[table] : null;
+    this._emit('insert', { table, count: arr.length, ids: result });
+    this._runHooks('afterInsert', [table, arr, result]);
+    return result;
   }
 
   async insertMany(table, data) {
@@ -386,6 +395,7 @@ export class JSQL {
 
   async createTable(name, schema) {
     await this._flush();
+    if (typeof schema === 'string') schema = parseSchemaString(schema);
     if (!this._runHooks('beforeCreateTable', [name, schema])) return null;
     const r = safeJsonParse(jsql_create_table(name, JSON.stringify(mapNativeSchema(schema))));
     if (r && r.ok === false) throw new Error(r.error || 'create table failed');

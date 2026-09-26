@@ -86,6 +86,24 @@ function ok(name, cond, extra) {
   const empty = await db.prepare('SELECT name FROM users WHERE name = ?').get('nope');
   ok('prepare.get empty', empty === null);
 
+  {
+    const pdb = new Database(':memory:');
+    pdb.use('timestamps', { createdField: 'created_at', updatedField: 'updated_at' });
+    pdb.createTable('notes', { id: { type: 'integer', primaryKey: true, autoIncrement: true }, title: { type: 'string' } });
+    const schema = pdb.getTableSchema('notes');
+    ok('use opts timestamps fields', !!(schema && schema.created_at && schema.updated_at), schema);
+    pdb.insert('notes', { title: 'hello' });
+    const row = pdb.notes.findOne({ title: 'hello' });
+    ok('timestamps stamped', !!(row && row.created_at && row.updated_at), row);
+
+    let afterInsertHits = 0;
+    pdb.on('afterInsert', () => { afterInsertHits++; });
+    pdb.insert('notes', { title: 'one' });
+    ok('single-row afterInsert', afterInsertHits === 1, afterInsertHits);
+    pdb.insert('notes', [{ title: 'a' }, { title: 'b' }]);
+    ok('batch afterInsert', afterInsertHits === 2, afterInsertHits);
+  }
+
   console.log(failed === 0 ? `\nALL ${passed} QUERY-OPT TESTS PASSED` : `\n${failed} FAILURES (${passed} passed)`);
   process.exit(failed === 0 ? 0 : 1);
 })().catch(e => { console.error('FATAL', e); process.exit(1); });

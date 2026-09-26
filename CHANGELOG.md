@@ -16,6 +16,9 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 - **仓库历史瘦身**：剔除误提交的 `nativesrc/**/target/` 构建产物与二进制，`.gitignore` 补齐 `target/`、发行产物目录。
 - **查询热路径**：叶子查找改为二分；`$in` / `$like 'prefix%'` / `$gt|$gte|$lt|$lte|$between` 走 B-Tree；RIGHT JOIN 改为哈希探测；`findOne` 不再先克隆全表。
+- **`Database.use(plugin, opts)`**：JS 引擎与 browser 客户端对齐 native / WASM，第二参数透传给插件工厂。
+- **单行 `insert` 触发 `afterInsert`**：native / WASM / browser 不再只在批量分支发钩子。
+- **`timestamps` 建表自动补列**：未声明的 `createdAt` / `updatedAt`（可配）写入 schema，native 按列持久化。
 
 ## [6.0.0-beta2] — 2026-09-26
 
@@ -68,20 +71,26 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   不再用返回值覆盖第一个参数。此前 `args[0]` 恒为表名，覆盖它会污染表名，
   属历史遗留缺陷；需要改写数据时请在钩子内原地修改传入的数组 / 对象。
 
-### TODO（6.0.0-beta1 未完成项，留待后续）
+### TODO（核对于 6.0.0-beta3，2026-09-26）
 
-- **WASM 二进制尚未用新核心重新编译**：`wasm/jsql_neo_wasm_bg.wasm` 仍是旧产物，
-  模糊查询（`$like` / `$regex`）在 WASM 引擎下仍会失效；native 引擎已修复。
-  工具链已就绪（`wasm32-unknown-unknown` + `wasm-bindgen 0.2.126`），
-  发布前需执行：`cargo build --release --target wasm32-unknown-unknown`，
-  再以 `--target nodejs`（→ `jsql_neo_wasm.js`）与 `--target web`（→ `browser_bg.mjs`）
-  各生成一次并替换 `wasm/` 下的产物。
-- **`Database`（JS 引擎）的 `use()` 尚未透传第二参数 `opts`**：native / WASM 已支持
-  `db.use('validation', {...})`，JS 引擎暂只支持 `db.use('validation')`，需补齐签名。
-- **native 引擎单行 `insert` 不触发 `afterInsert` 钩子**（既有行为）：仅在批量
-  （`arr.length > 1`）分支调用，导致 `metrics` / `audit` 等插件漏记单行插入，需统一。
-- **内置插件字段需显式建表**：native 引擎只落库 schema 中声明的列，
-  `timestamps` 等插件写入的字段必须在 `createTable` 的 schema 里声明才会持久化。
+已完成（不要再做）：
+
+- **WASM 已用新核心重新编译**：`wasm/jsql_neo_wasm_bg.wasm` 已导出 `jsql_add_column`，
+  并编入 `regex-lite`。`$like` / `$regex` / `addColumn` 在 WASM 上已可用。
+  不要再执行 `cargo build --target wasm32-unknown-unknown` 除非改了 `nativesrc/`。
+- **`exists` / `prepare` / B-Tree IN·前缀 LIKE·范围查询** 已落地（见 6.0.0-beta3）。
+- **Git 历史已瘦身**：`nativesrc/*/target/`、`bin/jsql-neo-server`、`*.tgz` 已从历史剔除，
+  `.git` ≈ 3.3M。不要再全量 clone 后重复 filter-repo。
+
+已完成（6.0.0-beta3 后续补丁，不要再做）：
+
+- **`Database.use(plugin, opts)` 已透传第二参数**：JS / native / WASM / browser
+  四处 `use()` 均把 `opts` 交给 `applyPlugin`（browser 合并进 `plugin.config`）。
+- **单行 `insert` 已触发 `afterInsert`**：native / WASM / browser 在单行 flush
+  后同样 `_emit('insert')` + `_runHooks('afterInsert')`，`metrics` / `audit` 不再漏记。
+- **`timestamps` 建表自动补列**：`beforeCreateTable` 若 schema 未声明
+  `createdAt` / `updatedAt`（字段名可配），会原地写入 `{ type: 'string' }`，
+  native / WASM 按 schema 列持久化即可带上时间戳。已有同名列不覆盖。
 
 ### Verification
 

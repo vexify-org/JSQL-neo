@@ -85,7 +85,7 @@ declare namespace JSQLNeo {
 
   export class JSQL {
     constructor(opts?: JSQLOptions);
-    use(plugin: JSQLPlugin | ((db: JSQL) => void)): this;
+    use(plugin: JSQLPlugin | string | ((db: JSQL) => void), opts?: Record<string, unknown>): this;
     on(event: JSQLHook, fn: (...args: any[]) => unknown): this;
     onEvent(fn: (event: string, data: unknown) => void): this;
     start(): Promise<void>;
@@ -328,6 +328,7 @@ declare namespace JSQLNeo {
     getTables(): Promise<string[]>;
     dropTable(name: string): Promise<void>;
     getTableSchema(name: string): Promise<Schema | null>;
+    use(plugin: JSQLPlugin | string | ((db: Database) => void), opts?: Record<string, unknown>): this;
   }
 
   export class Table {
