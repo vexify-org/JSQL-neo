@@ -1,10 +1,22 @@
 name: Publish to npm
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'npm dist-tag'
+        required: true
+        default: 'latest'
+        type: choice
+        options:
+          - latest
+          - beta
 
 permissions:
-  id-token: write
+  id-token: write   # npm provenance（OIDC，无需 NPM_TOKEN）
   contents: read
 
 jobs:
@@ -19,7 +31,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: 缓存 node_modules
-        uses: actions/cache@v6
+        uses: actions/cache@v6.1.0
         with:
           path: node_modules
           key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package.json') }}
@@ -27,5 +39,19 @@ jobs:
       - name: 安装依赖
         run: npm install
 
+      - name: 冒烟测试
+        run: npm test
+
+      - name: 判断 dist-tag
+        id: dist
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == *beta* ]]; then
+            echo "tag=beta" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
       - name: 发布到 npm
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag ${{ steps.dist.outputs.tag }}
