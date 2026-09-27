@@ -347,6 +347,36 @@ async function main() {
     }
   }
 
+  console.log('\n--- 唯一约束：非主键 UNIQUE 必须报 ER_DUP_ENTRY ---');
+  {
+    let JSQL, db;
+    try {
+      ({ JSQL } = require('../lib/native_client.js'));
+      db = new JSQL();
+      await db.start();
+    } catch (e) {
+      console.log('[SKIP] native 不可用：' + e.message.slice(0, 60));
+    }
+    if (db) {
+      const run = (sql) => executeSQL(db, sql, OPTS);
+      const dupErrMsg = async (sql) => {
+        try { await run(sql); return null; } catch (e) { return e.message; }
+      };
+      await run('CREATE TABLE u (id SERIAL PRIMARY KEY, email TEXT UNIQUE, nick TEXT UNIQUE)');
+      await run("INSERT INTO u (email, nick) VALUES ('a@x.com', 'a')");
+      ok('唯一列重复 → ER_DUP_ENTRY',
+        /ER_DUP_ENTRY/.test(await dupErrMsg("INSERT INTO u (email, nick) VALUES ('a@x.com', 'z')") || ''));
+      ok('批内唯一重复 → ER_DUP_ENTRY',
+        /ER_DUP_ENTRY/.test(await dupErrMsg("INSERT INTO u (email, nick) VALUES ('b@x.com', 'n1'), ('c@x.com', 'n1')") || ''));
+      const r1 = await run('SELECT id FROM u');
+      ok('冲突后仍只有 1 行', r1.rows.length === 1, r1.rows);
+      await run("INSERT INTO u (email, nick) VALUES (NULL, 'x'), (NULL, 'y')");
+      const r2 = await run('SELECT id FROM u');
+      ok('UNIQUE 允许多个 NULL', r2.rows.length === 3, r2.rows);
+      await db.stop();
+    }
+  }
+
   console.log('\n--- Redis：RESP2 帧解析（曾 inline 命令恒为 unknown command）---');
   {
     const { RedisServer } = require('../lib/redis_server.js');
