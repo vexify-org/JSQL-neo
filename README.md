@@ -1104,22 +1104,22 @@ ORDER BY avg_sal DESC;
 
 > **运算符方言说明。** `^` 与 `~` 在 MySQL（位运算）和 PostgreSQL（`^` 为幂、
 > `~` 为正则匹配）中含义冲突，本实现统一采用 **MySQL 语义**：`^` = 按位异或、
-> `~` = 按位取反。需要幂运算请用 `POWER(x, n)`，需要正则请用 `REGEXP` / `~*`。
-> 因此 PG 风格的 `^`（幂）、`~ ~* !~ !~*`（正则）与 JSON 操作符
-> （`-> ->> #> #>> @> <@`）**暂不支持**。
+> `~` = 按位取反。需要幂运算请用 `POWER(x, n)`，需要正则请用 `REGEXP`。
+> 因此 PG 风格的 `^`（幂）与 `~ ~* !~ !~*`（正则）**暂不支持**。
 
-**JSON (PG style)** — `->` (JSON result), `->>` (text), `#>`, `#>>` (paths), `@>` `<@`
-(containment), `?` `?|` `?&` (key existence).
+**JSON (PG style)** — `->`（返回 JSON）、`->>`（返回文本），可链式
+（`meta->'addr'->>'city'`）。`#>` `#>>`（路径）、`@>` `<@`（包含）、
+`?` `?|` `?&`（键存在）**暂不支持**。
 
 ### LIKE / ILIKE / regex
 
-- `%` any length, `_` one char, `\` escape (`ESCAPE` clause)
-- `ILIKE` = LIKE, case-insensitive
-- `REGEXP`/`RLIKE`/`~` use the JS RegExp engine; flags `i/m/s`
+- `%` any length, `_` one char；`ESCAPE '!'` 可自定义转义符（默认 `\`）
+- `ILIKE` = LIKE，大小写不敏感
+- `REGEXP` / `RLIKE` 使用 JS RegExp 引擎；flags `i/m/s`
 
 ```sql
 SELECT * FROM users
-WHERE email ~* '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$';
+WHERE email REGEXP '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$';
 ```
 
 ### Indexes & constraints
@@ -1162,7 +1162,7 @@ INSERT INTO users (id, meta) VALUES
   (1, '{"name":"Alice","tags":["admin","ops"],"addr":{"city":"SH"}}');
 
 SELECT meta->>'name' AS name, meta->'addr'->>'city' AS city
-FROM users WHERE meta @> '{"tags":["admin"]}';
+FROM users;
 ```
 
 JSON columns are fully interoperable with Mongo document views.
@@ -1270,16 +1270,17 @@ const result = await executeSQL(db, sql, params);
 ```js
 {
   columns: ['id', 'name', 'age'],
-  columnTypes: ['INTEGER', 'VARCHAR', 'INTEGER'],
+  columnTypes: ['INT', 'VARCHAR(255)', 'INT'],
   rows: [[1, 'Alice', 30]],
-  rowCount: 2, affectedRows: 0, insertId: 1,
-  message: '2 rows selected', command: 'SELECT',
+  rowCount: 1, affectedRows: 0,
+  message: '1 row selected', command: 'SELECT',
   durationMs: 0.42, warnings: [],
 }
 ```
 
-Result matrix: SELECT → `rows`; INSERT → `affectedRows` + `insertId`; UPDATE/DELETE →
-`affectedRows`; DDL/txn → `message`. Params: positional `?`, named `:name`, or object maps.
+Result matrix: SELECT → `rows`（另有 `columnTypes`、`rowCount`、`command`、`message`、
+`durationMs`、`warnings`）；INSERT → `affectedRows` + `insertId`（另有 `ids`）；
+UPDATE/DELETE → `affectedRows`；DDL/txn → `message`。 Params: positional `?`, named `:name`, or object maps.
 Multi-statement supported; `SQLExecutor` class runs batched SQL from a string/stream.
 
 #### 参数绑定：两种方式
@@ -3403,7 +3404,6 @@ INTERVAL 单位：`DAY` `HOUR` `MINUTE` `SECOND` `WEEK` `MONTH` `YEAR` 及其组
 | `+` `-` `*` `/` | 四则 | `(a + b) * 2` |
 | `%` / `MOD` | 取模 | `a % 3` |
 | `DIV` | 整数除法（MySQL） | `7 DIV 2` → 3 |
-| `^` | 幂（PG） | `2 ^ 10` → 1024 |
 
 #### 比较运算符
 
@@ -3445,10 +3445,10 @@ INTERVAL 单位：`DAY` `HOUR` `MINUTE` `SECOND` `WEEK` `MONTH` `YEAR` 及其组
 |---|---|---|
 | `->` | 取 JSON 字段（返回 JSON） | `meta->'name'` |
 | `->>` | 取 JSON 字段（返回文本） | `meta->>'name'` |
-| `#>`, `#>>` | 路径访问 | `meta#>>'{a,b}'` |
-| `@>` | 包含 | `meta @> '{"plan":"pro"}'` |
-| `<@` | 被包含 | `'{"a":1}'::jsonb <@ meta` |
-| `?` / `?|` / `?&` | 键存在 | `meta ? 'plan'` |
+
+可链式取值：`meta->'addr'->>'city'`。
+
+> `#>` `#>>`（路径访问）、`@>` `<@`（包含）、`?` `?|` `?&`（键存在）**暂不支持** —— 使用时会抛出明确错误，不会静默退化成别的运算。
 
 ### LIKE / ILIKE / 正则
 
@@ -3466,14 +3466,12 @@ INTERVAL 单位：`DAY` `HOUR` `MINUTE` `SECOND` `WEEK` `MONTH` `YEAR` 及其组
 
 - 基于 JS RegExp 引擎
 - 支持 flags：`i`（忽略大小写）、`m`（多行）、`s`（点匹配换行）
-- PG 风格的 `~` / `~*` / `!~` / `!~*` 运算符也支持：
-  - `name ~ '^A'`（大小写敏感匹配）
-  - `name ~* '^a'`（不敏感）
-  - `name !~ '^X'`（不匹配）
+- PG 风格的 `~` / `~*` / `!~` / `!~*` 运算符**暂不支持**（`~` 已被用作按位取反）。
+  正则匹配请用 `REGEXP` / `RLIKE`。
 
 ```sql
 SELECT * FROM users
-WHERE email ~* '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$';
+WHERE email REGEXP '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$';
 ```
 
 ### 事务 Transactions
@@ -3572,7 +3570,7 @@ INSERT INTO users (id, meta) VALUES
 -- 查询路径
 SELECT meta->>'name' AS name,
        meta->'addr'->>'city' AS city
-FROM users WHERE meta @> '{"tags":["admin"]}';
+FROM users;
 ```
 
 JSON 函数见 [系统与杂项函数](#系统与杂项函数)。Mongo 客户端视角下，JSON 列与 BSON 文档完全互通。
@@ -5800,7 +5798,6 @@ expr := literal
       | expr [NOT] LIKE pattern [ESCAPE char]
       | expr [NOT] ILIKE pattern
       | expr [NOT] RLIKE pattern | expr [NOT] REGEXP pattern
-      | expr [NOT] ~ pattern | expr [NOT] ~* pattern | expr !~ pattern
       | expr IS [NOT] NULL | expr IS [NOT] TRUE | expr IS [NOT] FALSE
       | expr [NOT] IN ( ... )
       | expr [NOT] ANY '(' select_statement ')'
@@ -5846,16 +5843,17 @@ function_call := func_name '(' [DISTINCT] args ')'      -- 普通/聚合
 ### 运算符优先级（从高到低）
 
 ```
-1.  ()  .  []  ->  ->>  #>  #>>
-2.  ::  CAST 一元 + - ~
+1.  ()  .  []  ->  ->>  ::
+2.  CAST 一元 + - ~
 3.  ^  *  /  %  DIV  MOD
 4.  +  -
 5.  <<  >>  &  |  ^（位）
-6.  =  <>  !=  <  <=  >  >=  <=>  BETWEEN  IN  LIKE  ILIKE  RLIKE  REGEXP  ~  ~*  @>  <@  ?
+6.  =  <>  !=  <  <=  >  >=  <=>  BETWEEN  IN  LIKE  ILIKE  RLIKE  REGEXP
 7.  NOT
-8.  AND
-9.  OR  XOR
-10. 三元（IF / CASE 解析为函数）
+8.  AND  &&
+9.  XOR
+10. OR  ||
+11. 三元（IF / CASE 解析为函数）
 ```
 
 ### 关键词语法表
@@ -7447,12 +7445,12 @@ jsql import ./data app.sql
 | 冲突处理 | `ON DUPLICATE KEY UPDATE` | `ON CONFLICT ... DO ...` | 两者都支持 |
 | 占位符 | `?` | `$1, $2` | 两者（分协议） |
 | 模糊匹配 | `LIKE`（大小写敏感） | `LIKE` + `ILIKE` | 两者 |
-| 正则 | `REGEXP` | `~` `~*` | 两者 + `RLIKE` |
+| 正则 | `REGEXP` | `REGEXP` | 两者 + `RLIKE` |
 | 标识符引用 | 反引号 `` ` `` | 双引号 `"` | 两者 |
 | 字符串字面量 | 单引号 | 单引号 | 单引号（双引号按标识符，PG 语义） |
 | 布尔 | `TRUE/FALSE`（1/0） | `t/f`（三值逻辑） | 兼容两者 |
 | 分页 | `LIMIT off, n` | `LIMIT n OFFSET off` | 两者 |
-| JSON 访问 | `JSON_EXTRACT` | `->` `->>` | 两者 + `#>>` |
+| JSON 访问 | `JSON_EXTRACT` | `->` `->>` | 两者 |
 | 类型转换 | `CAST`/`CONVERT` | `::` | 三者 |
 | 条件分支 | `IF()` | `CASE` | `IF` + `CASE` + `IIF` |
 | 空值回退 | `IFNULL()` | `COALESCE` | 两者 |
