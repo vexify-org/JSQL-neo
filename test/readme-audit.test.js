@@ -182,6 +182,17 @@ async function main() {
       JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE s LIKE '100\\%'")) === '[[1]]');
     ok('LIKE 普通 % 仍为通配',
       JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE s LIKE '100%'")) === '[[1],[2],[3]]');
+
+    // 参数绑定：位置 ? / 命名 :name / 编号 $1（README「Params」一节）
+    const rowsOfP = async (sql, params) => {
+      const r = await executeSQL(engine, sql, params, OPTS);
+      return (Array.isArray(r) ? r[0] : r).rows;
+    };
+    ok('位置参数 ?', JSON.stringify(await rowsOfP('SELECT id FROM tbl WHERE id = ?', [1])) === '[[1]]');
+    ok('命名参数 :id', JSON.stringify(await rowsOfP('SELECT id FROM tbl WHERE id = :id', { id: 2 })) === '[[2]]');
+    ok('命名参数多占位', JSON.stringify(await rowsOfP('SELECT id FROM tbl WHERE id = :a OR id = :b', { a: 1, b: 3 })) === '[[1],[3]]');
+    ok('编号参数 $1', JSON.stringify(await rowsOfP('SELECT id FROM tbl WHERE id = $1', [3])) === '[[3]]');
+    ok('编号参数 $2/$1', JSON.stringify(await rowsOfP('SELECT id FROM tbl WHERE id = $2 OR id = $1', [1, 2])) === '[[1],[2]]');
   }
 
   console.log('\n--- DDL / 解析器节点覆盖 ---');
