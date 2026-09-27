@@ -4,6 +4,59 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.1.0] — 2026-09-27
+
+### Added — SQL 方言（补齐 README 契约）
+
+- **运算符**：`DIV`（整数除法）、`XOR`（逻辑异或，优先级 `OR < XOR < AND`）、
+  `&&` / `||`（`AND` / `OR` 别名）、`<=>`（NULL 安全相等）
+- **PostgreSQL 后缀**：`::` 类型转换（含 `DEFAULT '{}'::jsonb`）、
+  `->` / `->>` JSON 取值（可链式）
+- **DDL 类型**：`SERIAL` / `BIGSERIAL`（整型 + 自增）、`JSONB` / `TIMESTAMPTZ` /
+  `BYTEA` / `UUID`
+- **`LIKE ... ESCAPE` 子句**：并让 `\%` / `\_` 保留反斜杠，使 LIKE 反斜杠转义可用
+- **`executeSQL` 结果信封**：补齐 `columnTypes` / `rowCount` / `message` /
+  `command` / `durationMs` / `warnings`
+- **UPSERT 唯一列冲突判定**：`ON CONFLICT (col)` 与 `ON DUPLICATE KEY UPDATE`
+  现在支持非主键的唯一列冲突，`EXCLUDED.col` / `VALUES(col)` 取本次待插入值
+  （此前只认主键，会插入重复行）
+
+### Fixed — 数据正确性
+
+- **默认引擎 `native_client` 并发 flush 重复写（v6.0.2 漏修）**：6.0.2 只修了
+  `wasm_client`，默认引擎的同款竞态被遗漏 —— `_flush()` 先遍历 `this._buffer`、
+  `await` 之后才清空，期间其他协程继续 push，同一批行被多个 flush 重复写入。
+  现改为**先把整个 buffer 原子取出再写入**。实测 2000 并发 insert + 50 次重叠
+  flush，落库行数由 **2,003,000 降回 2000**
+- **环形对象序列化崩溃**：新增 `safeJsonStringify()`，JSON 列遇循环引用给出
+  带表名/列名的可读错误，避免裸 `ReferenceError`
+- **未实现的操作符不再静默退化**：`@>` / `<@` / `#>` / `#>>` 此前会被吞掉、
+  退化成普通比较（不报错但结果错），现在抛出明确错误
+
+### Fixed — 引擎行为一致性
+
+- `native_client` 与 `wasm_client` 行为对齐：补 `assertRowObject` /
+  `safeStringify(表, 列)` 并做 JSON 列**行级**序列化 —— `insert(null / undefined / 42)`
+  统一抛 `TypeError`，环形对象统一给出 `Cannot serialize column 'x' of table 'y'`
+- `native_client` 新增 `lastFlushErrors()`：坏行不回写 buffer，改记日志供排查
+
+### Added — 测试
+
+- `readme-audit` 新增 28 条断言（共 95 项通过）；并发 / 校验用例改为**同时跑
+  wasm 与 native** —— 此前只测 wasm，导致默认引擎的同款竞态长期漏网
+
+### Changed — 文档
+
+- README 与实现对齐：JSON 运算符表只保留已实现的 `->` / `->>`（`#>` `#>>`
+  `@>` `<@` `?` `?|` `?&` 标注“暂不支持”）；PG 正则 `~ ~* !~ !~*` 标注暂不支持、
+  示例改用 `REGEXP`；移除算术表里错误的 `^` = 幂（实现为按位异或）；`executeSQL`
+  返回示例改为真实字段；运算符优先级表补充 `::` `&&` `||` 并把 `XOR` 单列一级
+
+### Changed
+
+- 版本号 6.0.2 → 6.1.0
+- 重新编译 `native/jsql-neo-native.node`（体积优化，854,864 → 802,816 字节）
+
 ## [6.0.2] — 2026-09-27
 
 ### Fixed — 数据正确性 / 进程稳定性
