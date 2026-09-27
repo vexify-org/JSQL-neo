@@ -1102,13 +1102,14 @@ ORDER BY avg_sal DESC;
 
 **Bitwise** — `& | ^ ~ << >>`（`^` 是按位异或，`~` 是按位取反）。
 
-> **运算符方言说明。** `^` 与 `~` 在 MySQL（位运算）和 PostgreSQL（`^` 为幂、
-> `~` 为正则匹配）中含义冲突，本实现统一采用 **MySQL 语义**：`^` = 按位异或、
-> `~` = 按位取反。需要幂运算请用 `POWER(x, n)`，需要正则请用 `REGEXP`。
-> 因此 PG 风格的 `^`（幂）与 `~ ~* !~ !~*`（正则）**暂不支持**。
+> **运算符方言说明。** `^` 与 `~` 在 MySQL 与 PostgreSQL 中含义冲突，本实现按上下文区分：
+> - `^` 统一为**按位异或**（MySQL 语义）；幂运算请用 `POWER(x, n)`。
+> - `~` 在**单目**位置是按位取反（MySQL），在**双目**位置是正则匹配（PG），
+>   另有 `~*`（不敏感）、`!~`、`!~*`。
+> - 需要正则时也可用 `REGEXP` / `RLIKE`；PG 的 `^`（幂）**暂不支持**。
 
-**JSON (PG style)** — `->` / `->>`（取字段）、`#>` / `#>>`（路径取值）、`@>` / `<@`（包含），
-可链式（`meta->'addr'->>'city'`）。`?` `?|` `?&`（键存在）**暂不支持**。
+**JSON (PG style)** — `->` / `->>`（取字段）、`#>` / `#>>`（路径取值）、`@>` / `<@`（包含）、
+`?` / `?|` / `?&`（键存在），可链式（`meta->'addr'->>'city'`）。
 
 ### LIKE / ILIKE / regex
 
@@ -3448,10 +3449,11 @@ INTERVAL 单位：`DAY` `HOUR` `MINUTE` `SECOND` `WEEK` `MONTH` `YEAR` 及其组
 | `#>>` | 路径取值（返回文本） | `meta#>>'{addr,city}'` |
 | `@>` | 包含 | `meta @> '{"plan":"pro"}'` |
 | `<@` | 被包含 | `'{"a":1}' <@ meta` |
+| `?` | 含指定键 | `meta ? 'plan'` |
+| `?\|` | 含任一键 | `meta ?\| '{a,b}'` |
+| `?&` | 含全部键 | `meta ?& '{a,b}'` |
 
 可链式取值：`meta->'addr'->>'city'`。
-
-> `?` `?|` `?&`（键存在）**暂不支持**（与 `?` 参数占位符存在歧义）。
 
 ### LIKE / ILIKE / 正则
 
@@ -3469,8 +3471,8 @@ INTERVAL 单位：`DAY` `HOUR` `MINUTE` `SECOND` `WEEK` `MONTH` `YEAR` 及其组
 
 - 基于 JS RegExp 引擎
 - 支持 flags：`i`（忽略大小写）、`m`（多行）、`s`（点匹配换行）
-- PG 风格的 `~` / `~*` / `!~` / `!~*` 运算符**暂不支持**（`~` 已被用作按位取反）。
-  正则匹配请用 `REGEXP` / `RLIKE`。
+- PG 风格的 `~`（大小写敏感）/ `~*`（不敏感）/ `!~` / `!~*` 双目运算符也支持；
+  单目位置的 `~` 仍是按位取反。
 
 ```sql
 SELECT * FROM users
@@ -5801,6 +5803,8 @@ expr := literal
       | expr [NOT] LIKE pattern [ESCAPE char]
       | expr [NOT] ILIKE pattern
       | expr [NOT] RLIKE pattern | expr [NOT] REGEXP pattern
+      | expr ~ pattern | expr ~* pattern | expr !~ pattern | expr !~* pattern
+      | expr ? key | expr ?| keys | expr ?& keys
       | expr IS [NOT] NULL | expr IS [NOT] TRUE | expr IS [NOT] FALSE
       | expr [NOT] IN ( ... )
       | expr [NOT] ANY '(' select_statement ')'
@@ -5851,7 +5855,7 @@ function_call := func_name '(' [DISTINCT] args ')'      -- 普通/聚合
 3.  ^  *  /  %  DIV  MOD
 4.  +  -
 5.  <<  >>  &  |  ^（位）
-6.  =  <>  !=  <  <=  >  >=  <=>  @>  <@  BETWEEN  IN  LIKE  ILIKE  RLIKE  REGEXP
+6.  =  <>  !=  <  <=  >  >=  <=>  @>  <@  ?  ?|  ?&  BETWEEN  IN  LIKE  ILIKE  RLIKE  REGEXP  ~  ~*  !~  !~*
 7.  NOT
 8.  AND  &&
 9.  XOR
@@ -7448,7 +7452,7 @@ jsql import ./data app.sql
 | 冲突处理 | `ON DUPLICATE KEY UPDATE` | `ON CONFLICT ... DO ...` | 两者都支持 |
 | 占位符 | `?` | `$1, $2` | 两者（分协议） |
 | 模糊匹配 | `LIKE`（大小写敏感） | `LIKE` + `ILIKE` | 两者 |
-| 正则 | `REGEXP` | `REGEXP` | 两者 + `RLIKE` |
+| 正则 | `REGEXP` | `~` `~*` | 两者 + `RLIKE` |
 | 标识符引用 | 反引号 `` ` `` | 双引号 `"` | 两者 |
 | 字符串字面量 | 单引号 | 单引号 | 单引号（双引号按标识符，PG 语义） |
 | 布尔 | `TRUE/FALSE`（1/0） | `t/f`（三值逻辑） | 兼容两者 |

@@ -142,16 +142,16 @@ async function main() {
   console.log('\n--- 方言特性：DIV / XOR / && / || / <=> / :: / -> ->> / LIKE ESCAPE ---');
   {
     const data = [
-      { id: 1, n: 10, flag: 1, s: '100%', meta: '{"name":"Alice","addr":{"city":"SH"},"tags":["x","y"]}' },
-      { id: 2, n: 20, flag: 0, s: '1000', meta: '{"name":"Bob","addr":{"city":"BJ"},"tags":[]}' },
-      { id: 3, n: 30, flag: 1, s: '100', meta: null },
+      { id: 1, n: 10, flag: 1, s: '100%', nm: 'Alice', meta: '{"name":"Alice","addr":{"city":"SH"},"tags":["x","y"]}' },
+      { id: 2, n: 20, flag: 0, s: '1000', nm: 'Bob', meta: '{"name":"Bob","addr":{"city":"BJ"},"tags":[]}' },
+      { id: 3, n: 30, flag: 1, s: '100', nm: 'Cara', meta: null },
     ];
     const engine = {
       hasTable: () => true, truncate: async () => {}, flush: async () => {},
       find: async () => data.map(r => ({ ...r })),
       getTableSchema: async () => ({
         id: { type: 'integer', primaryKey: true }, n: { type: 'integer' }, flag: { type: 'integer' },
-        s: { type: 'string' }, meta: { type: 'json' },
+        s: { type: 'string' }, nm: { type: 'string' }, meta: { type: 'json' },
       }),
     };
     const rowsOf = async (sql) => {
@@ -187,6 +187,21 @@ async function main() {
       JSON.stringify(await rowsOf("SELECT meta#>>'{addr,city}' AS x FROM tbl WHERE id = 1")) === '[["SH"]]');
     ok("meta#>'{tags,0}' 路径含下标",
       JSON.stringify(await rowsOf("SELECT meta#>'{tags,0}' AS x FROM tbl WHERE id = 1")) === '[["x"]]');
+    // JSON 键存在 ? / ?| / ?&
+    ok("meta ? 'name'", JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE meta ? 'name'")) === '[[1],[2]]');
+    ok("meta ? 'nope'（不存在）",
+      JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE meta ? 'nope'")) === '[]');
+    ok("meta ?| '{name,nope}'（任一）",
+      JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE meta ?| '{name,nope}'")) === '[[1],[2]]');
+    ok("meta ?& '{name,addr}'（全部）",
+      JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE meta ?& '{name,addr}'")) === '[[1],[2]]');
+    ok("meta ?& '{name,nope}'（缺一个）",
+      JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE meta ?& '{name,nope}'")) === '[]');
+    // PG 正则：~ 敏感 / ~* 不敏感 / !~ 取反
+    ok("nm ~ '^A' 大小写敏感", JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm ~ '^A'")) === '[[1]]');
+    ok("nm ~* '^a' 不敏感", JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm ~* '^a'")) === '[[1]]');
+    ok("nm !~ '^A' 取反", JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm !~ '^A'")) === '[[2],[3]]');
+    ok('REGEXP 仍可用', JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm REGEXP '^A'")) === '[[1]]');
     ok("LIKE ... ESCAPE '!' 匹配字面量 %",
       JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE s LIKE '100!%' ESCAPE '!'")) === '[[1]]');
     ok('LIKE 反斜杠转义匹配字面量 %',
