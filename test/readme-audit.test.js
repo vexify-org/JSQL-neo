@@ -214,29 +214,32 @@ async function main() {
 
   console.log('\n--- 并发 insert 不得重复写（曾行数暴涨 / 丢失）---');
   {
-    const { JSQL } = require('../lib/wasm_client.js');
-    let db;
-    try {
-      db = new JSQL();
-      await db.start();
-    } catch (e) {
-      console.log('[SKIP] WASM 客户端不可用：' + e.message.slice(0, 60));
-    }
-    if (db) {
+    // 两个引擎都要验收：曾只测 wasm，导致 native（默认引擎）的同款竞态长期漏网。
+    for (const engineName of ['wasm_client', 'native_client']) {
+      let JSQL, db;
+      try {
+        ({ JSQL } = require('../lib/' + engineName + '.js'));
+        db = new JSQL();
+        await db.start();
+      } catch (e) {
+        console.log(`[SKIP] ${engineName} 不可用：` + e.message.slice(0, 60));
+        continue;
+      }
+      const tag = `[${engineName}]`;
       let id = 0;
       await db.createTable('conc', { id: { type: 'INT', primaryKey: true }, b: { type: 'INT' } });
       await Promise.all(Array.from({ length: 200 }, () => db.insert('conc', { id: ++id, b: 5 })));
       const cnt = await db.count('conc');
-      ok(`并发 insert 200 行 → count 恰为 200（实际 ${cnt}）`, cnt === 200);
+      ok(`${tag} 并发 insert 200 行 → count 恰为 200（实际 ${cnt}）`, cnt === 200);
 
       // flush 失败不得把坏行留在 buffer 里二次爆炸
-      ok('insert(null) 抛 TypeError', await (async () => {
+      ok(`${tag} insert(null) 抛 TypeError`, await (async () => {
         try { await db.insert('conc', null); return false; } catch (e) { return e instanceof TypeError; }
       })());
-      ok('insert(undefined) 抛 TypeError', await (async () => {
+      ok(`${tag} insert(undefined) 抛 TypeError`, await (async () => {
         try { await db.insert('conc', undefined); return false; } catch (e) { return e instanceof TypeError; }
       })());
-      ok('insert(非对象) 抛 TypeError', await (async () => {
+      ok(`${tag} insert(非对象) 抛 TypeError`, await (async () => {
         try { await db.insert('conc', 42); return false; } catch (e) { return e instanceof TypeError; }
       })());
 
@@ -246,7 +249,7 @@ async function main() {
       cyc.self = cyc;
       let cycErr = null;
       try { await db.insert('cyc', { id: 1, meta: cyc }); } catch (e) { cycErr = e; }
-      ok('环形对象给出带表/列名的错误',
+      ok(`${tag} 环形对象给出带表/列名的错误`,
         !!cycErr && /Cannot serialize column 'meta'/.test(cycErr.message),
         cycErr && cycErr.message);
       await db.stop();
