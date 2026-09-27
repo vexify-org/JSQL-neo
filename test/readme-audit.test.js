@@ -176,6 +176,17 @@ async function main() {
       JSON.stringify(await rowsOf("SELECT meta->'addr'->>'city' AS x FROM tbl WHERE id = 1")) === '[["SH"]]');
     ok("->'tags'->>0 数组下标",
       JSON.stringify(await rowsOf("SELECT meta->'tags'->>0 AS x FROM tbl WHERE id = 1")) === '[["x"]]');
+    // PG JSON 包含 / 路径操作符
+    ok("meta @> '{...}' 包含",
+      JSON.stringify(await rowsOf(`SELECT id FROM tbl WHERE meta @> '{"addr":{"city":"SH"}}'`)) === '[[1]]');
+    ok("'{...}' <@ meta 被包含",
+      JSON.stringify(await rowsOf(`SELECT id FROM tbl WHERE '{"name":"Bob"}' <@ meta`)) === '[[2]]');
+    ok("meta#>'{addr,city}' 路径",
+      JSON.stringify(await rowsOf("SELECT meta#>'{addr,city}' AS x FROM tbl WHERE id = 1")) === '[["SH"]]');
+    ok("meta#>>'{addr,city}' 路径文本",
+      JSON.stringify(await rowsOf("SELECT meta#>>'{addr,city}' AS x FROM tbl WHERE id = 1")) === '[["SH"]]');
+    ok("meta#>'{tags,0}' 路径含下标",
+      JSON.stringify(await rowsOf("SELECT meta#>'{tags,0}' AS x FROM tbl WHERE id = 1")) === '[["x"]]');
     ok("LIKE ... ESCAPE '!' 匹配字面量 %",
       JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE s LIKE '100!%' ESCAPE '!'")) === '[[1]]');
     ok('LIKE 反斜杠转义匹配字面量 %',

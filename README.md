@@ -1107,9 +1107,8 @@ ORDER BY avg_sal DESC;
 > `~` = 按位取反。需要幂运算请用 `POWER(x, n)`，需要正则请用 `REGEXP`。
 > 因此 PG 风格的 `^`（幂）与 `~ ~* !~ !~*`（正则）**暂不支持**。
 
-**JSON (PG style)** — `->`（返回 JSON）、`->>`（返回文本），可链式
-（`meta->'addr'->>'city'`）。`#>` `#>>`（路径）、`@>` `<@`（包含）、
-`?` `?|` `?&`（键存在）**暂不支持**。
+**JSON (PG style)** — `->` / `->>`（取字段）、`#>` / `#>>`（路径取值）、`@>` / `<@`（包含），
+可链式（`meta->'addr'->>'city'`）。`?` `?|` `?&`（键存在）**暂不支持**。
 
 ### LIKE / ILIKE / regex
 
@@ -1162,7 +1161,7 @@ INSERT INTO users (id, meta) VALUES
   (1, '{"name":"Alice","tags":["admin","ops"],"addr":{"city":"SH"}}');
 
 SELECT meta->>'name' AS name, meta->'addr'->>'city' AS city
-FROM users;
+FROM users WHERE meta @> '{"tags":["admin"]}';
 ```
 
 JSON columns are fully interoperable with Mongo document views.
@@ -3445,10 +3444,14 @@ INTERVAL 单位：`DAY` `HOUR` `MINUTE` `SECOND` `WEEK` `MONTH` `YEAR` 及其组
 |---|---|---|
 | `->` | 取 JSON 字段（返回 JSON） | `meta->'name'` |
 | `->>` | 取 JSON 字段（返回文本） | `meta->>'name'` |
+| `#>` | 路径取值（返回 JSON） | `meta#>'{addr,city}'` |
+| `#>>` | 路径取值（返回文本） | `meta#>>'{addr,city}'` |
+| `@>` | 包含 | `meta @> '{"plan":"pro"}'` |
+| `<@` | 被包含 | `'{"a":1}' <@ meta` |
 
 可链式取值：`meta->'addr'->>'city'`。
 
-> `#>` `#>>`（路径访问）、`@>` `<@`（包含）、`?` `?|` `?&`（键存在）**暂不支持** —— 使用时会抛出明确错误，不会静默退化成别的运算。
+> `?` `?|` `?&`（键存在）**暂不支持**（与 `?` 参数占位符存在歧义）。
 
 ### LIKE / ILIKE / 正则
 
@@ -3570,7 +3573,7 @@ INSERT INTO users (id, meta) VALUES
 -- 查询路径
 SELECT meta->>'name' AS name,
        meta->'addr'->>'city' AS city
-FROM users;
+FROM users WHERE meta @> '{"tags":["admin"]}';
 ```
 
 JSON 函数见 [系统与杂项函数](#系统与杂项函数)。Mongo 客户端视角下，JSON 列与 BSON 文档完全互通。
@@ -5843,12 +5846,12 @@ function_call := func_name '(' [DISTINCT] args ')'      -- 普通/聚合
 ### 运算符优先级（从高到低）
 
 ```
-1.  ()  .  []  ->  ->>  ::
+1.  ()  .  []  ->  ->>  #>  #>>  ::
 2.  CAST 一元 + - ~
 3.  ^  *  /  %  DIV  MOD
 4.  +  -
 5.  <<  >>  &  |  ^（位）
-6.  =  <>  !=  <  <=  >  >=  <=>  BETWEEN  IN  LIKE  ILIKE  RLIKE  REGEXP
+6.  =  <>  !=  <  <=  >  >=  <=>  @>  <@  BETWEEN  IN  LIKE  ILIKE  RLIKE  REGEXP
 7.  NOT
 8.  AND  &&
 9.  XOR
@@ -7450,7 +7453,7 @@ jsql import ./data app.sql
 | 字符串字面量 | 单引号 | 单引号 | 单引号（双引号按标识符，PG 语义） |
 | 布尔 | `TRUE/FALSE`（1/0） | `t/f`（三值逻辑） | 兼容两者 |
 | 分页 | `LIMIT off, n` | `LIMIT n OFFSET off` | 两者 |
-| JSON 访问 | `JSON_EXTRACT` | `->` `->>` | 两者 |
+| JSON 访问 | `JSON_EXTRACT` | `->` `->>` `#>>` | 两者 |
 | 类型转换 | `CAST`/`CONVERT` | `::` | 三者 |
 | 条件分支 | `IF()` | `CASE` | `IF` + `CASE` + `IIF` |
 | 空值回退 | `IFNULL()` | `COALESCE` | 两者 |
