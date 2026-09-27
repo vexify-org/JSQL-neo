@@ -4,6 +4,52 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.0.1] — 2026-09-27
+
+### Fixed
+
+本次以 README 为契约做了一次全量审计（把 75 个 SQL 代码块、248 条语句逐条送进
+`parseSQL`），之前有 **40 条（16%）文档示例跑不通**。现已全部修复。
+
+- **取模与位运算完全不可用**：`SELECT 10 % 3` 报 `Unexpected character '%'`。
+  根因是两层没对齐——`parseTerm()` 里写了 `%` 分支，但 `tokenize()` 的运算符
+  字符集不含 `% & | ^ ~ << >>`，词法层根本不产出这些 token，那段是死代码。
+  现补齐词法，并按 `| → ^ → & → << >> → + - → * / %` 的优先级新增
+  `parseBitwise / parseBitXor / parseBitAnd / parseShift / parseAdditive` 层级，
+  一元 `~` 走新的 `bitnot` 节点
+- **函数实参不支持比较运算**：`IF(1 > 0,'yes','no')`、`SUM(IF(status='paid',amount,0))`
+  全部报 `Expected ) but got '>'`。新增 `parseArgExpr()`，允许实参是完整比较/布尔表达式
+  （`parseComparison` 加 `bareExprDepth` 开关，只在实参上下文放宽，WHERE 仍保持严格），
+  并让 `resolveOperand` 对 `compare/and/or/not` 等布尔节点返回真值
+- **`GROUP_CONCAT` 能解析但静默返回 null**：它是标识符而非保留聚合名，走了逐行标量函数分支。
+  新增 `AGG_FUNCS` 集合与 `parseAggregateCall()`，把 GROUP_CONCAT / STDDEV 族 /
+  VARIANCE 族 / FIRST / LAST 统一识别为聚合节点
+- **`GROUP_CONCAT(... ORDER BY ...)` 排序不生效**：只拼接不排序，静默给错顺序。
+  现按内部排序键先行排序再拼接
+- **`WITH ROLLUP` 位置错误**（v5.6.0 引入的回归）：识别被放在 ORDER BY/LIMIT 之后，
+  导致 `GROUP BY ... WITH ROLLUP HAVING ...` 报 `Unexpected token 'HAVING'`。
+  已移到 GROUP BY 列表解析完的紧后面（标准顺序 `GROUP BY <list> [WITH ROLLUP] [HAVING] [ORDER BY] [LIMIT]`）
+- **`COUNT(DISTINCT a, b)` 多列去重**不支持，现按元组去重
+- **`CREATE INDEX` / `CREATE UNIQUE INDEX` / `DROP INDEX` 完全不支持**（README 有独立章节承诺）；
+  `DEFAULT CURRENT_TIMESTAMP` 列默认值解析失败；`DELETE ... LIMIT n`；
+  `ON DUPLICATE KEY UPDATE col = VALUES(col)` 的 `VALUES(col)` 引用
+- **`DATE_ADD/DATE_SUB` 的 `INTERVAL n UNIT`**、`EXTRACT(unit FROM d)`、
+  `SUBSTR(s FROM n FOR m)`、`TRIM([LEADING|TRAILING|BOTH] c FROM s)` 全部不支持
+- **表级约束 `FOREIGN KEY ... REFERENCES`、`CHECK`、`KEY name (cols)`、
+  `UNIQUE KEY name (cols)`** 会让 CREATE TABLE 解析失败
+- **FROM 子查询缺别名直接报错**：README 示例本身就没写别名，现自动生成 `__subN`
+- **`createPgServer` 是断掉的导出**：`index.js` 从 `lib/pg_server.js` 解构它，
+  但该模块从未导出 → `jsql.createPgServer === undefined`。已补上工厂函数
+
+### Added
+
+- `test/readme-audit.test.js`：把 README 当契约的回归测试（39 项），已接入
+  `npm test` 与 `npm run test:all`。以后文档与实现脱节能被自动发现
+
+### Changed
+
+- 版本号 6.0.0 → 6.0.1
+
 ## [6.0.0] — 2026-09-26
 
 ### Added

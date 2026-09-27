@@ -1092,15 +1092,21 @@ ORDER BY avg_sal DESC;
 
 ### Operators
 
-**Arithmetic** — `+ - * / % MOD DIV ^` (power, PG style).
+**Arithmetic** — `+ - * / %`，以及 `MOD` / `DIV` / `POWER()`。
 
 **Comparison** — `= <> != < <= > >=`, `IS NULL`, `IS TRUE/FALSE` (three-valued),
 `BETWEEN a AND b`, `IN (...)`, `LIKE`/`NOT LIKE`, `ILIKE` (case-insensitive),
-`RLIKE`/`REGEXP`, `~ ~* !~ !~*` (PG regex), `EXISTS`, `ANY`/`ALL`/`SOME`, `<=>` (NULL-safe).
+`RLIKE`/`REGEXP`, `EXISTS`, `= ANY` / `> ALL` / `SOME`.
 
-**Logic** — `AND OR NOT XOR` (short-circuit), MySQL aliases `&&` `||`.
+**Logic** — `AND OR NOT` (short-circuit).
 
-**Bitwise** — `& | ^ ~ << >>`.
+**Bitwise** — `& | ^ ~ << >>`（`^` 是按位异或，`~` 是按位取反）。
+
+> **运算符方言说明。** `^` 与 `~` 在 MySQL（位运算）和 PostgreSQL（`^` 为幂、
+> `~` 为正则匹配）中含义冲突，本实现统一采用 **MySQL 语义**：`^` = 按位异或、
+> `~` = 按位取反。需要幂运算请用 `POWER(x, n)`，需要正则请用 `REGEXP` / `~*`。
+> 因此 PG 风格的 `^`（幂）、`~ ~* !~ !~*`（正则）与 JSON 操作符
+> （`-> ->> #> #>> @> <@`）**暂不支持**。
 
 **JSON (PG style)** — `->` (JSON result), `->>` (text), `#>`, `#>>` (paths), `@>` `<@`
 (containment), `?` `?|` `?&` (key existence).
@@ -3197,25 +3203,27 @@ SELECT * FROM orders LIMIT 40 OFFSET 20;    -- 标准偏移语法
 | `BEGIN` / `START TRANSACTION` | 开启事务 |
 | `COMMIT` | 提交 |
 | `ROLLBACK` | 回滚 |
-| `SAVEPOINT sp` / `ROLLBACK TO SAVEPOINT sp` / `RELEASE SAVEPOINT sp` | 保存点 |
+| `SAVEPOINT sp` / `RELEASE SAVEPOINT sp` | 保存点（**仅登记**，无快照能力） |
+| `ROLLBACK TO SAVEPOINT sp` | **不支持**——会抛错，不会静默"假成功" |
 | 自动事务 | 无显式事务时单语句原子 |
 
 事务保证：
 
 - 读已提交（read committed）隔离级别的等价语义
 - 事务内修改对事务外不可见（提交前），提交后原子可见
-- 回滚撤销本事务全部修改（含保存点回滚）
+- 回滚撤销本事务全部修改
 - 支持跨表事务（引擎级提交日志）
 
 ```sql
 BEGIN;
 UPDATE accounts SET balance = balance - 100 WHERE id = 1;
 UPDATE accounts SET balance = balance + 100 WHERE id = 2;
-SAVEPOINT sp1;
-UPDATE accounts SET balance = balance - 100 WHERE id = 3;
-ROLLBACK TO SAVEPOINT sp1;      -- 撤销 id=3 的修改
 COMMIT;
 ```
+
+> **`ROLLBACK TO SAVEPOINT` 目前不可用。** 引擎没有保存点/快照能力，无法只回退到某个
+> 保存点。这里刻意选择"抛错"而不是"静默成功"——假装回滚成功会让调用方误以为数据已还原。
+> 需要部分回滚时请用 `ROLLBACK` 放弃整个事务。
 
 #### 其他语句
 
