@@ -139,6 +139,51 @@ async function main() {
       JSON.stringify(await rowsOf('SELECT name FROM (SELECT name, sal FROM emp WHERE sal > 150)')) === '[["b"],["c"],["d"]]');
   }
 
+  console.log('\n--- 方言特性：DIV / XOR / && / || / <=> / :: / -> ->> / LIKE ESCAPE ---');
+  {
+    const data = [
+      { id: 1, n: 10, flag: 1, s: '100%', meta: '{"name":"Alice","addr":{"city":"SH"},"tags":["x","y"]}' },
+      { id: 2, n: 20, flag: 0, s: '1000', meta: '{"name":"Bob","addr":{"city":"BJ"},"tags":[]}' },
+      { id: 3, n: 30, flag: 1, s: '100', meta: null },
+    ];
+    const engine = {
+      hasTable: () => true, truncate: async () => {}, flush: async () => {},
+      find: async () => data.map(r => ({ ...r })),
+      getTableSchema: async () => ({
+        id: { type: 'integer', primaryKey: true }, n: { type: 'integer' }, flag: { type: 'integer' },
+        s: { type: 'string' }, meta: { type: 'json' },
+      }),
+    };
+    const rowsOf = async (sql) => {
+      const r = await executeSQL(engine, sql, OPTS);
+      return (Array.isArray(r) ? r[0] : r).rows;
+    };
+
+    ok('DIV 整数除法', JSON.stringify(await rowsOf('SELECT 7 DIV 2 AS r')) === '[[3]]');
+    ok('DIV 负数向零取整', JSON.stringify(await rowsOf('SELECT -7 DIV 2 AS r')) === '[[-3]]');
+    ok("'5'::INT 类型转换", JSON.stringify(await rowsOf("SELECT '5'::INT AS r")) === '[[5]]');
+    ok('XOR 逻辑异或（WHERE）',
+      JSON.stringify(await rowsOf('SELECT id FROM tbl WHERE flag = 1 XOR n = 20')) === '[[1],[2],[3]]');
+    ok('&& 是 AND 别名',
+      JSON.stringify(await rowsOf('SELECT id FROM tbl WHERE flag = 1 && n > 10')) === '[[3]]');
+    ok('|| 是 OR 别名',
+      JSON.stringify(await rowsOf('SELECT id FROM tbl WHERE flag = 0 || n > 20')) === '[[2],[3]]');
+    ok('<=> 非空相等', JSON.stringify(await rowsOf('SELECT id FROM tbl WHERE n <=> 20')) === '[[2]]');
+    ok('<=> NULL 安全（NULL<=>NULL 为真）',
+      JSON.stringify(await rowsOf('SELECT id FROM tbl WHERE meta <=> NULL')) === '[[3]]');
+    ok("->>'name'", JSON.stringify(await rowsOf("SELECT meta->>'name' AS x FROM tbl WHERE id = 1")) === '[["Alice"]]');
+    ok("->'addr'->>'city' 链式",
+      JSON.stringify(await rowsOf("SELECT meta->'addr'->>'city' AS x FROM tbl WHERE id = 1")) === '[["SH"]]');
+    ok("->'tags'->>0 数组下标",
+      JSON.stringify(await rowsOf("SELECT meta->'tags'->>0 AS x FROM tbl WHERE id = 1")) === '[["x"]]');
+    ok("LIKE ... ESCAPE '!' 匹配字面量 %",
+      JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE s LIKE '100!%' ESCAPE '!'")) === '[[1]]');
+    ok('LIKE 反斜杠转义匹配字面量 %',
+      JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE s LIKE '100\\%'")) === '[[1]]');
+    ok('LIKE 普通 % 仍为通配',
+      JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE s LIKE '100%'")) === '[[1],[2],[3]]');
+  }
+
   console.log('\n--- DDL / 解析器节点覆盖 ---');
   {
     ok('CREATE INDEX 可解析', parseSQL('CREATE INDEX i ON t (a)').type === 'createIndex');
@@ -156,6 +201,30 @@ async function main() {
       const st = parseSQL('CREATE TABLE t (id INT PRIMARY KEY, c DATETIME DEFAULT CURRENT_TIMESTAMP)');
       return st.schema.c.default === 'CURRENT_TIMESTAMP';
     })());
+    ok('SERIAL 折叠为整型+自增', (() => {
+      const st = parseSQL('CREATE TABLE t (id SERIAL PRIMARY KEY, n TEXT)');
+      return st.schema.id.type === 'integer' && st.schema.id.autoIncrement === true;
+    })());
+    ok('BIGSERIAL 折叠为整型+自增', (() => {
+      const st = parseSQL('CREATE TABLE t (id BIGSERIAL PRIMARY KEY)');
+      return st.schema.id.type === 'integer' && st.schema.id.autoIncrement === true;
+    })());
+  }
+
+  console.log('\n--- executeSQL 结果信封（README 承诺的字段）---');
+  {
+    const engine = {
+      hasTable: () => true, truncate: async () => {}, flush: async () => {},
+      find: async () => [{ id: 1, name: 'a' }, { id: 2, name: 'b' }],
+      getTableSchema: async () => ({ id: { type: 'integer', primaryKey: true }, name: { type: 'string' } }),
+    };
+    const r = await executeSQL(engine, 'SELECT * FROM t', OPTS);
+    for (const f of ['columns', 'columnTypes', 'rows', 'rowCount', 'affectedRows', 'message', 'command', 'durationMs', 'warnings']) {
+      ok(`信封含 ${f}`, r[f] !== undefined, Object.keys(r));
+    }
+    ok('rowCount = 2', r.rowCount === 2);
+    ok('command = SELECT', r.command === 'SELECT');
+    ok('columnTypes 可推断（id → INT）', Array.isArray(r.columnTypes) && r.columnTypes[0] === 'INT');
   }
 
   console.log('\n--- 顶层工厂导出不得为 undefined ---');
