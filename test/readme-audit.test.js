@@ -167,6 +167,113 @@ async function main() {
     }
   }
 
+  console.log('\n--- 子路径导出（README 里写的 require 路径必须真能引到）---');
+  {
+    const mod = require('../package.json');
+    const exportsMap = mod.exports || {};
+    ok('exports 暴露 ./lib/plugins 目录入口', !!exportsMap['./lib/plugins']);
+    try {
+      const plugins = require('../lib/plugins/index.js');
+      ok('lib/plugins 可加载且导出工厂函数', typeof plugins.createTimestamps === 'function');
+    } catch (e) {
+      ok('lib/plugins 可加载', false, e.message);
+    }
+  }
+
+  console.log('\n--- 数据正确性：查不存在的列必须报错（曾静默返回 null）---');
+  {
+    const engine = {
+      hasTable: () => true, truncate: async () => {}, flush: async () => {},
+      find: async () => [{ id: 1, name: 'a', dept: 'eng' }],
+      getTableSchema: async () => ({
+        id: { type: 'integer', primaryKey: true }, name: { type: 'string' }, dept: { type: 'string' },
+      }),
+    };
+    const expectErr = async (sql) => {
+      let threw = null;
+      try { await executeSQL(engine, sql, OPTS); } catch (e) { threw = e; }
+      return threw;
+    };
+    ok('SELECT 不存在的列报错', !!(await expectErr('SELECT nosuchcol FROM t')));
+    ok('SELECT 混有不存在列时报错', !!(await expectErr('SELECT id, nope FROM t')));
+    ok('WHERE 引用不存在列报错', !!(await expectErr('SELECT id FROM t WHERE ghost = 1')));
+    ok('GROUP BY 不存在列报错', !!(await expectErr('SELECT COUNT(*) AS c FROM t GROUP BY ghost')));
+    // 不能误伤：正常查询与聚合别名都要放行
+    let normal = null;
+    try { await executeSQL(engine, 'SELECT id, UPPER(name) FROM t', OPTS); } catch (e) { normal = e; }
+    ok('正常查询不受影响', normal === null, normal && normal.message);
+    let aliasOk = null;
+    try {
+      await executeSQL(engine, 'SELECT dept, COUNT(*) AS cnt FROM t GROUP BY dept HAVING cnt >= 1', OPTS);
+    } catch (e) { aliasOk = e; }
+    ok('HAVING 引用 SELECT 别名不报错', aliasOk === null, aliasOk && aliasOk.message);
+    let subOk = null;
+    try { await executeSQL(engine, 'SELECT id FROM t WHERE id IN (SELECT id FROM t)', OPTS); } catch (e) { subOk = e; }
+    ok('子查询内部列名不误判', subOk === null, subOk && subOk.message);
+  }
+
+  console.log('\n--- 并发 insert 不得重复写（曾行数暴涨 / 丢失）---');
+  {
+    const { JSQL } = require('../lib/wasm_client.js');
+    let db;
+    try {
+      db = new JSQL();
+      await db.start();
+    } catch (e) {
+      console.log('[SKIP] WASM 客户端不可用：' + e.message.slice(0, 60));
+    }
+    if (db) {
+      let id = 0;
+      await db.createTable('conc', { id: { type: 'INT', primaryKey: true }, b: { type: 'INT' } });
+      await Promise.all(Array.from({ length: 200 }, () => db.insert('conc', { id: ++id, b: 5 })));
+      const cnt = await db.count('conc');
+      ok(`并发 insert 200 行 → count 恰为 200（实际 ${cnt}）`, cnt === 200);
+
+      // flush 失败不得把坏行留在 buffer 里二次爆炸
+      ok('insert(null) 抛 TypeError', await (async () => {
+        try { await db.insert('conc', null); return false; } catch (e) { return e instanceof TypeError; }
+      })());
+      ok('insert(undefined) 抛 TypeError', await (async () => {
+        try { await db.insert('conc', undefined); return false; } catch (e) { return e instanceof TypeError; }
+      })());
+      ok('insert(非对象) 抛 TypeError', await (async () => {
+        try { await db.insert('conc', 42); return false; } catch (e) { return e instanceof TypeError; }
+      })());
+
+      // 环形对象：应给可读错误，而不是 "Converting circular structure" 裸崩
+      await db.createTable('cyc', { id: { type: 'INT', primaryKey: true }, meta: { type: 'JSON' } });
+      const cyc = { self: null };
+      cyc.self = cyc;
+      let cycErr = null;
+      try { await db.insert('cyc', { id: 1, meta: cyc }); } catch (e) { cycErr = e; }
+      ok('环形对象给出带表/列名的错误',
+        !!cycErr && /Cannot serialize column 'meta'/.test(cycErr.message),
+        cycErr && cycErr.message);
+      await db.stop();
+    }
+  }
+
+  console.log('\n--- Redis：RESP2 帧解析（曾 inline 命令恒为 unknown command）---');
+  {
+    const { RedisServer } = require('../lib/redis_server.js');
+    const s = new RedisServer({ port: 0 });
+    const p = (raw) => s._parse(Buffer.from(raw, 'utf8'));
+
+    ok('RESP 数组 PING', JSON.stringify((p('*1\r\n$4\r\nPING\r\n') || {}).cmd) === '"PING"');
+    ok('RESP SET foo bar',
+      JSON.stringify((p('*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n') || {}).args) === '["foo","bar"]');
+    // 曾经这里返回数组，导致 switch(cmd) 永远匹配不上
+    ok('inline 命令 cmd 是字符串', (p('PING\r\n') || {}).cmd === 'PING');
+    ok('inline 带参数', JSON.stringify((p('SET k v\r\n') || {}).args) === '["k","v"]');
+    ok('*0 不崩溃', (p('*0\r\n') || {}).ignore === true);
+    ok('*-1 不崩溃', (p('*-1\r\n') || {}).ignore === true);
+    // $N 是字节长度：按字符切片会把多字节值截断
+    const cn = p('*3\r\n$3\r\nSET\r\n$2\r\nk1\r\n$12\r\n中文测试\r\n');
+    ok('多字节 UTF-8 按字节解析', JSON.stringify(cn && cn.args) === '["k1","中文测试"]');
+    ok('不完整帧返回 null（等待续包）', p('*3\r\n$3\r\nSET\r\n') === null);
+    ok('null bulk $-1', JSON.stringify((p('*2\r\n$3\r\nGET\r\n$-1\r\n') || {}).args) === '[null]');
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }

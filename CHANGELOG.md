@@ -4,6 +4,59 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.0.2] — 2026-09-27
+
+### Fixed — 数据正确性 / 进程稳定性
+
+- **并发 insert 重复写或丢行（最严重）**：`lib/wasm_client.js` 的 `_flush()` 先遍历
+  `this._buffer` 再在 `await` 之后清空 —— 期间其他协程继续往同一个数组 push，
+  同一批行被多个 flush 重复写入（曾出现并发插 200 行 count=20100）。
+  现改为**先把整个 buffer 原子取出再写入**
+- **flush 失败不清空 buffer，`stop()` 二次爆炸**：`_insertBatch` 抛错时坏行残留，
+  `stop()` 再次 flush 抛同一个错导致进程 exit 1。现在坏行不回写 buffer，
+  并记录到 `_flushErrors`（可用 `lastFlushErrors()` 查看），不再静默丢数据
+- **`insert(t, null)` / `insert(t, undefined)` 直接 TypeError 且信息无意义**
+  （`Cannot convert undefined or null to object`）。现在在入口校验并给出明确
+  `TypeError: insert(): expected a row object, got null`
+- **环形对象在 flush 时崩溃**：json/object/array 字段无脑 `JSON.stringify`，
+  遇到循环引用抛裸错。现在包成带表/列名的可读错误
+  （`Cannot serialize column 'meta' of table 't2': ...`）
+
+### Fixed — 功能缺陷
+
+- **Redis inline 命令恒为 "unknown command"**：`_parse()` 在内联分支返回的是
+  **数组**（`cmd.map(...)`），而 `_handle()` 用 `switch(cmd)` 匹配字符串，永远匹配不上。
+  现返回字符串
+- **`*0` / `*-1` 直接崩溃**（`Cannot read properties of undefined`）。现作为空帧忽略
+- **RESP 多字节 UTF-8 被截断**：`socket.setEncoding('utf8')` 后按**字符**切片，
+  而 RESP 的 `$N` 是**字节**长度，中文等会解析失败/错位。现全程用 Buffer
+  按字节处理；回复数组的 bulk 长度也从 `String.length` 改为 `Buffer.byteLength`
+- **`SELECT nosuchcol FROM t` 静默返回 null**：调用方拿到"一列 null"往往被当成
+  数据为空，比报错更难排查。现在报 `no such column: X`。
+  只在实际能确定列名集合时校验（取样本行键 + SELECT 输出别名），
+  不深入子查询作用域，空表不断言 —— 避免误伤 `HAVING cnt` 这类别名引用
+- **`require('jsql-neo/lib/plugins')` 路径不通**：exports map 只有 `./lib/*` →
+  `./lib/*.js`，目录入口解析成不存在的 `./lib/plugins.js`。已加
+  `"./lib/plugins": "./lib/plugins/index.js"`
+
+### Fixed — 文档与实际不符
+
+- **插件沙箱说法完全错误（安全相关）**：README 写"Module files run in a VM sandbox"、
+  `PLUGINS.md` 写"模块文件在 vm 沙箱中执行（不污染全局）"——
+  **代码里根本不存在 vm 隔离**（`lib/mod.js` 就是普通 `require(filePath)`），
+  插件与核心完全同权，可访问 `fs` / `child_process`。两处文档均已更正并加安全提示
+- **README 目录树里的 `docs/` 在 GitHub 上 404**：该目录不存在，
+  已改为指向真实的 `PLUGINS.md`
+
+### Added
+
+- 回归测试扩充到 62 项：覆盖并发 insert、`insert(null)`、环形对象、列不存在校验、
+  RESP2 帧解析（含多字节与半包）、子路径导出
+
+### Changed
+
+- 版本号 6.0.1 → 6.0.2
+
 ## [6.0.1] — 2026-09-27
 
 ### Fixed

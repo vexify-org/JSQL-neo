@@ -1848,9 +1848,16 @@ jsql mod disable <name>                  # disable (cascades)
 jsql mod list | ls [--json]             # list
 ```
 
-Modules persist to `~/.config/jsql/mod.config`. Module files run in a VM sandbox and can
-`require` local dependencies. Circular dependencies are rejected; disabling cascades to
-dependents.
+Modules persist to `~/.config/jsql/mod.config`. Circular dependencies are rejected;
+disabling cascades to dependents.
+
+> **插件没有沙箱，请只装可信来源的模块。** 两条装载路径都不做隔离：
+> - `db.use(plugin)` —— 直接把插件对象挂进核心，与核心同权；
+> - `jsql mod add <dir>` —— 模块文件走普通 `require()`，同样与核心同权，
+>   可访问 `fs` / `child_process` 等一切 Node API。
+>
+> 早期文档曾写"模块文件在 VM 沙箱中执行"，实际代码中不存在 vm 隔离，此处已更正。
+> 需要隔离时请在进程级解决（容器 / 子进程 / 单独的用户与权限）。
 
 ---
 
@@ -4812,7 +4819,7 @@ jsql-neo/
 ├── index.js                     # ★ 公共 API 出口
 ├── index.d.ts                   # TypeScript 声明
 ├── test/                        # 测试套件
-├── docs/                        # 文档（本文件即索引）
+├── PLUGINS.md                   # 插件与模块文档（与 README 同级，无 docs/ 目录）
 ├── src/rust/                    # Rust 引擎源码（native + wasm）
 ├── data/                        # 默认数据目录（运行时创建）
 └── package.json
@@ -5003,7 +5010,7 @@ npm run typecheck
 - `src/rust/`：Rust 引擎（native + wasm 同源）
 - `lib/`：Node 侧全部逻辑（协议/解析/TUI/兼容层）
 - `test/`：单元 + 集成测试
-- `docs/`：扩展文档
+- 扩展文档位于仓库根目录：`PLUGINS.md`（插件与模块）。本仓库**没有** `docs/` 目录。
 
 ---
 
