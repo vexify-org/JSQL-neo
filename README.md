@@ -835,7 +835,7 @@ CREATE TABLE IF NOT EXISTS orders (
 
 **SELECT grammar**
 
-```sql
+```text
 WITH [RECURSIVE] cte_name [(col, ...)] AS (SELECT ...)[, ...]   -- CTE，见下节
 SELECT [DISTINCT] select_list
 FROM table_reference
@@ -3138,7 +3138,7 @@ DELETE FROM orders WHERE status = 'cancelled' LIMIT 100;
 
 #### 查询语法 SELECT
 
-```sql
+```text
 SELECT [DISTINCT] select_list
 FROM table_reference
 [JOIN table_reference ON condition]
