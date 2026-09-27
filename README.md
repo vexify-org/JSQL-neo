@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser. **And it fits in one npm package.**
 
-> **v6.0.0** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
+> **v6.0.1** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -124,6 +124,7 @@ For the complete Chinese edition of every topic below, jump to the [中文版](#
 - [Migration Tools](#migration-tools)
 - [Storage & Performance](#storage--performance)
 - [Security](#security)
+- [Plugin System](#plugin-system)
 - [Errors](#errors)
 - [TypeScript](#typescript)
 - [Architecture](#architecture)
@@ -232,7 +233,7 @@ npm install && npm run build                 # option 3: from source
 Verify:
 
 ```bash
-node -e "console.log(require('jsql-neo/package.json').version)"   # 6.0.0
+node -e "console.log(require('jsql-neo/package.json').version)"   # 6.0.1
 ```
 
 ### 30-second demo
@@ -410,7 +411,7 @@ Auth failure returns the standard `Access denied for user 'x'@'...' (using passw
 
 The server answers the system probes ORMs and GUI tools run at connect time:
 
-- `SELECT VERSION()` → `8.0.0-jsql-neo`
+- `SELECT VERSION()` → `8.0.1-jsql-neo`
 - System variables: `@@version`, `@@version_comment`, …
 - `SHOW DATABASES / SHOW TABLES / SHOW COLUMNS / SHOW CREATE TABLE`
 - `information_schema.tables / columns / statistics`
@@ -1064,7 +1065,7 @@ SELECT AGE('2026-08-12', '2020-01-01');             -- '6 years 7 mons 11 days'
 **Conditional / null** — `IF(cond, a, b)`, `IIF`, `IFNULL(a, b)`, `COALESCE(...)`, `NULLIF`,
 `ISNULL`, `CASE WHEN ... THEN ... ELSE ... END` (search/simple form, works with aggregates).
 
-**System & misc** — `VERSION()` → `8.0.0-jsql-neo`, `DATABASE()`, `USER()`/`CURRENT_USER`,
+**System & misc** — `VERSION()` → `8.0.1-jsql-neo`, `DATABASE()`, `USER()`/`CURRENT_USER`,
 `LAST_INSERT_ID()`, `ROW_COUNT()`, `CAST`/`CONVERT`, `JSON_EXTRACT(doc, '$.path')`,
 `JSON_OBJECT`/`JSON_ARRAY`, `JSON_UNQUOTE`, `JSON_CONTAINS`, `JSON_SET/INSERT/REPLACE/REMOVE`,
 `UUID()`, `TYPEOF(x)`, `PRINT(x)`.
@@ -1457,7 +1458,7 @@ jsql mod --engine wasm        # switch engine (restart required)
 
 ```bash
 $ jsql version
-jsql-neo v6.0.0
+jsql-neo v6.0.1
 engine: native (napi) | wasm | js
 node: v22.0.0  platform: linux x64
 ```
@@ -1478,7 +1479,7 @@ jsql tui --memory -q                      # memory mode, quiet
 jsql tui --prompt 'db> ' --no-color
 ```
 
-The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=6.0.0`.
+The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=6.0.1`.
 
 ### Keyboard shortcuts
 
@@ -1752,6 +1753,98 @@ normalization on data dirs and import/export paths; Web UI db-name whitelist (no
   sql: 'SELECT * FROM users', // optional
 }
 ```
+
+## Plugin System
+
+JSQL-NEO ships with a unified plugin system that works across all three engine implementations:
+**Native** (`NativeJSQL`), **WASM** (`JSQL`), and **Pure JS** (`Database`). Full documentation
+is in [PLUGINS.md](./PLUGINS.md).
+
+### Quick start
+
+```js
+const { Database, Plugin } = require('jsql-neo');
+const db = new Database();
+
+db.use({
+  name: 'my-plugin',
+  install(db, ctx) {
+    db.myFlag = true;
+  },
+  hooks: {
+    beforeInsert(table, data) { /* modify data */ return data; },
+    afterInsert(table, data, ids) {},
+    beforeUpdate(table, id, data) { return true; },   // false = abort
+    afterUpdate(table, id, data, result) {},
+    beforeDelete(table, id) { return true; },
+    afterDelete(table, id, result) {},
+    beforeFind(table, query) { return true; },
+    afterFind(table, query, result) {},
+  },
+});
+```
+
+### Hooks reference (18 unified hooks)
+
+| Hook | Parameters | Return | Description |
+|---|---|---|---|
+| `beforeInsert` | `(table, data[])` | modified data / `false` to abort | pre-insert |
+| `afterInsert` | `(table, data[], ids)` | — | post-insert |
+| `beforeUpdate` | `(table, id, data)` | `true`/`false` | pre-update |
+| `afterUpdate` | `(table, id, data, result)` | — | post-update |
+| `beforeDelete` | `(table, id)` | `true`/`false` | pre-delete |
+| `afterDelete` | `(table, id, result)` | — | post-delete |
+| `beforeFind` | `(table, query)` | `true`/`false` | pre-query |
+| `afterFind` | `(table, query, result)` | — | post-query |
+| `beforeCreateTable` | `(name, schema)` | `true`/`false` | pre-DDL |
+| `afterCreateTable` | `(name, schema)` | — | post-DDL |
+| `beforeDropTable` | `(name)` | `true`/`false` | pre-drop |
+| `afterDropTable` | `(name)` | — | post-drop |
+| `beforeFlush` | `()` | `true`/`false` | pre-flush |
+| `afterFlush` | `()` | — | post-flush |
+| `beforeCount` | `(table)` | `true`/`false` | pre-count |
+| `afterCount` | `(table, count)` | — | post-count |
+| `onStart` | `()` | — | engine start |
+| `onStop` | `()` | — | engine stop |
+
+### Events
+
+| Event | Payload |
+|---|---|
+| `insert` | `{ table, count, ids }` |
+| `update` | `{ table, id, data }` |
+| `delete` | `{ table, ids }` |
+| `createTable` | `{ name, schema }` |
+| `dropTable` | `{ name }` |
+| `start` / `stop` | `{}` |
+
+### Plugin helper class
+
+```js
+const timestampPlugin = new Plugin('timestamp')
+  .on('beforeInsert', (table, data) => {
+    data.forEach(r => r.created_at = new Date().toISOString());
+    return data;
+  })
+  .onEvent((ev, payload) => console.log(ev))
+  .install((db, ctx) => {})
+  .build();
+
+db.use(timestampPlugin);
+```
+
+### Module system (CLI)
+
+```bash
+jsql mod add --address /path/mod.js     # register module
+jsql mod enable <name>                   # enable (auto-enables dependencies)
+jsql mod disable <name>                  # disable (cascades)
+jsql mod list | ls [--json]             # list
+```
+
+Modules persist to `~/.config/jsql/mod.config`. Module files run in a VM sandbox and can
+`require` local dependencies. Circular dependencies are rejected; disabling cascades to
+dependents.
 
 ---
 
@@ -2378,7 +2471,7 @@ createMysqlServer({
 
 支持常见系统查询，让 ORM 与 GUI 工具的初始化探测流程正常工作：
 
-- `SELECT VERSION()` → `8.0.0-jsql-neo`
+- `SELECT VERSION()` → `8.0.1-jsql-neo`
 - `SELECT @@version` / `@@version_comment` 等系统变量
 - `SHOW DATABASES` / `SHOW TABLES` / `SHOW COLUMNS FROM t` / `SHOW CREATE TABLE t`
 - `information_schema.tables` / `information_schema.columns` / `information_schema.statistics`
@@ -2410,7 +2503,7 @@ SELECT TABLE_NAME, TABLE_ROWS FROM information_schema.tables WHERE TABLE_SCHEMA 
 
 | 函数 | 行为 |
 |---|---|
-| `VERSION()` | `8.0.0-jsql-neo` |
+| `VERSION()` | `8.0.1-jsql-neo` |
 | `NOW()` / `CURRENT_TIMESTAMP` | `YYYY-MM-DD HH:MM:SS`（UTC） |
 | `CONCAT(a, b, ...)` | 字符串拼接 |
 | `GROUP_CONCAT(x)` | 聚合拼接（逗号分隔） |
@@ -3245,7 +3338,7 @@ INTERVAL 单位：`DAY` `HOUR` `MINUTE` `SECOND` `WEEK` `MONTH` `YEAR` 及其组
 
 | 函数 | 说明 | 示例 |
 |---|---|---|
-| `VERSION()` | 服务器版本 | `8.0.0-jsql-neo` |
+| `VERSION()` | 服务器版本 | `8.0.1-jsql-neo` |
 | `DATABASE()` | 当前库名 | `DATABASE()` |
 | `USER()` / `CURRENT_USER` | 当前用户 | `USER()` → `root` |
 | `LAST_INSERT_ID()` | 最近自增 ID | 配合 AUTO_INCREMENT 使用 |
@@ -4042,7 +4135,7 @@ Data dir: /root/.jsql-neo/data
 
 ```bash
 $ jsql version
-jsql-neo v6.0.0
+jsql-neo v6.0.1
 engine: native (napi) | wasm | js
 node: v22.0.0
 platform: linux x64
@@ -5119,7 +5212,7 @@ Apache License
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v6.0.0 · 最后更新：2026-09-26*
+*文档版本：v6.0.1 · 最后更新：2026-09-27*
 
 ---
 
@@ -6594,7 +6687,7 @@ FROM orders;
 #### 会话信息
 
 ```sql
-SELECT VERSION();                  -- '8.0.0-jsql-neo'
+SELECT VERSION();                  -- '8.0.1-jsql-neo'
 SELECT DATABASE();                 -- 'app'
 SELECT USER();                     -- 'root@localhost'
 SELECT CURRENT_USER;               -- 'root@localhost'
@@ -6889,7 +6982,7 @@ Usage: jsql version
 
 输出版本与环境信息：
 
-  jsql-neo v6.0.0
+  jsql-neo v6.0.1
   engine: native (napi) | wasm | js
   node: v22.0.0
   platform: linux x64
@@ -7545,7 +7638,7 @@ CI（GitHub Actions）矩阵：`node 20/22` × `linux/macos/windows` × `native/
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v5.4.0 · 共 19 个附录 · 最后更新：2026-08-12*
+*文档版本：v6.0.1 · 共 19 个附录 · 最后更新：2026-09-27*
 
 ---
 
@@ -8152,4 +8245,4 @@ npm test
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v5.4.0 · 附录 A–Z · 全文 6000+ 行 · 最后更新：2026-08-12*
+*文档版本：v6.0.1 · 附录 A–Z · 全文 6000+ 行 · 最后更新：2026-09-27*
