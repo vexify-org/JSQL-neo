@@ -40,6 +40,16 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   统一抛 `TypeError`，环形对象统一给出 `Cannot serialize column 'x' of table 'y'`
 - `native_client` 新增 `lastFlushErrors()`：坏行不回写 buffer，改记日志供排查
 
+### Fixed — 安全 / 资源护栏
+
+- **`splitStatements` 无界内存消耗（CWE-770，可被一段大文本打挂进程）**：
+  逐字符 `current += c` 拼接在「超长且无分号」的 SQL 上产生接近 O(n²) 的拷贝放大，
+  实测 20MB 输入在 512MB 堆下直接 `FATAL ERROR: Reached heap limit` 崩溃（退出码 -6）。
+  现改为**区间切片收集**（`slice` + 一次 `join`），同一 20MB 无分号输入由 OOM
+  降到约 30MB 堆 / ~100ms；并新增输入体积上限 `DEFAULT_MAX_SQL_LENGTH`（默认 64 MiB，
+  可用 `executeSQL(..., { maxSqlLength })` 放宽，传 `Infinity` 关闭）。
+  `splitStatements` 的切分语义（引号/转义/反引号、`--` `#` `/* */` 注释、分号切分）保持不变。
+
 ### Added — 测试
 
 - `readme-audit` 新增 28 条断言（共 95 项通过）；并发 / 校验用例改为**同时跑
