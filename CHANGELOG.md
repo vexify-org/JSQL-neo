@@ -4,6 +4,18 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.0.4] — 2026-09-29
+
+### Fixed
+
+- **`applyParams` 不会跳过 `--` / `#` / `/* */` 注释**：注释里随便写一个 `:name` / `@name` / `?`
+  都会被当成占位符替换（或报错 "Named parameter :foo requires an object of parameters"）。
+  现把行注释与块注释在参数替换前整体跳过，与 `splitStatements` 的语义对齐。
+- **`tokenize` 静默吞掉未闭合的单/双引号与反引号**：`SELECT 'abc`、`SELECT "abc`、
+  `SELECT \`unterminated\`` 此前会被当作合法 token 继续解析，语法错误被静默放过。
+  现在 token 阶段直接抛 `Unterminated single-quoted string at position N` /
+  `Unterminated backtick-quoted identifier at position N`，错误带位置。
+
 ## [6.1.0] — 2026-09-27
 
 ### Added — SQL 方言（补齐 README 契约）
