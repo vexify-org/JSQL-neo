@@ -4,6 +4,29 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.2.0] — 2026-10-01
+
+### Added
+
+- **PG JSON 操作符**：`@>`（包含）、`<@`（被包含）、`#>` / `#>>`（路径取值，
+  支持 `'{a,b}'` 形式与数组下标）
+- **JSON 键存在操作符**：`?` / `?|` / `?&`
+- **PG 正则操作符**：双目位置的 `~`（大小写敏感）、`~*`（不敏感）、`!~`、`!~*`
+  （单目位置的 `~` 仍是按位取反，按上下文区分）
+- **命名参数**：`executeSQL` 第三参传对象时视为命名参数（`{id: 1}` → `:id`），
+  并支持 `$1` / `$2` 编号占位符
+- **目录摘要脚本** `scripts/folder-checksum.js`：确定性计算整个项目目录的 sha256
+  （遍历排序、POSIX 路径、排除依赖与构建产物），支持 `--out` 导出清单、
+  `--verify <hex>` 校验
+
+### Fixed
+
+- **非主键 `UNIQUE` 约束此前不生效**：`email TEXT UNIQUE` 插入重复值不报错。
+  现在默认动作下违反唯一列（含批内重复）抛出 `ER_DUP_ENTRY`；多个 `NULL` 仍允许。
+  `ON CONFLICT (col)` / `ON DUPLICATE KEY UPDATE` / `INSERT IGNORE` / `REPLACE INTO`
+  对唯一列冲突也按各自语义处理。
+- **加速站前缀此前硬编码**：只能通过公共站下载，无法用自建加速站。
+
 ## [6.0.4] — 2026-09-29
 
 ### Fixed
