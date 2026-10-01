@@ -27,7 +27,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 // 目录名（任意层级命中即跳过）
 const EXCLUDE_DIRS = new Set([
-  'node_modules', '.git', '.workbuddy', 'target', 'coverage',
+  'node_modules', '.git', '.git.broken', '.workbuddy', 'target', 'coverage',
   'tmp', 'Temp', 'dist', 'build', '.trae-html-share-packages',
   '.cache', 'logs',
 ]);
