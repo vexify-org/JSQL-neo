@@ -21,6 +21,17 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Fixed
 
+- **`JOIN` 一对多只返回一行**：`ON` 命中后只取第一个匹配的右行。现在收集全部匹配行。
+- **`NOW()` / `CURDATE()` / `CURTIME()` 返回 UTC**：用 `toISOString()` 导致东八区凌晨
+  整整差一天（`2024-02-29` 被存成 `2024-02-28`）。现改为本地时区；
+  `UTC_TIMESTAMP()` 仍按名字保持 UTC。
+- **`CURRENT_DATE` / `CURRENT_TIME` / `CURRENT_TIMESTAMP` 不在关键字表**：裸写时被当列名，
+  报 `no such column: CURRENT_DATE`。现识别为零参函数（括号可省略）。
+- **`NOT IN` 不取反**：`WHERE id NOT IN (1,2)` 返回 `1,2`（等同 `IN`）。现正确取反。
+- **`SELECT DISTINCT *` 只剩一行**：`*` 被当列名解析成 `null`，所有行 key 相同。现按整行去重。
+- **`ORDER BY 1` 未生效**：位置序号被当常量求值，排序无效果。现在按输出列位置（1-based）排序。
+- **字符串内 `''` 未转义**：`'O''Brien'` 报 `Expected ) but got 'Brien'`。现按 SQL 标准
+  把连续两个引号解析为一个字面量引号。
 - **非主键 `UNIQUE` 约束此前不生效**：`email TEXT UNIQUE` 插入重复值不报错。
   现在默认动作下违反唯一列（含批内重复）抛出 `ER_DUP_ENTRY`；多个 `NULL` 仍允许。
   `ON CONFLICT (col)` / `ON DUPLICATE KEY UPDATE` / `INSERT IGNORE` / `REPLACE INTO`

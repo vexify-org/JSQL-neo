@@ -202,6 +202,13 @@ async function main() {
     ok("nm ~* '^a' 不敏感", JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm ~* '^a'")) === '[[1]]');
     ok("nm !~ '^A' 取反", JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm !~ '^A'")) === '[[2],[3]]');
     ok('REGEXP 仍可用', JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm REGEXP '^A'")) === '[[1]]');
+    // —— 6.2.0 回归项（这些曾不报错但结果错）——
+    ok('NOT IN 取反', JSON.stringify(await rowsOf('SELECT id FROM tbl WHERE id NOT IN (1,2)')) === '[[3]]');
+    const dStar = await rowsOf('SELECT DISTINCT * FROM tbl');
+    ok('DISTINCT * 按整行去重（此前只剩 1 行）', dStar.length === 3, dStar);
+    ok('ORDER BY 1 按第 1 列排序', JSON.stringify(await rowsOf('SELECT n FROM tbl ORDER BY 1')) === '[[10],[20],[30]]');
+    ok("'' 内双写引号转义",
+      JSON.stringify(await rowsOf("SELECT 'O''Brien' AS x FROM tbl WHERE id = 1")) === '[["O\'Brien"]]');
     ok("LIKE ... ESCAPE '!' 匹配字面量 %",
       JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE s LIKE '100!%' ESCAPE '!'")) === '[[1]]');
     ok('LIKE 反斜杠转义匹配字面量 %',
@@ -388,6 +395,34 @@ async function main() {
       await run("INSERT INTO u (email, nick) VALUES (NULL, 'x'), (NULL, 'y')");
       const r2 = await run('SELECT id FROM u');
       ok('UNIQUE 允许多个 NULL', r2.rows.length === 3, r2.rows);
+      await db.stop();
+    }
+  }
+
+  console.log('\n--- 6.2.0 回归：JOIN 一对多 / NOW() 用本地时区 ---');
+  {
+    let JSQL, db;
+    try {
+      ({ JSQL } = require('../lib/native_client.js'));
+      db = new JSQL();
+      await db.start();
+    } catch (e) {
+      console.log('[SKIP] native 不可用：' + e.message.slice(0, 60));
+    }
+    if (db) {
+      const run = (sql) => executeSQL(db, sql, OPTS);
+      await run('CREATE TABLE ru (id INT PRIMARY KEY, name TEXT)');
+      await run('CREATE TABLE ro (id INT PRIMARY KEY, uid INT, amt INT)');
+      await run("INSERT INTO ru (id,name) VALUES (1,'x')");
+      await run('INSERT INTO ro (id,uid,amt) VALUES (1,1,10),(2,1,20),(3,1,30)');
+      const j = await run('SELECT ru.name, ro.amt FROM ru JOIN ro ON ru.id = ro.uid');
+      ok('JOIN 一对多返回 3 行', j.rows.length === 3, j.rows);
+
+      const n = await run('SELECT NOW() AS d');
+      const nowLocal = new Date();
+      const p = (x) => String(x).padStart(2, '0');
+      const expectYmd = nowLocal.getFullYear() + '-' + p(nowLocal.getMonth() + 1) + '-' + p(nowLocal.getDate());
+      ok('NOW() 返回本地时区日期', String(n.rows[0][0]).slice(0, 10) === expectYmd, n.rows);
       await db.stop();
     }
   }
