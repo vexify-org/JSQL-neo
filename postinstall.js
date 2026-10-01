@@ -14,9 +14,42 @@ const BP = path.join(ROOT, 'bin', BIN_NAME);
 // Native N-API module (native/jsql-neo-native.node)
 const NATIVE_PATH = path.join(ROOT, 'native', 'jsql-neo-native.node');
 
-// GitHub 加速代理前缀；把原始 github 链接直接拼在后面即可
-const GHPROXY = 'https://gh-proxy.com/';
+// GitHub 加速代理前缀；加速站的用法是把原始 URL 直接拼在后面：
+//   https://<host>/https://github.com/owner/repo/releases/download/vX.Y.Z/asset?token=<TOKEN>
+// 可用环境变量覆盖 / 叠加（逗号分隔多个，按序尝试）；空字符串 '' 表示直连兜底。
+// 加速站候选（按优先级）：自建站优先，公共站回退，最后直连兜底。
+const DEFAULT_PROXIES = [
+  'https://gh-proxyjsql-neoworkerapi.vexify.de5.net/',
+  'https://gh-proxy.com/',
+];
+const GHPROXY = process.env.JSQL_GHPROXY !== undefined
+  ? process.env.JSQL_GHPROXY
+  : DEFAULT_PROXIES[0];
+const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || '';
 const TAG = `v${pkg.version}`;
+
+/**
+ * 生成候选下载地址列表（按优先级）：
+ *   环境变量 JSQL_GHPROXY 指定的代理 → 内置加速站 → 直连
+ */
+function proxyCandidates(raw) {
+  const bases = String(process.env.JSQL_GHPROXY || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .concat(DEFAULT_PROXIES)
+    .concat('');
+  const list = [];
+  for (const base of bases) {
+    let url = raw;
+    if (base) url = (base.endsWith('/') ? base : base + '/') + raw;
+    if (base && GHPROXY_TOKEN) {
+      url += (url.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(GHPROXY_TOKEN);
+    }
+    if (list.indexOf(url) === -1) list.push(url);
+  }
+  return list;
+}
 
 // 从 repository 字段提取 owner/repo，例如 vexify-org/JSQL-neo
 const REPO = (pkg.repository && pkg.repository.url)
@@ -95,20 +128,22 @@ function tryLoadNative() {
 
 async function downloadAndVerify() {
   const asset = `jsql-neo-native.${nativeTargetSuffix()}.node`;
-  const url = `${GHPROXY}https://github.com/${REPO}/releases/download/${TAG}/${asset}`;
-  console.log(`[jsql-neo] downloading native module: ${url}`);
-  try {
-    await download(url, NATIVE_PATH);
-    if (!tryLoadNative()) {
-      console.warn('[jsql-neo] downloaded module also invalid, removed.');
-      return false;
+  const raw = `https://github.com/${REPO}/releases/download/${TAG}/${asset}`;
+  // 依次尝试：环境变量指定的代理 → 内置加速站 → 直连
+  for (const url of proxyCandidates(raw)) {
+    console.log(`[jsql-neo] downloading native module: ${url}`);
+    try {
+      await download(url, NATIVE_PATH);
+      if (tryLoadNative()) {
+        console.log('[jsql-neo] native module downloaded: native/jsql-neo-native.node');
+        return true;
+      }
+      console.warn('[jsql-neo] downloaded module cannot be loaded; trying next source.');
+    } catch (e) {
+      console.warn('[jsql-neo] download failed:', e.message);
     }
-    console.log('[jsql-neo] native module downloaded: native/jsql-neo-native.node');
-    return true;
-  } catch (e) {
-    console.warn('[jsql-neo] download failed, falling back to source build:', e.message);
-    return false;
   }
+  return false;
 }
 
 async function ensureNativeNode() {
