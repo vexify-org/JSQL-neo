@@ -268,6 +268,20 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     ok('未绑定参数不应在解析期报错', threw === null);
   }
 
+  /* ================= BUG 修复: ROUND 非数值/负数位数不再崩溃 ================= */
+  console.log('\n--- BUG 修复: ROUND MySQL 语义 ---');
+  {
+    const roundOf = async (expr) => rowsOf(await executeSQL(engine, `SELECT ${expr} AS v`, OPTS))[0][0];
+    ok("ROUND('abc', 0) 返回 null 而非 TypeError", await roundOf("ROUND('abc', 0)") === null);
+    ok("ROUND('abc') 返回 null", await roundOf("ROUND('abc')") === null);
+    ok('ROUND(3.14159, 2) = 3.14', await roundOf('ROUND(3.14159, 2)') === 3.14);
+    ok('ROUND(3.5) = 4', await roundOf('ROUND(3.5)') === 4);
+    ok('ROUND(-3.5) = -4（半远离零，与 MySQL 一致）', await roundOf('ROUND(-3.5)') === -4);
+    ok('ROUND(-2.5) = -3', await roundOf('ROUND(-2.5)') === -3);
+    ok('ROUND(123.456, -1) = 120（负数位数）', await roundOf('ROUND(123.456, -1)') === 120);
+    ok('ROUND(1.5, 101) 不再抛 RangeError', await roundOf('ROUND(1.5, 101)') === 1.5);
+  }
+
   /* ================= 5.6.0: 相关子查询（曾静默返回 null） ================= */
   console.log('\n--- 5.6.0: 相关子查询 ---');
   {

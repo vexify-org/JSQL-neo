@@ -58,6 +58,15 @@ function validate(bt) {
   ok('non-unique remove value keeps key until last', n.search('a').length === 0 && n.size === 1);
 }
 
+/* ---- _route() 对叶子节点不再崩溃（单键根节点） ---- */
+{
+  const bt = new BTree();
+  bt.insert(5, 0);
+  let threw = false;
+  try { bt._route(bt._root, 5); } catch (e) { threw = true; }
+  ok('_route() on leaf root no crash', !threw && bt._route(bt._root, 5) === 0);
+}
+
 /* ---- 二分查找 / IN / 前缀 ---- */
 {
   const bt = new BTree(16);
