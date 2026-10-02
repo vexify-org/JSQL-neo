@@ -616,3 +616,76 @@ let wasm;
 export function __wbg_set_wasm(val) {
     wasm = val;
 }
+
+// ============================================================
+// WASM 初始化（原构建产物缺失这一段，导致 browser.mjs 无法加载：
+// 它 `import init from './browser_bg.mjs'`，但本文件没有 default export）
+// ============================================================
+
+function __wbg_get_imports() {
+    const import0 = {
+        __proto__: null,
+        __wbg___wbindgen_string_get_b0ca35b86a603356: function(arg0, arg1) {
+            const obj = getObject(arg1);
+            const ret = typeof(obj) === 'string' ? obj : undefined;
+            var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+            var len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        },
+        __wbg___wbindgen_throw_344f42d3211c4765: function(arg0, arg1) {
+            throw new Error(getStringFromWasm0(arg0, arg1));
+        },
+        __wbg_new_cc984128914cfc6f: function(arg0) {
+            const ret = new Date(getObject(arg0));
+            return addHeapObject(ret);
+        },
+        __wbg_now_86c0d4ba3fa605b8: function() {
+            const ret = Date.now();
+            return ret;
+        },
+        __wbg_toISOString_706fbe321055ee58: function(arg0) {
+            const ret = getObject(arg0).toISOString();
+            return addHeapObject(ret);
+        },
+        __wbindgen_cast_0000000000000001: function(arg0) {
+            // Cast intrinsic for `F64 -> Externref`.
+            const ret = arg0;
+            return addHeapObject(ret);
+        },
+        __wbindgen_object_drop_ref: function(arg0) {
+            takeObject(arg0);
+        },
+    };
+    return { './jsql_neo_wasm_bg.js': import0 };
+}
+
+/**
+ * 初始化 WASM 模块（default export，供 browser.mjs 的 `await init()` 调用）。
+ * @param {string|URL|Request|Response|ArrayBuffer|WebAssembly.Module} [input]
+ *        默认加载同目录的 jsql_neo_wasm_bg.wasm
+ */
+async function __wbg_init(input) {
+    if (wasm !== undefined) return wasm;
+    const imports = __wbg_get_imports();
+    const path = input === undefined
+        ? new URL('./jsql_neo_wasm_bg.wasm', import.meta.url)
+        : input;
+
+    let instance;
+    if (path instanceof WebAssembly.Module) {
+        instance = (await WebAssembly.instantiate(path, imports)).instance;
+    } else if (typeof Response !== 'undefined' && path instanceof Response) {
+        instance = (await WebAssembly.instantiate(await path.arrayBuffer(), imports)).instance;
+    } else if (path instanceof ArrayBuffer || ArrayBuffer.isView(path)) {
+        instance = (await WebAssembly.instantiate(path, imports)).instance;
+    } else {
+        // 用 instantiate 而非 instantiateStreaming：某些 CDN 不返回 application/wasm MIME
+        const bytes = await (await fetch(path)).arrayBuffer();
+        instance = (await WebAssembly.instantiate(bytes, imports)).instance;
+    }
+    __wbg_set_wasm(instance.exports);
+    return instance.exports;
+}
+
+export default __wbg_init;
