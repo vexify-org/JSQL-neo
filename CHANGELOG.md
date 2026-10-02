@@ -4,6 +4,27 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.3.0] — 2026-10-02
+
+### Fixed
+
+- **DATE/DATETIME 列存储在东八区回退一天**（数据损坏级）：`validateDate` 用
+  `toISOString().slice(0,10)` 序列化（UTC），而 `parseDateString` 用本地时区构造，
+  口径不一致 → `2023-01-01` 存成 `2022-12-31`、`2024-02-29` 存成 `2024-02-28`。
+  改为按本地时区序列化，且已是 `YYYY-MM-DD` 的字符串直通返回。
+- **数值列与数值字符串比较退化为字典序**：`age < '10'`、`age = '09'` 失真。
+  现在一端为数值、另一端为数值字符串时按数值比较。
+- **HAVING 在无 GROUP BY 时完全失效**：聚合被逐行计算（`COUNT(*)` 每行都是 1），
+  导致 `HAVING COUNT(*) > 2` 滤掉所有行、最终输出 0。现在整张表作为一个分组。
+- **MIN/MAX 用于字符串列返回 null**：内部一律 `Number(v)` → `NaN`。
+  现在数值按数值比、字符串/日期按字典序/时间序。
+- **`NOT (col > x)` 对 NULL 的三值逻辑错误**：含 NULL 的比较被判为 `false`，
+  取反成 `true` 后把 NULL 行错误纳入。现在比较含 NULL 返回 UNKNOWN，`NOT UNKNOWN = UNKNOWN`。
+- **`LIKE` 大小写敏感，不符合 MySQL 默认**：解析器把 `ci` 写成 `isILike`（LIKE→false）。
+  现在 LIKE/ILIKE 均不区分大小写，并支持 `LIKE BINARY '...'` 显式敏感（此前该语法直接解析报错）。
+- **相关子查询被列校验误杀**：`EXISTS (SELECT ... WHERE b.av = a.v)` 报
+  `no such column: a.v`。现在限定引用指向本层 FROM 之外的表/别名时视为外层作用域并放行。
+
 ## [6.2.0] — 2026-10-01
 
 ### Added

@@ -234,6 +234,16 @@ async function main() {
       JSON.stringify(await rowsOf("SELECT DATE_TRUNC('month','2024-03-15 10:20:30')")) === '[["2024-03-01 00:00:00"]]');
     ok('WEEK()', JSON.stringify(await rowsOf("SELECT WEEK('2024-01-14')")) === '[[2]]');
 
+    // —— 数值比较 / 聚合 / LIKE：曾"不报错但结果错"——
+    ok('数值列 vs 数值字符串 <', JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE n < '9'")) === '[]');
+    ok('数值列 vs 数值字符串 =', JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE n = '10'")) === '[[1]]');
+    ok('HAVING 无 GROUP BY', JSON.stringify(await rowsOf('SELECT COUNT(*) AS c FROM tbl HAVING COUNT(*) > 2')) === '[[3]]');
+    ok('HAVING 不成立应为空', JSON.stringify(await rowsOf('SELECT COUNT(*) AS c FROM tbl HAVING COUNT(*) > 100')) === '[]');
+    ok('MIN 字符串列', JSON.stringify(await rowsOf('SELECT MIN(nm) FROM tbl')) === '[["Alice"]]');
+    ok('MAX 字符串列', JSON.stringify(await rowsOf('SELECT MAX(nm) FROM tbl')) === '[["Cara"]]');
+    ok('LIKE 默认不区分大小写', JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm LIKE 'alice'")) === '[[1]]');
+    ok('LIKE BINARY 区分大小写', JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm LIKE BINARY 'alice'")) === '[]');
+
     // —— 6.2.0 回归项（这些曾不报错但结果错）——
     ok('NOT IN 取反', JSON.stringify(await rowsOf('SELECT id FROM tbl WHERE id NOT IN (1,2)')) === '[[3]]');
     const dStar = await rowsOf('SELECT DISTINCT * FROM tbl');
@@ -455,6 +465,44 @@ async function main() {
       const p = (x) => String(x).padStart(2, '0');
       const expectYmd = nowLocal.getFullYear() + '-' + p(nowLocal.getMonth() + 1) + '-' + p(nowLocal.getDate());
       ok('NOW() 返回本地时区日期', String(n.rows[0][0]).slice(0, 10) === expectYmd, n.rows);
+      await db.stop();
+    }
+  }
+
+  console.log('\n--- NULL 三值逻辑 / 相关子查询 / DATE 列时区 ---');
+  {
+    let JSQL, db;
+    try {
+      ({ JSQL } = require('../lib/native_client.js'));
+      db = new JSQL();
+      await db.start();
+    } catch (e) {
+      console.log('[SKIP] native 不可用：' + e.message.slice(0, 60));
+    }
+    if (db) {
+      const run = (sql) => executeSQL(db, sql, OPTS);
+      // NOT 作用于含 NULL 的比较：UNKNOWN 取反仍是 UNKNOWN，该行不应入选
+      await run('CREATE TABLE nl (id INT PRIMARY KEY, a INT)');
+      await run('INSERT INTO nl (id,a) VALUES (1,1),(2,2),(3,NULL)');
+      ok('NOT (a > 1) 排除 NULL 行', JSON.stringify((await run('SELECT id FROM nl WHERE NOT (a > 1)')).rows) === '[[1]]');
+
+      // 相关子查询引用外层别名
+      await run('CREATE TABLE ta (id INT PRIMARY KEY, v INT)');
+      await run('CREATE TABLE tb (id INT PRIMARY KEY, av INT)');
+      await run('INSERT INTO ta (id,v) VALUES (1,10),(2,20)');
+      await run('INSERT INTO tb (id,av) VALUES (1,10)');
+      ok('EXISTS 相关子查询',
+        JSON.stringify((await run('SELECT id FROM ta WHERE EXISTS (SELECT 1 FROM tb WHERE tb.av = ta.v)')).rows) === '[[1]]');
+      ok('NOT EXISTS 相关子查询',
+        JSON.stringify((await run('SELECT id FROM ta WHERE NOT EXISTS (SELECT 1 FROM tb WHERE tb.av = ta.v)')).rows) === '[[2]]');
+
+      // DATE 列序列化：不能用 toISOString（UTC），否则东八区差一天
+      const { validateDateType } = require('../lib/date-types.js');
+      ok('DATE 字符串不回退一天', validateDateType('2023-01-01', 'date', 'f') === '2023-01-01');
+      ok('DATE 闰年边界（2024-02-29）', validateDateType('2024-02-29', 'date', 'f') === '2024-02-29');
+      ok('DATE 对象按本地时区', validateDateType(new Date(2023, 0, 1), 'date', 'f') === '2023-01-01');
+      ok('DATETIME 对象按本地时区',
+        validateDateType(new Date(2023, 0, 1, 8, 30), 'datetime', 'f') === '2023-01-01 08:30:00');
       await db.stop();
     }
   }
