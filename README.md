@@ -1056,10 +1056,15 @@ Coercion rules: numeric strings compare as numbers (`'5' = 5`), `NULL = NULL` �
 `DAYOFWEEK`, `DAYNAME`, `MONTHNAME`, `UNIX_TIMESTAMP`, `FROM_UNIXTIME`.
 
 ```sql
-SELECT DATE_ADD('2026-08-12', INTERVAL 1 DAY);      -- '2026-08-13 00:00:00'
+SELECT DATE_ADD('2026-08-12', INTERVAL 1 DAY);         -- '2026-08-13'（纯日期进 → 纯日期出）
+SELECT DATE_ADD('2026-08-12 10:00:00', INTERVAL 1 DAY); -- '2026-08-13 10:00:00'
 SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i');        -- '2026-08-12 10:30'
 SELECT EXTRACT(YEAR FROM '2026-08-12');             -- 2026
 SELECT AGE('2026-08-12', '2020-01-01');             -- '6 years 7 mons 11 days'
+SELECT DATEDIFF('2026-08-12', '2026-08-01');        -- 11
+SELECT TIMESTAMPDIFF(MONTH, '2026-01-01', '2026-08-01'); -- 7（end - start）
+SELECT TO_DATE('2026-08-12', 'YYYY-MM-DD');         -- '2026-08-12'（PG 格式串）
+SELECT DATE_TRUNC('month', '2026-08-12 10:30:00');  -- '2026-08-01 00:00:00'
 ```
 
 **Conditional / null** — `IF(cond, a, b)`, `IIF`, `IFNULL(a, b)`, `COALESCE(...)`, `NULLIF`,

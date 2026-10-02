@@ -202,6 +202,38 @@ async function main() {
     ok("nm ~* '^a' 不敏感", JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm ~* '^a'")) === '[[1]]');
     ok("nm !~ '^A' 取反", JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm !~ '^A'")) === '[[2],[3]]');
     ok('REGEXP 仍可用', JSON.stringify(await rowsOf("SELECT id FROM tbl WHERE nm REGEXP '^A'")) === '[[1]]');
+    // —— 日期/时间函数（README 承诺但此前大量缺失、静默返回 null）——
+    ok('YEAR()', JSON.stringify(await rowsOf("SELECT YEAR('2024-03-15')")) === '[[2024]]');
+    ok('MONTH()', JSON.stringify(await rowsOf("SELECT MONTH('2024-03-15')")) === '[[3]]');
+    ok('DAY()', JSON.stringify(await rowsOf("SELECT DAY('2024-03-15')")) === '[[15]]');
+    ok('HOUR()', JSON.stringify(await rowsOf("SELECT HOUR('2024-03-15 10:20:30')")) === '[[10]]');
+    ok('MINUTE()', JSON.stringify(await rowsOf("SELECT MINUTE('2024-03-15 10:20:30')")) === '[[20]]');
+    ok('SECOND()', JSON.stringify(await rowsOf("SELECT SECOND('2024-03-15 10:20:30')")) === '[[30]]');
+    ok('QUARTER()', JSON.stringify(await rowsOf("SELECT QUARTER('2024-08-15')")) === '[[3]]');
+    ok('DAYOFWEEK()', JSON.stringify(await rowsOf("SELECT DAYOFWEEK('2024-03-15')")) === '[[6]]');
+    ok('DATE()', JSON.stringify(await rowsOf("SELECT DATE('2024-03-15 10:20:30')")) === '[["2024-03-15"]]');
+    ok('TIME()', JSON.stringify(await rowsOf("SELECT TIME('2024-03-15 10:20:30')")) === '[["10:20:30"]]');
+    ok('DATEDIFF', JSON.stringify(await rowsOf("SELECT DATEDIFF('2026-08-12','2026-08-01')")) === '[[11]]');
+    ok('TIMESTAMPDIFF 裸 unit',
+      JSON.stringify(await rowsOf("SELECT TIMESTAMPDIFF(MONTH,'2024-01-01','2024-03-01')")) === '[[2]]');
+    ok('DATE_FORMAT',
+      JSON.stringify(await rowsOf("SELECT DATE_FORMAT('2026-08-12 10:30:00','%Y-%m-%d %H:%i')")) === '[["2026-08-12 10:30"]]');
+    ok('STR_TO_DATE',
+      JSON.stringify(await rowsOf("SELECT STR_TO_DATE('2024-03-15','%Y-%m-%d')")) === '[["2024-03-15"]]');
+    ok('TO_DATE(PG 格式)',
+      JSON.stringify(await rowsOf("SELECT TO_DATE('2024-03-15','YYYY-MM-DD')")) === '[["2024-03-15"]]');
+    ok('TO_CHAR(PG 格式)',
+      JSON.stringify(await rowsOf("SELECT TO_CHAR('2024-03-15','YYYY-MM-DD')")) === '[["2024-03-15"]]');
+    ok('DATE_PART', JSON.stringify(await rowsOf("SELECT DATE_PART('year','2024-03-15')")) === '[[2024]]');
+    ok('AGE', JSON.stringify(await rowsOf("SELECT AGE('2026-08-12','2020-01-01')")) === '[["6 years 7 mons 11 days"]]');
+    ok('LAST_DAY 闰年', JSON.stringify(await rowsOf("SELECT LAST_DAY('2024-02-05')")) === '[["2024-02-29"]]');
+    ok('DAYNAME', JSON.stringify(await rowsOf("SELECT DAYNAME('2024-03-15')")) === '[["Friday"]]');
+    ok('MONTHNAME', JSON.stringify(await rowsOf("SELECT MONTHNAME('2024-03-15')")) === '[["March"]]');
+    ok('PERIOD_DIFF', JSON.stringify(await rowsOf('SELECT PERIOD_DIFF(202403,202401)')) === '[[2]]');
+    ok('DATE_TRUNC',
+      JSON.stringify(await rowsOf("SELECT DATE_TRUNC('month','2024-03-15 10:20:30')")) === '[["2024-03-01 00:00:00"]]');
+    ok('WEEK()', JSON.stringify(await rowsOf("SELECT WEEK('2024-01-14')")) === '[[2]]');
+
     // —— 6.2.0 回归项（这些曾不报错但结果错）——
     ok('NOT IN 取反', JSON.stringify(await rowsOf('SELECT id FROM tbl WHERE id NOT IN (1,2)')) === '[[3]]');
     const dStar = await rowsOf('SELECT DISTINCT * FROM tbl');
