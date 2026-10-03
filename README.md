@@ -1991,11 +1991,11 @@ for big results; connection pooling; larger `saveInterval` + compressed snapshot
 
 ```bash
 git clone https://github.com/vexify-org/JSQL-neo.git && cd JSQL-neo
-npm install && npm run build      # build Rust engine (optional)
-npm test                          # all tests
-npm run test:core                 # engine core
-npm run test:protocols            # protocol E2E (needs real drivers)
-npm run lint && npm run typecheck
+npm install                        # postinstall 自动拉取平台原生模块
+npm test                           # 默认测试（smoke / sql-parser / readme-audit / query-opt）
+npm run test:all                   # 全量：追加 native / wasm / coverage / regress / join / btree
+npm run test:regress               # 5.1.0 回归测试（会起 Redis / MySQL / WebUI 服务）
+npm run test:orms                  # ORM 集成示例
 ```
 
 Conventions: feature branch + PR; tests for new SQL/commands; Conventional Commits
