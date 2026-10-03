@@ -105,6 +105,16 @@ async function setup(db) {
     ok('J7 chained left joins', r.rows.length === 3 && r.rows[1][1] === 10 && r.rows[1][2] === 100 && r.rows[1][3] === 'C10' && r.rows[0][1] === null && r.rows[0][2] === null, r.rows);
   }
 
+  /* ============ J8 JOIN ON 透传 ctx ============ */
+  {
+    const db = new Database(':memory:', { autoSave: false });
+    await setup(db);
+    // ON 条件引用 @@会话变量：此前 evaluateExpr(j.on, row) 漏传 ctx，
+    // @@jv 解析为 null 导致匹配全丢，这里锁定必须透传 this.ctx。
+    const r = await executeSQL(db, 'SELECT a.id AS aid, b.id AS bid FROM a INNER JOIN b ON a.id = b.a_id AND b.id = @@jv', { session: { sysvars: { jv: 10 } } });
+    ok('J8 JOIN ON 透传 ctx（@@会话变量可解析）', r.rows.length === 1 && r.rows[0][0] === 2 && r.rows[0][1] === 10, r.rows);
+  }
+
   console.log(failed === 0 ? `\nALL ${passed} JOIN TESTS PASSED` : `\n${failed} FAILURES (${passed} passed)`);
   process.exit(failed === 0 ? 0 : 1);
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });

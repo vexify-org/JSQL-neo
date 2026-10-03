@@ -282,6 +282,17 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     ok('ROUND(1.5, 101) 不再抛 RangeError', await roundOf('ROUND(1.5, 101)') === 1.5);
   }
 
+  /* ================= BUG 修复: BETWEEN 含 NULL 的三值逻辑 ================= */
+  console.log('\n--- BUG 修复: BETWEEN NULL 三值逻辑 ---');
+  {
+    const nrows = async (sql) => rowsOf(await executeSQL(engine, sql, OPTS)).length;
+    // engine 行：sal 100/200/300/300
+    ok('sal BETWEEN NULL AND 400 不选行', await nrows('SELECT id FROM emp WHERE sal BETWEEN NULL AND 400') === 0);
+    ok('NOT sal BETWEEN NULL AND 400 不误选行', await nrows('SELECT id FROM emp WHERE NOT sal BETWEEN NULL AND 400') === 0);
+    ok('对照 NOT sal = NULL 也不选行', await nrows('SELECT id FROM emp WHERE NOT sal = NULL') === 0);
+    ok('正常 BETWEEN 区间仍工作', await nrows('SELECT id FROM emp WHERE sal BETWEEN 100 AND 200') === 2);
+  }
+
   /* ================= 5.6.0: 相关子查询（曾静默返回 null） ================= */
   console.log('\n--- 5.6.0: 相关子查询 ---');
   {
