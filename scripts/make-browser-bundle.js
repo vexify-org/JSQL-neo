@@ -7,7 +7,7 @@
  * 所以这里做一次极简的 CommonJS→ESM 包装。
  *
  * 用法：node scripts/make-browser-bundle.js [输出路径]
- *   默认输出 <repo>/../jsql-web-app/jsql-sql.browser.js
+ *   默认输出 <repo>/../jsql-web-app/jsql-sql.browser.mjs
  */
 const fs = require('fs');
 const path = require('path');
@@ -15,7 +15,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const OUT = process.argv[2]
   ? path.resolve(process.argv[2])
-  : path.resolve(ROOT, '..', 'jsql-web-app', 'jsql-sql.browser.js');
+  : path.resolve(ROOT, '..', 'jsql-web-app', 'jsql-sql.browser.mjs');
 
 function read(rel) {
   return fs.readFileSync(path.join(ROOT, rel), 'utf8');
