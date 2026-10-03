@@ -493,6 +493,58 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
       await expr("SELECT DATE_ADD('2023-01-31', INTERVAL 1 DAY) AS x") === '2023-02-01');
   }
 
+  /* ---- ORDER BY 引用与聚合函数同名的输出别名（曾报 got 'AVG'）---- */
+  console.log('\n--- BUG 修复: 分组查询的 ORDER BY ---');
+  {
+    const run = async (sql) => executeSQL(engine, sql, OPTS);
+    // mock 的 emp 表：eng(sal 100,200) / ops(sal 300,300)
+    // → SUM: eng=300 ops=600 | AVG: eng=150 ops=300 | MAX: eng=200 ops=300 | MIN: eng=100 ops=300
+
+    // (1) 别名恰好是聚合函数名：AVG/SUM/COUNT/MAX/MIN 都在关键字表里，
+    //     词法器标成 keyword 后既进不了 parseColumnRef，也不满足「后面跟 (」的聚合调用条件。
+    for (const [fn, agg, expectFirst] of [
+      ['AVG', 'ROUND(AVG(sal),1)', 300],
+      ['SUM', 'SUM(sal)', 600],
+      ['MAX', 'MAX(sal)', 300],
+      ['MIN', 'MIN(sal)', 300],
+    ]) {
+      const sql = `SELECT dept, ${agg} AS ${fn} FROM emp GROUP BY dept ORDER BY ${fn} DESC`;
+      let rows = null, err = null;
+      try { rows = (await run(sql)).rows; } catch (e) { err = e; }
+      ok(`ORDER BY ${fn}（别名与聚合函数同名）`, err === null && Array.isArray(rows) && rows.length === 2,
+        err ? String(err.message || err) : rows);
+      ok(`  └ ${fn} DESC 排序结果正确（首行 ${expectFirst}）`,
+        !!rows && rows[0] && rows[0][1] === expectFirst, rows);
+    }
+
+    // (2) COUNT 两组都是 2，只能验证可解析 + 稳定
+    const c = await run(`SELECT dept, COUNT(*) AS COUNT FROM emp GROUP BY dept ORDER BY COUNT DESC`);
+    ok('ORDER BY COUNT（别名与聚合函数同名）', c.rows.length === 2, c.rows);
+
+    // (3) 分组查询此前 ORDER BY 完全不生效（直接 return，跳过了排序）
+    const desc = await run(`SELECT dept, SUM(sal) AS total FROM emp GROUP BY dept ORDER BY total DESC`);
+    ok('分组 + ORDER BY 别名 DESC 生效（此前被忽略）',
+      desc.rows.length === 2 && desc.rows[0][0] === 'ops' && desc.rows[0][1] === 600, desc.rows);
+    const asc = await run(`SELECT dept, SUM(sal) AS total FROM emp GROUP BY dept ORDER BY total ASC`);
+    ok('分组 + ORDER BY 别名 ASC 生效',
+      asc.rows[0][0] === 'eng' && asc.rows[0][1] === 300, asc.rows);
+    const byPos = await run(`SELECT dept, SUM(sal) AS total FROM emp GROUP BY dept ORDER BY 2 DESC`);
+    ok('分组 + ORDER BY 位置序号生效',
+      byPos.rows[0][0] === 'ops' && byPos.rows[0][1] === 600, byPos.rows);
+    const byCol = await run(`SELECT dept, sal FROM emp GROUP BY dept ORDER BY dept DESC`);
+    ok('分组 + ORDER BY 普通列生效',
+      byCol.rows[0][0] === 'ops', byCol.rows);
+
+    // (4) 嵌套聚合：ROUND(AVG(x),1) 曾恒为 null
+    const avg = await run(`SELECT dept, ROUND(AVG(sal),1) AS AVG FROM emp GROUP BY dept ORDER BY AVG DESC`);
+    ok('嵌套聚合 ROUND(AVG(sal),1) 返回数值而非 null',
+      avg.rows[0][1] === 300 && avg.rows[1][1] === 150, avg.rows);
+
+    // (5) LIMIT 在分组路径上也要生效
+    const lim = await run(`SELECT dept, SUM(sal) AS total FROM emp GROUP BY dept ORDER BY total DESC LIMIT 1`);
+    ok('分组 + ORDER BY + LIMIT 只返回 1 行', lim.rows.length === 1 && lim.rows[0][0] === 'ops', lim.rows);
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();
