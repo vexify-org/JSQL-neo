@@ -470,6 +470,29 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
       rbErr instanceof Error && /not supported/.test(rbErr.message));
   }
 
+  /* ================= BUG 修复: 日期加减的月末钳制（MySQL 语义） ================= */
+  console.log('\n--- BUG 修复: DATE_ADD/SUB 月末钳制 ---');
+  {
+    const expr = async (sql) => rowsOf(await executeSQL(engine, sql, OPTS))[0][0];
+    // JS setMonth/setFullYear 会溢出（1-31 +1 月 → 3-03），MySQL 夹到月末（→ 2-28）
+    ok('1-31 +1 MONTH → 2-28',
+      await expr("SELECT DATE_ADD('2023-01-31', INTERVAL 1 MONTH) AS x") === '2023-02-28');
+    ok('闰年 2-29 +1 YEAR → 2-28',
+      await expr("SELECT DATE_ADD('2024-02-29', INTERVAL 1 YEAR) AS x") === '2025-02-28');
+    ok('3-31 +1 QUARTER → 6-30',
+      await expr("SELECT DATE_ADD('2023-03-31', INTERVAL 1 QUARTER) AS x") === '2023-06-30');
+    ok('2-29 +1 YEAR → 2-28',
+      await expr("SELECT DATE_ADD('2020-02-29', INTERVAL 1 YEAR) AS x") === '2021-02-28');
+    ok('非月末 +1 MONTH 不变',
+      await expr("SELECT DATE_ADD('2023-01-15', INTERVAL 1 MONTH) AS x") === '2023-02-15');
+    ok('DATE_SUB 月末同样钳制',
+      await expr("SELECT DATE_SUB('2023-03-31', INTERVAL 1 MONTH) AS x") === '2023-02-28');
+    ok('12-31 +2 MONTH → 闰年 2-29',
+      await expr("SELECT DATE_ADD('2023-12-31', INTERVAL 2 MONTH) AS x") === '2024-02-29');
+    ok('DAY 单位不受影响',
+      await expr("SELECT DATE_ADD('2023-01-31', INTERVAL 1 DAY) AS x") === '2023-02-01');
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();
