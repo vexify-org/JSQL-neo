@@ -470,6 +470,45 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
       rbErr instanceof Error && /not supported/.test(rbErr.message));
   }
 
+  /* ================= BUG 修复: 静默算错的标量函数（对齐 MySQL 8.0） ================= */
+  console.log('\n--- BUG 修复: INSTR / REPEAT / SUM 空集 / CAST / ROUND ---');
+  {
+    const scalar = async (sql) => rowsOf(await executeSQL(engine, sql, OPTS))[0][0];
+    // INSTR(str, substr)：参数顺序与 LOCATE 相反，此前共用代码导致恒为 0
+    ok("INSTR('abc','bc') → 2", await scalar("SELECT INSTR('abc', 'bc') AS x") === 2);
+    ok("INSTR('abc','z') → 0", await scalar("SELECT INSTR('abc', 'z') AS x") === 0);
+    ok("LOCATE 不受影响", await scalar("SELECT LOCATE('bc', 'abc') AS x") === 2);
+    // REPEAT 此前完全缺失
+    ok("REPEAT('ab',3) → 'ababab'", await scalar("SELECT REPEAT('ab', 3) AS x") === 'ababab');
+    ok("REPEAT('ab',0) → ''", await scalar("SELECT REPEAT('ab', 0) AS x") === '');
+    // SUM 空集为 NULL（此前返回 0）
+    ok('SUM 空结果集 → null',
+      await scalar('SELECT SUM(sal) AS x FROM emp WHERE sal > 100000') === null);
+    ok('SUM 非空仍正确', await scalar('SELECT SUM(sal) AS x FROM emp') === 900);
+    // CAST(x AS INT)：数字前缀解析、非法为 0（此前返回 null）
+    ok("CAST('abc' AS INT) → 0", await scalar("SELECT CAST('abc' AS INT) AS x") === 0);
+    ok("CAST('12abc' AS INT) → 12", await scalar("SELECT CAST('12abc' AS INT) AS x") === 12);
+    ok("CAST('3.9' AS INT) → 3", await scalar("SELECT CAST('3.9' AS INT) AS x") === 3);
+    // ROUND 中点浮点偏差
+    ok('ROUND(1.005, 2) → 1.01', await scalar('SELECT ROUND(1.005, 2) AS x') === 1.01);
+    ok('ROUND(2.5, 0) → 3（半远离零）', await scalar('SELECT ROUND(2.5, 0) AS x') === 3);
+    ok('ROUND(-3.5, 0) → -4', await scalar('SELECT ROUND(-3.5, 0) AS x') === -4);
+    ok('ROUND(123.456, -1) → 120（负位数不崩溃）', await scalar('SELECT ROUND(123.456, -1) AS x') === 120);
+  }
+
+  /* ================= BUG 修复: SELECT 列表的括号/标量布尔 ================= */
+  console.log('\n--- BUG 修复: SELECT 列表支持括号与标量布尔 ---');
+  {
+    const scalar = async (sql) => rowsOf(await executeSQL(engine, sql, OPTS))[0][0];
+    ok('SELECT (1+2) → 3', await scalar('SELECT (1+2) AS x') === 3);
+    ok('SELECT (2*(3+4)) → 14', await scalar('SELECT (2*(3+4)) AS x') === 14);
+    ok('SELECT NOT 0 → 1', await scalar('SELECT NOT 0 AS x') === 1);
+    ok('SELECT NOT 1 → 0', await scalar('SELECT NOT 1 AS x') === 0);
+    ok("SELECT 'a' LIKE 'b' → 0", await scalar("SELECT 'a' LIKE 'b' AS x") === 0);
+    ok("SELECT 'a' LIKE 'a' → 1", await scalar("SELECT 'a' LIKE 'a' AS x") === 1);
+    ok('SELECT 1 = 1 → 1', await scalar('SELECT 1 = 1 AS x') === 1);
+  }
+
   /* ================= BUG 修复: 日期加减的月末钳制（MySQL 语义） ================= */
   console.log('\n--- BUG 修复: DATE_ADD/SUB 月末钳制 ---');
   {
