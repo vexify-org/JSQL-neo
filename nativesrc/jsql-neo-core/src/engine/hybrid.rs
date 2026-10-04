@@ -60,7 +60,14 @@ impl HybridEngine {
     }
 
     /// 打开磁盘存储目录（mode: 'hybrid' | 'disk' | 'memory'；memory 或空目录忽略）
-    /// 每次 open 重置引擎状态，避免多个库目录/实例间残留表数据
+    ///
+    /// 注意（6.3.4）：这里仍然会重置引擎状态，但语义已改变 ——
+    /// 以前全进程只有一个引擎，`open(dirB)` 会把 `open(dirA)` 的表全部清空，
+    /// 导致同进程无法持有两个独立数据库。现在每个 JS `Database` 实例有独立的
+    /// 引擎句柄，`open()` 只重置自己那一份。
+    ///
+    /// 但对**同一个句柄**重复 open 不同目录仍会丢弃上一个目录的内存表，
+    /// 因此调用方（native_client.js）应为每个 Database 分配独立句柄。
     pub fn open(&mut self, dir: &str, mode: &str) -> Result<(), String> {
         self.mem.borrow_mut().clear();
         self.meta.borrow_mut().clear();

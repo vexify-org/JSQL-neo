@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser. **And it fits in one npm package.**
 
-> **v6.0.1** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
+> **v6.3.4** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -233,7 +233,7 @@ npm install && npm run build                 # option 3: from source
 Verify:
 
 ```bash
-node -e "console.log(require('jsql-neo/package.json').version)"   # 6.0.1
+node -e "console.log(require('jsql-neo/package.json').version)"   # 6.3.4
 ```
 
 ### 30-second demo
@@ -1470,7 +1470,7 @@ jsql mod --engine wasm        # switch engine (restart required)
 
 ```bash
 $ jsql version
-jsql-neo v6.0.1
+jsql-neo v6.3.4
 engine: native (napi) | wasm | js
 node: v22.0.0  platform: linux x64
 ```
@@ -1491,7 +1491,7 @@ jsql tui --memory -q                      # memory mode, quiet
 jsql tui --prompt 'db> ' --no-color
 ```
 
-The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=6.0.1`.
+The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=6.3.4`.
 
 ### Keyboard shortcuts
 
@@ -1705,10 +1705,27 @@ db.createIndex('orders', ['status', 'created_at']);
 
 ### WAL & crash recovery
 
-- Every write appends to a transaction log (tlog) before touching memory
-- `flush()` / auto-save: write snapshot → clear log on success
-- Startup: load last snapshot → replay log if present → consistent state
-- Corrupt/truncated logs degrade to the last good snapshot with a warning
+> **Requires an explicit opt-in:** `new Database(path, { wal: true })`. Off by default.
+
+- Every write is appended to a **write-ahead log** (`<file>.wal`) *before* the snapshot is written
+- The log is **append-only JSONL** with `fsync` per record — a crash mid-write can lose at most the last record, never the whole log
+- Logged operations: `createTable` / `dropTable` / `insert` / `update` / `removeById` (transaction markers are recorded for observability)
+- `save()` / `flush()` / auto-save: write snapshot → **on success** clear the log (checkpoint)
+- Startup: load last snapshot → **replay the log in order** → checkpoint immediately
+- A half-written trailing record (torn write) is discarded; the rest still replays
+- Recovery checkpoints to disk immediately, so a second crash cannot lose replayed data
+
+**Honest limits:**
+
+- Rows in tables **without a primary key** are not logged (replay could not deduplicate them). Add a primary key if you need crash recovery on a table.
+- `fsync` is best-effort; on filesystems that reject it the log may sit in page cache.
+- This is a **single-process** durability guarantee. It does not cover power loss on exotic storage hardware, nor concurrent writes from multiple processes (a `.lock` file guards the latter).
+
+```js
+const db = new Database('./data.jsql', { wal: true });
+await db.insert('users', { id: 1, name: 'Alice' });
+// crash here (kill -9) → data is still recovered on next open
+```
 
 ### Snapshots & compression
 
@@ -4158,7 +4175,7 @@ Data dir: /root/.jsql-neo/data
 
 ```bash
 $ jsql version
-jsql-neo v6.0.1
+jsql-neo v6.3.4
 engine: native (napi) | wasm | js
 node: v22.0.0
 platform: linux x64
@@ -4603,16 +4620,39 @@ db.createIndex('orders', ['status', 'created_at']);
 
 ### WAL 与崩溃恢复 WAL & crash recovery
 
-- 每次写操作先追加变更日志（tlog），再应用内存
-- `flush()` / 自动保存时：写快照 → 成功后清空日志
-- 启动时若检测到快照 + 未清空的日志：**重放日志**恢复到最近一致状态
-- 日志截断/损坏时自动降级为加载最后完整快照并告警
+> **需显式开启**：`new Database(path, { wal: true })`，默认关闭。
+>
+> 6.3.4 起本节描述的是**真实实现**。此前（≤6.3.3）文档承诺的「重放日志恢复」
+> 并不存在 —— `_recoverFromWAL()` 只删日志不回放，且构造函数在数据文件不存在时
+> 直接短路，导致开启 `wal:true` 后 `kill -9` 必然丢数据。已修复并补齐回归测试。
+
+- 每次写操作先 **append 追加**到预写日志（`<file>.wal`），再落快照
+- 日志为 **append-only JSONL**，每条记录 `fsync`：崩溃最多丢最后一条，不会损坏整个日志
+- 记录的操作：`createTable` / `dropTable` / `insert` / `update` / `removeById`
+  （事务标记 `begin/commit/rollback` 仅记录以供观测）
+- `save()` / `flush()` / 自动保存：**写快照成功后才**清空日志（检查点）
+- 启动流程：加载最后快照 → **按顺序回放日志** → 立即做检查点落盘
+- 崩溃写半的尾行会被丢弃，其余记录照常回放
+- 回放后立即落盘，因此二次崩溃不会再次丢失已回放的数据
+
+**诚实说明边界**：
+
+- **无主键的表不记录行数据**（回放时无法去重，可能产生重复行）。需要崩溃恢复的表请加主键。
+- `fsync` 为 best-effort；部分文件系统不支持时日志可能仍在页缓存中。
+- 这是**单进程**持久性保证，不覆盖特殊硬件下的掉电，也不支持多进程并发写
+  （后者由 `.lock` 文件互斥保护）。
 
 ```
 启动流程:
-  加载最后快照 ──► 检测 tlog ──► 有? ──► 重放 ──► 就绪
-                     │               │
-                     └── 无 ─────────┘
+  加载最后快照 ──► 检测 WAL ──► 有? ──► 按序回放 ──► 立即检查点 ──► 就绪
+                     │                              │
+                     └── 无 ────────────────────────┘
+```
+
+```js
+const db = new Database('./data.jsql', { wal: true });
+await db.insert('users', { id: 1, name: 'Alice' });
+// 在此 kill -9 → 下次打开数据仍在
 ```
 
 ### 快照与压缩 Snapshots & compression
@@ -5235,7 +5275,7 @@ Apache License
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v6.0.1 · 最后更新：2026-09-27*
+*文档版本：v6.3.4 · 最后更新：2026-09-27*
 
 ---
 
@@ -7007,7 +7047,7 @@ Usage: jsql version
 
 输出版本与环境信息：
 
-  jsql-neo v6.0.1
+  jsql-neo v6.3.4
   engine: native (napi) | wasm | js
   node: v22.0.0
   platform: linux x64
@@ -7663,7 +7703,7 @@ CI（GitHub Actions）矩阵：`node 20/22` × `linux/macos/windows` × `native/
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v6.0.1 · 共 19 个附录 · 最后更新：2026-09-27*
+*文档版本：v6.3.4 · 共 19 个附录 · 最后更新：2026-09-27*
 
 ---
 
@@ -8270,4 +8310,4 @@ npm test
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v6.0.1 · 附录 A–Z · 全文 6000+ 行 · 最后更新：2026-09-27*
+*文档版本：v6.3.4 · 附录 A–Z · 全文 6000+ 行 · 最后更新：2026-09-27*

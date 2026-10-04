@@ -21,3 +21,6 @@ bin/jsql-neo-server
 *.rmeta
 .idea/
 .vscode/
+
+# 本地 napi build 输出目录（正式二进制由 CI 按平台发布到 release）
+nativesrc/**/native/

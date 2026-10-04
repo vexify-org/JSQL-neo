@@ -4,6 +4,68 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.3.4] — 2026-10-04
+
+本轮针对一次缺陷审查逐条核对后修复。**其中两条经实测为误报，未做改动**（见文末「已核实为误报」）。
+
+### Breaking
+
+- **`enableMySQLCompat()` 不再劫持 `require.cache`**（P0-1）。旧实现遍历 `node_modules`，
+  把 `mysql2/index.js` 与 `mysql2/promise.js` 的缓存条目替换为内存兼容层；它靠
+  `process.cwd()` 猜路径，mysql2 通常尚未加载，于是被**静默替换** —— 真实 MySQL 连接
+  悄悄改查内存库且不报错，表现为「本地跑通、上线全错」。
+  现在默认调用**什么都不做**（仅返回兼容层）；`{ global: true }` 需同时设置
+  `JSQL_NEO_ALLOW_GLOBAL_HIJACK=1` 才会执行；新增 `injectMySQLCompat(mod)` 只改写
+  指定模块自身持有的引用，不污染全局。
+  迁移：`require('jsql-neo').mysql2.createConnection(...)`，或
+  `injectMySQLCompat(require('typeorm'))`。
+
+### Fixed
+
+- **WAL / 崩溃恢复是虚假宣传 —— 实测必然丢数据**（P1-1）。三重问题：
+  1. `_recoverFromWAL()` 只做 `fs.unlinkSync` **删除**日志，从不回放；
+  2. `insert` / `updateById` / `updateByIds` / `removeById` **完全不写 WAL**
+     （只记了 DDL 和事务标记），即使回放也没有数据可恢复；
+  3. 构造函数用 `fs.existsSync(dataFile)` 短路，新建库崩溃后连 WAL 都不会被读取；
+     且 `.jsql` 二进制分支提前 `return`，跳过恢复。
+
+  现在：WAL 改为 **append-only JSONL + `fsync`**（崩溃最多丢最后一条，不会损坏整个日志）；
+  数据变更全部进 WAL；启动时按 sequence **真实回放**并立即检查点落盘；
+  写半的尾行可容错丢弃。README 同步改为诚实描述并标注边界
+  （无主键表不记录行数据、`fsync` 为 best-effort、单进程保证）。
+- **native 引擎是进程级单例，同进程无法持有两个数据库**（P0-2）。`thread_local! ENGINE`
+  意味着 `new Database(dirA)` 后再 `new Database(dirB)` 会把 dirA 的表**全部 `clear()`**
+  （`HybridEngine::open` 无条件清空，注释里还写着这是有意设计），重入调用则直接返回
+  `"engine busy (reentrant call)"`。对自称「嵌入式数据库」是硬伤。
+  现在改为**句柄注册表**：`jsqlInstanceNew()` 分配句柄，所有操作走
+  `jsqlXxxH(handle, ...)`；旧的 `jsqlXxx()` 走保留的默认实例 0，**向后兼容**。
+  `native_client.js` 每个实例分配独立句柄并在 `stop()` 释放；加载到旧版预编译二进制时
+  自动回退单实例行为。
+- **B-Tree `bulkLoad()` 与 `insert` 的分隔键语义不一致**（P2-3）：已确认全仓库零调用
+  （索引构建统一走 `table.js` 的 `rebuild` + `insert`），直接移除该死代码而非修复。
+- **版本号三套真相**（P1-2）：`package.json` 是 6.3.3 但 README 有 9 处仍写 6.0.1、
+  `index.js` 头部写 6.0.0。现统一为 6.3.4，并在 `readme-audit.test.js` 中加自动校验
+  （README 横幅、所有版本声明、`index.js` 注释）防止复发。
+
+### Changed
+
+- **覆盖率统计不再自欺**（P3-1）：`test:coverage` 此前排除了
+  `mysql_server` / `native_client` / `wasm_client` / `mysql_compat` / `nedb_compat` / `plugin`
+  —— 恰是协议服务器与兼容层这些最复杂、最易出事的部分。现仅排除 `web_ui.js`。
+- 新增回归测试：`test/wal-recovery.test.js`（18 项）、
+  `test/mysql-compat-hijack.test.js`（14 项）、`test/native-multi-instance.test.js`（20 项）。
+
+### 已核实为误报（未改动）
+
+- **P2-1 `lessThan`/`lessThanEqual` 退化成全表扫描 —— 不成立。** 实测触达键数恒等于
+  结果行数 +1（`max=1` 时只访问 1 个叶子），已是线性下界。原因是范围查询结果本身就有
+  `k` 行，任何实现至少要访问 `k` 个键；且 B-Tree 只维护向后的 `next` 链表，
+  「定位起点再向左裁剪」并不比从最左叶正向扫描更快。按建议改 `_findLeaf(max)` 属无意义改动。
+- **P2-2 `_findLeaf` 与 `search` 两套下降逻辑导致起点不精确 —— 不成立。** 多级树
+  （order 4/5/8/16，n 至 3000）实测定位全部精确，`greaterThan` / `range` 结果与暴力对拍
+  100% 一致。`_lowerBound` 向下定位偏左是**保守安全**的方向：多扫的键会被边界过滤丢弃，
+  漏查才是 bug。改为复用 `_route` 无可观测收益。
+
 ## [6.3.0] — 2026-10-02
 
 ### Fixed

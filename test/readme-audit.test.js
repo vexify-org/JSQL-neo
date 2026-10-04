@@ -528,6 +528,31 @@ async function main() {
     ok('null bulk $-1', JSON.stringify((p('*2\r\n$3\r\nGET\r\n$-1\r\n') || {}).args) === '[null]');
   }
 
+  console.log('--- 版本号一致性（package.json 是唯一真相）---');
+  {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    const raw = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
+    const v = pkg.version;
+    ok('package.json 版本号格式合法', /^\d+\.\d+\.\d+$/.test(v), v);
+
+    // README 头部横幅必须与 package.json 一致
+    const banner = raw.match(/^> \*\*v(\d+\.\d+\.\d+)\*\*/m);
+    ok('README 顶部版本横幅与 package.json 一致', banner && banner[1] === v,
+      banner ? `README=${banner[1]} package=${v}` : '未找到顶部横幅');
+
+    // 所有 "jsql-neo vX.Y.Z" / "文档版本：vX.Y.Z" 形式的版本声明都必须等于当前版本
+    const claims = [...raw.matchAll(/(?:jsql-neo v|文档版本：v|ver=)(\d+\.\d+\.\d+)/g)]
+      .map(m => m[1]);
+    const stale = [...new Set(claims.filter(c => c !== v))];
+    ok('README 无陈旧版本号声明', stale.length === 0, stale);
+
+    // index.js 头部注释也必须同步
+    const idx = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+    const hdr = idx.match(/JSQL-NEO v(\d+\.\d+\.\d+)/);
+    ok('index.js 头部版本注释与 package.json 一致', hdr && hdr[1] === v,
+      hdr ? `index.js=${hdr[1]} package=${v}` : '未找到版本注释');
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }
