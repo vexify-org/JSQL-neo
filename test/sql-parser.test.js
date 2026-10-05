@@ -751,6 +751,28 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     }
   }
 
+  /* ---- 列级 CHECK 约束：此前直接报 CREATE TABLE 语法错误 ---- */
+  console.log('\n--- BUG 修复: 列级 CHECK 约束解析 ---');
+  {
+    // 表级 CHECK 早已能解析（同样只是跳过），列级却会报
+    //   Expected ',' or ')' in CREATE TABLE, got 'CHECK'
+    // 因为 parseColumnDef 的 default 分支直接 return def，把 CHECK 留在流里。
+    // CHECK 刻意不在 KEYWORDS 里（避免影响同名标识符），要用 isWord 匹配。
+    const ddls = [
+      `CREATE TABLE ck1 (a INT CHECK(a > 0))`,
+      `CREATE TABLE ck2 (a INT CHECK(a > 0), b TEXT)`,
+      `CREATE TABLE ck3 (a INT NOT NULL CHECK(a > 0))`,
+      `CREATE TABLE ck4 (a TEXT, b INT CHECK(b > 0))`,
+      `CREATE TABLE ck5 (a INT, CHECK(a > 0))`,       // 表级（回归对照）
+      `CREATE TABLE ck6 (a INT UNIQUE CHECK(a > 0))`,
+    ];
+    for (const ddl of ddls) {
+      let err = null;
+      try { parseSQL(ddl); } catch (e) { err = e; }
+      ok(`可解析：${ddl}`, err === null, err ? String(err.message || err) : '');
+    }
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();
