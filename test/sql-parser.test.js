@@ -584,6 +584,36 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     ok('分组 + ORDER BY + LIMIT 只返回 1 行', lim.rows.length === 1 && lim.rows[0][0] === 'ops', lim.rows);
   }
 
+  /* ---- 括号分组后接运算符：曾报 Unexpected token '*' ---- */
+  console.log('\n--- BUG 修复: 括号分组参与后续运算 ---');
+  {
+    const run = async (sql) => executeSQL(engine, sql, OPTS);
+    // parseNot 的括号分组分支：解析到 ')' 就闭合返回，运算符留在流里
+    const cases = [
+      ['SELECT (1+2)*3 AS v', 9],
+      ['SELECT (3)*4 AS v', 12],
+      ['SELECT (1+2)*(3+4) AS v', 21],
+      ['SELECT (1+2)/2 AS v', 1.5],
+      ['SELECT 10-(2+3) AS v', 5],
+      ['SELECT (2+3)%2 AS v', 1],
+      ['SELECT (1+2)+3 AS v', 6],
+      ['SELECT ((1+2))*3 AS v', 9],      // 嵌套括号
+      ['SELECT (1+2) AS v', 3],         // 无运算符（回归对照）
+      ['SELECT 2*(3+4) AS v', 14],       // ( 在右操作数位置（回归对照）
+    ];
+    for (const [sql, expect] of cases) {
+      let got = null, err = null;
+      try { got = (await run(sql)).rows[0][0]; } catch (e) { err = e; }
+      ok(`${sql} = ${expect}`, err === null && got === expect,
+        err ? String(err.message || err) : got);
+    }
+
+    // WHERE 里的括号同样要能参与比较
+    const w = await run(`SELECT name FROM emp WHERE (sal + 100) > 350 ORDER BY sal DESC`);
+    ok('WHERE (sal+100) > 350 括号参与比较',
+      w.rows.length === 2 && w.rows[0][0] === 'c' && w.rows[1][0] === 'd', w.rows);
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();
