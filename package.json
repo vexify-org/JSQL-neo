@@ -51,9 +51,10 @@
     "test:btree": "node test/btree.test.js",
     "test:native": "node test/native.test.js",
     "test:regress": "node test/regress-5.1.0.js",
-    "test:all": "node test/smoke.js && node test/sql-parser.test.js && node test/readme-audit.test.js && node test/native.test.js && node test/native-multi-instance.test.js && node test/wal-recovery.test.js && node test/mysql-compat-hijack.test.js && node test/wasm.test.js && node test/coverage.js && node test/regress-5.1.0.js && node test/join.test.js && node test/btree.test.js",
+    "test:all": "node test/smoke.js && node test/sql-parser.test.js && node test/readme-audit.test.js && node test/native.test.js && node test/native-multi-instance.test.js && node test/wal-recovery.test.js && node test/mysql-compat-hijack.test.js && node test/wasm.test.js && node test/coverage.js && node test/regress-5.1.0.js && node test/join.test.js && node test/btree.test.js && node test/dml-constraints.test.js",
     "test:coverage": "c8 --all --include='lib/**' --exclude='lib/web_ui.js' --reporter=text --reporter=lcov node test/coverage.js",
-    "test:orms": "node examples/orms/run-all.js"
+    "test:orms": "node examples/orms/run-all.js",
+    "test:dml": "node test/dml-constraints.test.js"
   },
   "keywords": [
     "database",
