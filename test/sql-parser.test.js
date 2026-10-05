@@ -675,6 +675,82 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     }
   }
 
+  /* ---- 隐式类型转换：+ 必须是算术而非字符串拼接 ---- */
+  console.log('\n--- BUG 修复: 算术运算中的隐式类型转换 ---');
+  {
+    const run = async (sql) => executeSQL(engine, sql, OPTS);
+    // 语义已用 Python sqlite3 实测核对：'5'+5=10、'abc'+1=1、'a'+'b'=0
+    const cases = [
+      [`SELECT '5' + 5 AS v`, 10, '数字字符串 + 数字'],
+      [`SELECT 5 + '5' AS v`, 10, '数字 + 数字字符串'],
+      [`SELECT '5' + '5' AS v`, 10, '两个数字字符串'],
+      [`SELECT '2.5' * 2 AS v`, 5, '数字字符串乘法'],
+      [`SELECT '10' - 4 AS v`, 6, '数字字符串减法'],
+      [`SELECT 'abc' + 1 AS v`, 1, '非数字按 0（MySQL/SQLite 语义）'],
+      [`SELECT 'a' + 'b' AS v`, 0, '两侧都非数字返 0'],
+      [`SELECT 1 + 2 AS v`, 3, '纯数字回归对照'],
+    ];
+    for (const [sql, expect, desc] of cases) {
+      let got = null, err = null;
+      try { got = (await run(sql)).rows[0][0]; } catch (e) { err = e; }
+      ok(`${desc}: ${sql} = ${expect}`, err === null && got === expect,
+        err ? String(err.message || err) : got);
+    }
+
+    // CAST(... AS SIGNED) 是 MySQL 整型别名，此前未列入整型分支，
+    // 导致 CAST('12abc' AS SIGNED) 原样返回字符串
+    const cast = [
+      [`SELECT CAST('12abc' AS SIGNED) AS v`, 12, 'SIGNED 取数字前缀'],
+      [`SELECT CAST('abc' AS SIGNED) AS v`, 0, 'SIGNED 非数字返 0'],
+      [`SELECT CAST(12.9 AS SIGNED) AS v`, 12, 'SIGNED 截断小数'],
+      [`SELECT CAST(12.9 AS INTEGER) AS v`, 12, 'INTEGER 回归对照'],
+    ];
+    for (const [sql, expect, desc] of cast) {
+      let got = null, err = null;
+      try { got = (await run(sql)).rows[0][0]; } catch (e) { err = e; }
+      ok(`${desc}: ${sql} = ${expect}`, err === null && got === expect,
+        err ? String(err.message || err) : got);
+    }
+  }
+
+  /* ---- CASE WHEN 裸值条件 + 补齐缺失的 MySQL 函数 ---- */
+  console.log('\n--- BUG 修复: CASE 裸值条件 / SIGN / TRUNCATE / SUBSTRING_INDEX ---');
+  {
+    const run = async (sql) => executeSQL(engine, sql, OPTS);
+    const one = async (sql) => (await run(sql)).rows[0][0];
+
+    // 搜索形式 CASE 的条件可能是裸值/裸列，此前 parseComparison 只收比较式
+    const caseCases = [
+      [`SELECT CASE WHEN 1 THEN 'a' ELSE 'b' END AS v`, 'a', 'CASE WHEN 裸数字'],
+      [`SELECT CASE WHEN 0 THEN 'a' ELSE 'b' END AS v`, 'b', 'CASE WHEN 假'],
+      [`SELECT CASE WHEN NULL THEN 'a' ELSE 'b' END AS v`, 'b', 'CASE WHEN NULL 走 ELSE'],
+      [`SELECT CASE WHEN 1=1 THEN 'a' ELSE 'b' END AS v`, 'a', 'CASE WHEN 比较式'],
+      [`SELECT CASE WHEN 1 IN (1,2) THEN 'y' ELSE 'n' END AS v`, 'y', 'CASE WHEN IN'],
+      [`SELECT CASE 2 WHEN 2 THEN 'y' ELSE 'n' END AS v`, 'y', 'CASE 简单形式'],
+    ];
+    for (const [sql, expect, desc] of caseCases) {
+      let got = null, err = null;
+      try { got = await one(sql); } catch (e) { err = e; }
+      ok(`${desc}`, err === null && got === expect, err ? String(err.message || err) : got);
+    }
+
+    // 缺失的 MySQL 函数
+    const fnCases = [
+      ['SIGN(-9)', -1, 'SIGN 负'], ['SIGN(9)', 1, 'SIGN 正'], ['SIGN(0)', 0, 'SIGN 零'],
+      ['TRUNCATE(3.987,2)', 3.98, 'TRUNCATE 截断而非四舍五入'],
+      ['TRUNCATE(-3.987,2)', -3.98, 'TRUNCATE 负数'],
+      [`SUBSTRING_INDEX('a.b.c','.',2)`, 'a.b', 'SUBSTRING_INDEX 取左'],
+      [`SUBSTRING_INDEX('a.b.c','.',-1)`, 'c', 'SUBSTRING_INDEX 取右'],
+      [`SUBSTRING_INDEX('a.b.c','.',0)`, '', 'SUBSTRING_INDEX 取 0 段'],
+    ];
+    for (const [expr, expect, desc] of fnCases) {
+      let got = null, err = null;
+      try { got = await one(`SELECT ${expr} AS v`); } catch (e) { err = e; }
+      ok(`${desc}: ${expr} = ${JSON.stringify(expect)}`, err === null && got === expect,
+        err ? String(err.message || err) : got);
+    }
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();
