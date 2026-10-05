@@ -13,7 +13,7 @@
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const { Database } = require(path.join(ROOT, 'index.js'));
+const { Database, JSQL, NativeJSQL } = require(path.join(ROOT, 'index.js'));
 const { executeSQL } = require(path.join(ROOT, 'lib/sql.js'));
 
 const OPTS = { safety: false };
@@ -129,6 +129,46 @@ async function t(name, fn) {
     await exec(`UPDATE t SET v = 99 WHERE id = 1`);
     return eq(await rows(`SELECT id, v FROM t ORDER BY id`), [[1, 99], [2, 20]]);
   });
+
+  // 三个 engine 都要拦住 —— 修复曾只加在 lib/database.js，
+  // 而 JSQL（wasm）走 lib/wasm_client.js、NativeJSQL 走 lib/native_client.js，
+  // 各自的 updateById 是独立实现。
+  console.log('\n--- UPDATE 冲突校验：三个 engine 都要拦住 ---');
+  const engines = [
+    ['JSQL(wasm)', () => new JSQL({ mode: 'memory' })],
+    ['NativeJSQL', () => new NativeJSQL({ mode: 'memory' })],
+    ['Database', () => new Database(':memory:')],
+  ];
+  for (const [name, mk] of engines) {
+    await t(`${name} UPDATE 主键冲突 → 报错且数据完好`, async () => {
+      const db = await mk();
+      if (db.start) await db.start();
+      try {
+        const exec = (sql) => executeSQL(db, sql, OPTS);
+        await exec(`CREATE TABLE e (id INT PRIMARY KEY, v INT)`);
+        await exec(`INSERT INTO e VALUES (1,10),(2,20),(3,30)`);
+        let threw = false;
+        try { await exec(`UPDATE e SET id = 1 WHERE id = 2`); } catch (_) { threw = true; }
+        const after = (await exec(`SELECT id, v FROM e ORDER BY id`)).rows;
+        // 改不冲突的值必须仍然可用
+        await exec(`UPDATE e SET id = 9 WHERE id = 2`);
+        const ok = (await exec(`SELECT id FROM e ORDER BY id`)).rows;
+        return threw && eq(after, [[1, 10], [2, 20], [3, 30]]) && eq(ok, [[1], [3], [9]]);
+      } finally { try { await db.stop(); } catch (_) { /* ignore */ } }
+    });
+    await t(`${name} UPDATE UNIQUE 冲突 → 报错`, async () => {
+      const db = await mk();
+      if (db.start) await db.start();
+      try {
+        const exec = (sql) => executeSQL(db, sql, OPTS);
+        await exec(`CREATE TABLE q (id INT PRIMARY KEY, e TEXT UNIQUE)`);
+        await exec(`INSERT INTO q VALUES (1,'a'),(2,'b')`);
+        let threw = false;
+        try { await exec(`UPDATE q SET e = 'a' WHERE id = 2`); } catch (_) { threw = true; }
+        return threw && eq((await exec(`SELECT e FROM q ORDER BY id`)).rows, [['a'], ['b']]);
+      } finally { try { await db.stop(); } catch (_) { /* ignore */ } }
+    });
+  }
 
   console.log('\n--- 既有约束行为回归对照 ---');
   await t('INSERT 主键重复 → 报错', async ({ exec, mustFail }) => {
