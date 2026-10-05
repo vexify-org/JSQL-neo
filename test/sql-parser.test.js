@@ -614,6 +614,42 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
       w.rows.length === 2 && w.rows[0][0] === 'c' && w.rows[1][0] === 'd', w.rows);
   }
 
+  /* ---- 聚合参与算术：SUM(x)/COUNT(*) 这类写法曾直接报错 ---- */
+  console.log('\n--- BUG 修复: 聚合函数参与算术运算 ---');
+  {
+    const run = async (sql) => executeSQL(engine, sql, OPTS);
+    // mock emp: eng(sal 100,200) / ops(sal 300,300)
+    // 全表 SUM=900 COUNT=4 AVG=225 MIN=100 MAX=300
+    const cases = [
+      ['SELECT SUM(sal)/COUNT(*) AS avg FROM emp', 225],   // 算平均值的标准写法
+      ['SELECT SUM(sal)-MIN(sal) AS range FROM emp', 800], // 极差
+      ['SELECT MAX(sal)*2 AS m FROM emp', 600],
+      ['SELECT SUM(sal)+1 AS s FROM emp', 901],
+      ['SELECT COUNT(*)*100 AS c FROM emp', 400],
+      ['SELECT SUM(sal)/COUNT(*) FROM emp', 225],         // 无别名
+    ];
+    for (const [sql, expect] of cases) {
+      let got = null, err = null;
+      try { got = (await run(sql)).rows[0][0]; } catch (e) { err = e; }
+      ok(`${sql} = ${expect}`, err === null && got === expect,
+        err ? String(err.message || err) : got);
+    }
+
+    // 分组场景：分组路径也要能算 SUM/COUNT
+    const g = await run(`SELECT dept, SUM(sal)/COUNT(*) AS avg FROM emp GROUP BY dept ORDER BY avg DESC`);
+    ok('分组 + SUM/COUNT 每组各自的平均',
+      g.rows.length === 2 && g.rows[0][0] === 'ops' && g.rows[0][1] === 300
+      && g.rows[1][1] === 150, g.rows);
+
+    // 与其它聚合混用不能互相破坏
+    const m = await run(`SELECT SUM(sal)/COUNT(*) AS avg, MAX(sal) AS mx, MIN(sal) AS mn FROM emp`);
+    ok('SUM/COUNT 与 MAX/MIN 并存', m.rows[0][0] === 225 && m.rows[0][1] === 300 && m.rows[0][2] === 100, m.rows);
+
+    // 原有路径回归对照（不带运算符）
+    const s = await run(`SELECT SUM(sal) AS s, COUNT(*) AS c, AVG(sal) AS a FROM emp`);
+    ok('SUM/COUNT/AVG 单独使用不受影响', s.rows[0][0] === 900 && s.rows[0][1] === 4 && s.rows[0][2] === 225, s.rows);
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();
