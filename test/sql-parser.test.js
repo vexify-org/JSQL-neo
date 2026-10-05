@@ -650,6 +650,31 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     ok('SUM/COUNT/AVG 单独使用不受影响', s.rows[0][0] === 900 && s.rows[0][1] === 4 && s.rows[0][2] === 225, s.rows);
   }
 
+  /* ---- TIMESTAMPDIFF 整月差：曾按日历月差高估 ---- */
+  console.log('\n--- BUG 修复: TIMESTAMPDIFF 整月差语义 ---');
+  {
+    const run = async (sql) => executeSQL(engine, sql, OPTS);
+    // MySQL：先算日历月差，再按「结束日的日 < 起始日的日」退一档。
+    // 只算日历月差会高估，且 YEAR 同样受影响。
+    const cases = [
+      // [SQL 片段, 期望, 描述]
+      [`TIMESTAMPDIFF(MONTH,'2026-01-31','2026-03-01')`, 1, '月末出发不足整月'],
+      [`TIMESTAMPDIFF(MONTH,'2026-01-15','2026-03-14')`, 1, '差一月零29天不满两月'],
+      [`TIMESTAMPDIFF(MONTH,'2026-01-01','2026-03-01')`, 2, '月初对齐'],
+      [`TIMESTAMPDIFF(MONTH,'2026-01-15','2026-03-15')`, 2, '同日对齐'],
+      [`TIMESTAMPDIFF(YEAR,'2020-06-15','2026-06-14')`, 5, 'YEAR 差一天不满整年'],
+      [`TIMESTAMPDIFF(YEAR,'2020-06-15','2026-06-15')`, 6, 'YEAR 整年'],
+      [`TIMESTAMPDIFF(QUARTER,'2026-01-01','2026-07-01')`, 2, 'QUARTER 整季'],
+      [`TIMESTAMPDIFF(DAY,'2026-01-01','2026-03-01')`, 59, 'DAY 不受影响'],
+    ];
+    for (const [expr, expect, desc] of cases) {
+      let got = null, err = null;
+      try { got = (await run(`SELECT ${expr} AS v`)).rows[0][0]; } catch (e) { err = e; }
+      ok(`${desc}: ${expr} = ${expect}`, err === null && got === expect,
+        err ? String(err.message || err) : got);
+    }
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();
