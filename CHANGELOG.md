@@ -4,6 +4,155 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.3.5] — 2026-10-05
+
+本轮通过**在真实 Linux 环境部署常驻实例并做压测**发现的问题。
+与前几轮不同，这批缺陷全部是**静默出错**——不抛异常、不影响已有测试，
+只有拿「标准答案逐条对照」才暴露出来。
+
+### Performance
+
+- **WHERE 等值条件下推存储层，主键点查快 420 倍**（P0）。
+  2 万行表上 `SELECT * FROM t WHERE id = 12345` 此前要 **88 ms/次** ——
+  有主键索引却扫全表。根因：`_readTable` 一律 `find(table, {}, {limit:1e9})`
+  拉全表回内存再逐行 `evaluateExpr`，WHERE 从未下推，
+  存储层的 `_applyFilterOptimized` 与主键 BTree 形同虚设。
+  SELECT / UPDATE / DELETE 三条路径都走它。
+
+  现在提取 `column = <字面量>` 下推（`_pushdownEqualities`），
+  实测 **88 ms → 0.21 ms**。范围扫描与 OR 保持原样不退化。
+
+  下推边界刻意保守 —— 宁可不推也不能推错：只认等值、只沿 AND 链收集；
+  同列多条件（`id=1 AND id=2`）放弃下推；OR / 范围 / IN / 函数 / 子查询一律不下推；
+  `'12345'` 不会误匹配数字主键 `12345`。
+
+### Fixed
+
+- **无主键表批量删除删错行**（数据损坏级）。`CREATE TABLE t (id INT)`
+  插入 5 行后 `DELETE FROM t WHERE id <= 2`，实际剩下 `[[2],[4],[5]]`
+  而非 `[[3],[4],[5]]`。有主键的表完全正常，所以极易漏掉。
+  两层语义不一致：SQL 层 `_rowPkId` 无主键时回退到 `row.id`（业务列名），
+  存储层 `_resolveId` 却把 id 当 1-based 行号；且「边解析边 splice」
+  本身也会因数组左移而错位。现在无主键时直接传行对象给存储层，
+  `removeByIds` 先一次性收集再统一移除。
+
+- **UPDATE 改主键 / 唯一列不校验冲突**。`UPDATE t SET id = 1 WHERE id = 2`
+  （t 已有 id=1）此前静默成功，产生两行同主键 —— 主键索引只留一个，
+  「索引里的表」与「实际行数组」不一致，后续按主键查询结果 unpredictable。
+  MySQL / SQLite 都会报 `UNIQUE constraint failed`。
+  现在赋值前逐行比对 `_cachedUniqueFields`（UNIQUE 记录在此，不在 `_indexes`），
+  值未变化时跳过检查（`SET id=9 WHERE id=9` 仍允许）。
+
+- **`+` 静默做字符串拼接**。`SELECT 5 + '5'` 此前返回字符串 `"55"`。
+  根因是 `case '+': return l + r` —— JS 的 `+` 对字符串就是拼接。
+  任何数字与字符串混合的算术都会静默出错。现按 MySQL / SQLite 语义
+  （已用 Python sqlite3 逐条核对）：任一侧是数值就做算术，另一侧非数值按 0；
+  两侧都非数值返 0。`'5'+5=10`、`'abc'+1=1`、`'a'+'b'=0`。
+
+- **聚合函数无法参与算术**。`SELECT SUM(sal)/COUNT(*)` 此前直接报
+  `Unexpected token '/'` —— 这是算平均值的标准写法（AVG 在 NULL 下语义不同）。
+  投影列表对聚合有专门分支，解析完就成了独立的 `aggregate` 字段，不参与后续运算。
+  新增 `parseArithTail`；同时发现两处聚合节点形态不一致
+  （`{type:'SUM'}` vs `{type:'aggregate',fn}`），`_replaceAggregates` 只认后者，
+  导致整式**静默返回 null**。
+
+- **括号分组无法参与后续运算**。6.3.4 的注释声称支持 `(1+2)`，实测只做了一半：
+  `SELECT (1+2)*3` 报 `Unexpected token '*'`；
+  `WHERE (a) = 1` 报 `Expected comparison operator, got ')'`；
+  `(a) IN (1,2)` / `LIKE` / `IS NULL` / `BETWEEN` 全部报错。
+  `2*(3+4)` 正常是因为 `(` 落在右操作数位置。
+  **`WHERE (a) = 1` 这种最常见写法整片挂掉，实际影响面比括号算术大得多。**
+
+- **`TIMESTAMPDIFF` 整月差按日历月差高估**。
+  `TIMESTAMPDIFF(MONTH,'2026-01-15','2026-03-14')` 此前返回 2（应为 1）——
+  差一个月零 29 天被算成 2 个月。`YEAR` 更严重：
+  `'2020-06-15'→'2026-06-14'` 返回 6（应为 5），因为原实现只做年份相减。
+  做账期 / 工龄 / 留存天数计算时会一路错下去。
+
+- **`ORDER BY` 无法引用与聚合函数同名的输出别名**。
+  `SELECT AVG(v) AS avg ... ORDER BY avg DESC` 报 `got 'AVG'` ——
+  `AVG/SUM/COUNT/MAX/MIN` 都在关键字表里，token 是 keyword，
+  `parseColumnRef` 只认 ident，聚合调用分支又要求后面紧跟 `(`。
+
+- **`GROUP BY` 查询的 `ORDER BY` / `LIMIT` 完全不生效**。
+  分组路径在投影后直接 `return`，排序代码在其后的另一个分支里，
+  于是 `GROUP BY` 一旦命中就永远走不到排序。
+  **任何「分组 + 排序」查询结果都是错的且不报错** —— 比上面几条严重得多。
+
+- **列级 `CHECK` 约束导致 `CREATE TABLE` 语法错误**。
+  `CREATE TABLE t (age INT CHECK(age >= 0))` 报
+  `Expected ',' or ')' ..., got 'CHECK'`。表级 `CHECK` 早已支持。
+  注意：`CHECK` 刻意不在 KEYWORDS（避免影响名为 `check` 的列），
+  必须用 `isWord` 匹配并放在 `keyword switch` **之外**。
+
+- **`CASE WHEN` 裸值条件报解析错误**。`CASE WHEN 1 THEN 'a' END` 报
+  `got 'THEN'` —— `parseCase` 用 `parseComparison`，它只接受比较式。
+
+- **`CAST(... AS SIGNED)` 原样返回字符串**。`CAST('12abc' AS SIGNED)`
+  返回 `"12abc"`（应为 `12`）。`applyCast` 的整型分支本就实现了
+  「取数字前缀」，但 `SIGNED` / `UNSIGNED` 不在类型白名单里，
+  直接落到函数末尾原样返回。
+
+- **`regress-5.1.0` 在 Windows 上因 `spawn EBUSY` 崩在中途**。
+  `execFileSync(process.execPath, ...)` 在 Windows 上 spawn 同一个 node.exe
+  常报 EBUSY，且错误对象含 Circular 引用连序列化都失败，只打印半截。
+  后果是脚本在第 25 项就中断，**后面 18 项根本没跑到**，
+  覆盖率看起来像 25/43。现改为异步 `spawn`，失败时 `[SKIP]` 而非崩掉。
+  修复后 `ALL 43 REGRESSION TESTS PASSED`。
+
+- **`native-multi-instance` 第 5 节在旧版二进制下必然崩溃**。
+  第 2、3 节都有 `if (hasHandles) else skip` 保护，第 5 节没有 ——
+  `B.createTable('t')` 无条件执行，而旧版二进制下两个 JS 实例
+  会落到同一个默认实例，必然撞 `table 't' already exists`，CI 会红。
+
+### Added
+
+- 补齐缺失的 MySQL 函数：`SIGN(x)`、`TRUNCATE(x[,d])`、
+  `SUBSTRING_INDEX(str,delim,count)`（`count < 0` 表示取末尾 |count| 段）。
+  `SIGN` 与 sqlite3 实测一致；后两个是 MySQL 专有（sqlite3 无此函数）。
+
+- 新增 `test/dml-constraints.test.js`（18 项，每项独立建库），
+  覆盖无主键批量删除、主键 / UNIQUE 冲突、既有约束回归对照。
+  已加入 `test:all`，另提供 `npm run test:dml`。
+
+### Changed
+
+- 官网浏览器 Playground 的 bundle 改名为 `jsql-sql.browser.mjs`。
+  实测线上 nginx 只放行 `.mjs` / `.wasm` / `.html`，`.js` 一律 404
+  （加查询串也绕不过，返回的是服务器自建的 404.html）。
+  `scripts/make-browser-bundle.js` 的输出路径同步调整，避免下次重建又生成被拦的 `.js`。
+
+- README 的 Contributing 段落修正：原文 5 条命令里有 4 条
+  （`build` / `test:core` / `test:protocols` / `lint` / `typecheck`）
+  在 package.json 中并不存在，照抄会报 missing script。
+
+### 已核实为误报，未做改动
+
+- **`||` 被无条件当作 OR**（`SELECT 'a' || 'b'` 返回 `0`）。
+  README 第 5907 行明确把 `||` 列为 OR 别名，`readme-audit` 有测试守着，
+  属项目有意的设计选择（MySQL 模式）。字符串拼接请用 `CONCAT`。
+
+- **`CHECK` 的条件语义**（写入时校验）目前表级列级都未实现 ——
+  实际只是解析并跳过。`table.js` 的 `def.check` 期望函数，
+  而 schema 需要可序列化，真正实现要动存储层，留作独立改动。
+
+### 测试
+
+14 个测试文件全绿（Windows + Linux/Node 24 双平台）：
+
+```
+sql-parser 249 | readme-audit 167 | btree 157 | query-opt 36 | regress 43
+dml-constraints 18 | native 28 | multi-instance 20 | wasm 20 | wal-recovery 19
+coverage 57 | join 12 | smoke
+```
+
+`examples/orms` 需要 `sequelize` / `knex` / `reflect-metadata` peer dep，
+未安装时 3/3 FAILED，与本轮改动无关。
+
+本轮所有语义判定均以 **Python sqlite3** 为标准答案逐条对照
+（`'abc'+1=1`、`SIGN(-9)=-1`、`TIMESTAMPDIFF` 整月差、
+`UPDATE` 主键冲突报错等），避免把「期望值写错」误判成「引擎有 bug」。
+
 ## [6.3.4] — 2026-10-04
 
 本轮针对一次缺陷审查逐条核对后修复。**其中两条经实测为误报，未做改动**（见文末「已核实为误报」）。

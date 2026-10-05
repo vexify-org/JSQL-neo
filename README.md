@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser. **And it fits in one npm package.**
 
-> **v6.3.4** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
+> **v6.3.5** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -233,7 +233,7 @@ npm install && npm run build                 # option 3: from source
 Verify:
 
 ```bash
-node -e "console.log(require('jsql-neo/package.json').version)"   # 6.3.4
+node -e "console.log(require('jsql-neo/package.json').version)"   # 6.3.5
 ```
 
 ### 30-second demo
@@ -1470,7 +1470,7 @@ jsql mod --engine wasm        # switch engine (restart required)
 
 ```bash
 $ jsql version
-jsql-neo v6.3.4
+jsql-neo v6.3.5
 engine: native (napi) | wasm | js
 node: v22.0.0  platform: linux x64
 ```
@@ -1491,7 +1491,7 @@ jsql tui --memory -q                      # memory mode, quiet
 jsql tui --prompt 'db> ' --no-color
 ```
 
-The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=6.3.4`.
+The status bar shows: `db=<name> dialect=<d> mode=<tui|batch> ver=6.3.5`.
 
 ### Keyboard shortcuts
 
@@ -4175,7 +4175,7 @@ Data dir: /root/.jsql-neo/data
 
 ```bash
 $ jsql version
-jsql-neo v6.3.4
+jsql-neo v6.3.5
 engine: native (napi) | wasm | js
 node: v22.0.0
 platform: linux x64
@@ -5275,7 +5275,7 @@ Apache License
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v6.3.4 · 最后更新：2026-09-27*
+*文档版本：v6.3.5 · 最后更新：2026-09-27*
 
 ---
 
@@ -7047,7 +7047,7 @@ Usage: jsql version
 
 输出版本与环境信息：
 
-  jsql-neo v6.3.4
+  jsql-neo v6.3.5
   engine: native (napi) | wasm | js
   node: v22.0.0
   platform: linux x64
@@ -7703,7 +7703,7 @@ CI（GitHub Actions）矩阵：`node 20/22` × `linux/macos/windows` × `native/
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v6.3.4 · 共 19 个附录 · 最后更新：2026-09-27*
+*文档版本：v6.3.5 · 共 19 个附录 · 最后更新：2026-09-27*
 
 ---
 
@@ -8310,4 +8310,4 @@ npm test
 
 *JSQL-NEO — One engine to rule them all. MySQL. PostgreSQL. MongoDB. Redis. SQL. TypeScript. The browser.*
 
-*文档版本：v6.3.4 · 附录 A–Z · 全文 6000+ 行 · 最后更新：2026-09-27*
+*文档版本：v6.3.5 · 附录 A–Z · 全文 6000+ 行 · 最后更新：2026-09-27*
