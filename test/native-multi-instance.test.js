@@ -99,12 +99,16 @@ const hasHandles = typeof native.jsqlInstanceNew === 'function';
         const B = new JSQL({ path: dB, mode: 'hybrid' });
         await A.start();
         await B.start();
-        if (hasHandles) {
-            ok('JS 层已启用多实例', A._multiInstance === true);
-            ok('两实例句柄不同', A._handle !== B._handle, { a: A._handle, b: B._handle });
+        if (!hasHandles) {
+            // 旧版二进制没有句柄 API，两个 JS 实例会落到同一个默认实例上，
+            // 此时建同名表必然冲突 —— 只能验证「回退到单实例」这个事实本身。
+            ok('旧版二进制下回退单实例（_handle 为 null）', A._handle === null && B._handle === null);
+            skipTest('JS 层多实例并存测试', '旧版预编译二进制无 jsqlInstanceNew，两实例共享默认实例');
+            await A.stop();
+            await B.stop();
         } else {
-            ok('旧版二进制下回退单实例（_handle 为 null）', A._handle === null);
-        }
+        ok('JS 层已启用多实例', A._multiInstance === true);
+        ok('两实例句柄不同', A._handle !== B._handle, { a: A._handle, b: B._handle });
         await A.createTable('t', SCHEMA);
         await A.insert('t', { tag: 'A1' });
         await A.insert('t', { tag: 'A2' });
@@ -124,7 +128,8 @@ const hasHandles = typeof native.jsqlInstanceNew === 'function';
 
         await A.stop();
         await B.stop();
-        if (hasHandles) ok('stop 释放句柄', A._handle === null && B._handle === null);
+        ok('stop 释放句柄', A._handle === null && B._handle === null);
+        }   // else: hasHandles
         fs.rmSync(dA, { recursive: true, force: true });
         fs.rmSync(dB, { recursive: true, force: true });
     }
