@@ -10,12 +10,12 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 与前几轮不同，这批缺陷全部是**静默出错**——不抛异常、不影响已有测试，
 只有拿「标准答案逐条对照」才暴露出来。
 
-> **发布后补记（6.3.5.1）**：上面「UPDATE 改主键/唯一列不校验冲突」一条
+> **发布后补记（6.3.6）**：上面「UPDATE 改主键/唯一列不校验冲突」一条
 > 最初只修在 `lib/database.js`，而**用户实际使用的 `JSQL`（wasm）与 `NativeJSQL`
 > 各自有独立的 `updateById` 实现**，并未覆盖到 —— 通过 `require('jsql-neo')`
 > 真实安装验证时才发现（产生两行同主键）。同时发现 `lib/sql.js` 调 `updateById`
 > **漏了 `await`**，异步实现的约束异常会变成未处理的 Promise 拒绝。
-> 两处均已在 6.3.5.1 修复，并新增覆盖三个 engine 的回归测试。
+> 两处均已在 6.3.6 修复，并新增覆盖三个 engine 的回归测试。
 
 ### Performance
 
