@@ -1,5 +1,14 @@
 # 变更日志
 
+## 6.3.10
+- fix(mongo): complete $group aggregation — sum/avg/min/max/first/last on fields
+- fix: resource leaks across mysql_server, redis_server, multiserver, tui
+- fix: nedb_compat exec error swallowing, limit=0 edge case
+- fix: mod.js path traversal protection
+- fix: mysql binary null row handling, column name String() wrap
+- docs: split long README into modular doc/ pages
+- docs: add jsql.vexify.top setup commands
+
 ## v6.3.6 (最新)
 
 ### Performance
