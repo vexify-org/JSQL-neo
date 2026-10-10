@@ -4,6 +4,29 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [Unreleased]
+
+### Fixed
+
+- **MongoDB `$group` 聚合管道只支持 `$sum:1`（计数），其他累加器全部缺失**（P2）。
+  `aggregate([{ $group: { _id: '$item', total: { $sum: '$qty' } } }])`
+  返回 `{}`（无任何累加结果）；`_id: '$field'` 也无法按字段值分组。
+  根因：$group 分支只处理了 `v.$sum === 1` 的计数情况，所有其他
+  accumulator 表达式（`$sum:$field`、`$avg`、`$min`、`$max`、`$first`、`$last`）
+  以及字段引用形式的 `_id` 分组键均未实现。
+
+  现已完整实现 MongoDB aggregation $group 累加器：
+  - `$sum: '$field'` — 按字段求和（此前完全不工作）
+  - `$sum: 1` — 行数计数（修复：此前逐行 +1 逻辑有误，group size >1 时结果偏小）
+  - `$avg: '$field'` — 字段平均值（新增）
+  - `$min: '$field'` — 字段最小值（新增）
+  - `$max: '$field'` — 字段最大值（新增）
+  - `$first: '$field'` / `$last: '$field'` — 首/末行字段值（新增）
+  - `_id: '$field'` — 按字段值分组（修复：此前数字 _id 被错误地当作分组键）
+
+  新增 `test/mongo-group.test.js`（12 项，覆盖全部新功能及向后兼容），
+  已加入 `package.json` 的 `test:mongo` 脚本。
+
 ## [6.3.5] — 2026-10-05
 
 本轮通过**在真实 Linux 环境部署常驻实例并做压测**发现的问题。

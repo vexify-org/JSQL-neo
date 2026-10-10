@@ -56,7 +56,8 @@
     "test:orms": "node examples/orms/run-all.js",
     "test:dml": "node test/dml-constraints.test.js",
     "test:cte": "node test/recursive-cte.test.js",
-    "test:index": "node test/index-ddl.test.js"
+    "test:index": "node test/index-ddl.test.js",
+    "test:mongo": "node test/mongo-group.test.js"
   },
   "keywords": [
     "database",
