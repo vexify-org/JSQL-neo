@@ -12,6 +12,8 @@
 
 ## 🌐 在线资源
 
+- [官网 jsql.vexify.top](https://jsql.vexify.top)
+
 - [README 完整版](../README.md)
 - [GitHub 仓库](https://github.com/vexify-org/JSQL-neo)
 - [npm 包](https://www.npmjs.com/package/jsql-neo)

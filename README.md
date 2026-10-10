@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.3.6** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
+> **v6.3.6** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -16,17 +16,25 @@
 
 ---
 
-## 🧭 Quick Navigation
+## 🚀 Quick Start
 
-- [Why JSQL-NEO?](#why-jsql-neo)
-- [Feature Overview](#feature-overview)
-- [Quick Start](#quick-start)
-- [Detailed Docs](#-documentation)
-- [Contributing & License](#-contributing--license)
+### One-line install
 
----
+```bash
+curl -fsSL jsql.vexify.top/setup | bash
+```
 
-## Why JSQL-NEO?
+Or in PowerShell (Windows):
+
+```powershell
+irm jsql.vexify.top/setup | iex
+```
+
+### npm install
+
+```bash
+npm install jsql-neo
+```
 
 > `jsql-neo` 是一个 Rust 编写的嵌入式数据库，**零运行时依赖**，同时支持 MySQL / PostgreSQL / MongoDB / Redis 四种协议，
 > 可在 Node.js、CLI、Web UI 和浏览器 (WASM) 中运行。
