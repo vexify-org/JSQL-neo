@@ -36,15 +36,12 @@ irm jsql.vexify.top/setup | iex
 npm install jsql-neo
 ```
 
-> `jsql-neo` 是一个 Rust 编写的嵌入式数据库，**零运行时依赖**，同时支持 MySQL / PostgreSQL / MongoDB / Redis 四种协议，
-> 可在 Node.js、CLI、Web UI 和浏览器 (WASM) 中运行。
+**JSQL-NEO** is a Rust-powered embedded database with **zero runtime dependencies** that speaks MySQL, PostgreSQL, MongoDB, and Redis wire protocols — all on the same engine, same data, one port. It runs in Node.js, CLI, Web UI, and the browser (WASM).
 
-**JSQL-NEO** speaks every protocol on the same engine.
-
-- **Same data, any client** — MySQL, PostgreSQL, MongoDB, Redis tools — all connect on **one port**
-- **Zero dependencies** — no native deps to compile, no system libs to install
+- **Any client, same data** — MySQL, PostgreSQL, MongoDB, Redis tools connect simultaneously on **one port**
+- **Zero dependencies** — no native libs to compile, no system deps to install
 - **Runs everywhere** — Node.js native addon, pure JS fallback, WASM for the browser
-- **~2× faster than better-sqlite3** (Rust core, N-API)
+- **~2× faster than better-sqlite3** — Rust core via N-API
 
 ---
 
