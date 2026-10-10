@@ -16,12 +16,15 @@
 
 > **🌐 中英双语 Bilingual documentation** — This README is written in both English and Chinese.
 
+> 📖 **[中文文档](doc/)** — 快速开始、API 参考、SQL 参考、CLI 命令、变更日志等离线文档
+
 ---
 
 ## 🧭 快速导航 Quick Navigation
 
 - [🌐 English Version](#english-version)
 - [🇨🇳 中文版 Chinese Version](#中文版-chinese-version)
+- [📖 Documentation](doc/) — 快速开始 / API / SQL / CLI / 变更日志
 
 ---
 
