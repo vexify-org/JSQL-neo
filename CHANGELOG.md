@@ -6,6 +6,58 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Added
+
+- **保存点（SAVEPOINT / ROLLBACK TO SAVEPOINT / RELEASE SAVEPOINT）真正可用**。
+  此前这三个语句是个半成品：`SAVEPOINT` 只往 `engine._savepoints` 这个 Set 里
+  登记一个名字就返回成功，`RELEASE` 把名字删掉，而 `ROLLBACK TO` 一律抛
+  「engine has no savepoint/snapshot support」。
+  也就是说**调用方以为保存点建好了，真要回滚时才发现根本不能用**——
+  比直接报错更容易误导人（代码里当时的注释也承认「绝不假装能回滚」）。
+
+  现在 `Database` 引擎实现了真正的行级快照：
+
+  ```sql
+  BEGIN;
+  INSERT INTO users VALUES (1, 'a');
+  SAVEPOINT after_first;
+  INSERT INTO users VALUES (2, 'b');
+  ROLLBACK TO SAVEPOINT after_first;   -- 只撤销第二条 INSERT，事务继续
+  INSERT INTO users VALUES (3, 'c');
+  COMMIT;                              -- 最终是 1 和 3
+  ```
+
+  行为遵循 SQL 标准：
+
+  - `ROLLBACK TO` 只回滚到保存点，**事务继续有效**（不是放弃整个事务）
+  - 该保存点保留、可反复回滚；它之后建立的保存点被丢弃
+  - `RELEASE` 只释放保存点，不还原数据
+  - 同名保存点覆盖旧的，并作废其后的
+  - `COMMIT` / `ROLLBACK` 释放全部保存点
+  - 保存点之后新建的表在回滚时被删掉
+  - 自增计数器一并回退（回滚掉的号会被下次插入重用）
+  - 名字不区分大小写；`ROLLBACK TO` 里的 `SAVEPOINT` 关键字可省略
+
+  实现上统一了两条事务路径：引擎里原本 `begin/commit/rollback` 与
+  `beginTx/commitTx/rollbackTx` 各有一套快照代码，SQL 层走后者而直接调 API
+  走前者。现在两者共用 `_captureTxSnapshot()` / `_restoreTxSnapshot()`，
+  保存点对两条路径都生效。
+
+  两个容易踩的坑已处理：同一保存点可被 `ROLLBACK TO` 多次，所以**还原时必须
+  再深拷贝一次**（否则后续写入会改坏快照本身，第二次回滚拿到的不是原始状态）；
+  `Table._loadRows()` 只会把自增计数器往上抬（取现有行最大值），
+  所以回滚后还得显式退回去，否则回滚掉一条 INSERT 之后下次插入会从 2 开始。
+
+  引擎支持情况：`Database`（纯 JS）完整支持；`JSQL`（wasm）与 `NativeJSQL`
+  的事务在 Rust 侧、尚无保存点，这两个引擎上执行会**明确报错并说明原因**，
+  不再静默假装成功。新增错误码 `ER_SP_DOES_NOT_EXIST`(1305)，对齐 MySQL 的
+  `SAVEPOINT xxx does not exist`。
+
+  新增 `test/savepoint.test.js`（28 项，覆盖基本回滚、多层保存点、
+  同一保存点反复回滚、RELEASE、生命周期、回滚建表、错误处理、
+  三条事务路径、以及 wasm/native 的明确报错），已加入 `test:all`。
+  文档补充在 `doc/sql-reference.md` 的「事务与保存点」一节。
+
 ### Fixed
 
 - **MongoDB `$group` 聚合管道只支持 `$sum:1`（计数），其他累加器全部缺失**（P2）。

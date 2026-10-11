@@ -460,14 +460,39 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     const skippedDrop = await executeSQL(e9, 'DROP VIEW IF EXISTS nope', OPTS);
     ok('DROP VIEW IF EXISTS 不报错', skippedDrop && skippedDrop.skipped === true);
 
-    // 保存点：明确不支持，绝不静默假装成功
+    // 保存点：引擎不支持时必须明确报错，绝不静默假装成功。
+    //
+    // 此前 SAVEPOINT 只是往 engine._savepoints 里登记个名字就返回成功，
+    // 调用方以为保存点建好了，真要回滚时才发现根本不能用 —— 比报错更糟。
+    // 现在 SAVEPOINT / ROLLBACK TO / RELEASE 都会先确认引擎有实现。
     const e10 = mkEngine();
-    const sp = await executeSQL(e10, 'SAVEPOINT sp1', OPTS);
-    ok('SAVEPOINT 返回登记结果', sp && sp.type === 'savepoint');
+    let spErr = null;
+    try { await executeSQL(e10, 'SAVEPOINT sp1', OPTS); } catch (err) { spErr = err; }
+    ok('不支持的引擎上 SAVEPOINT 明确报错（不静默假成功）',
+      spErr instanceof Error && /savepoint/i.test(spErr.message));
+
     let rbErr = null;
     try { await executeSQL(e10, 'ROLLBACK TO SAVEPOINT sp1', OPTS); } catch (err) { rbErr = err; }
-    ok('ROLLBACK TO 明确报不支持（不静默假成功）',
-      rbErr instanceof Error && /not supported/.test(rbErr.message));
+    ok('不支持的引擎上 ROLLBACK TO 明确报错',
+      rbErr instanceof Error && /savepoint/i.test(rbErr.message));
+
+    let relErr = null;
+    try { await executeSQL(e10, 'RELEASE SAVEPOINT sp1', OPTS); } catch (err) { relErr = err; }
+    ok('不支持的引擎上 RELEASE 明确报错',
+      relErr instanceof Error && /savepoint/i.test(relErr.message));
+
+    // 而内置的 Database 引擎是真的能回滚
+    const { Database } = require('../index.js');
+    const dbe = new Database(':memory:');
+    await executeSQL(dbe, 'CREATE TABLE sp_t (id INT PRIMARY KEY, v TEXT)', OPTS);
+    await executeSQL(dbe, "INSERT INTO sp_t VALUES (1,'a')", OPTS);
+    await executeSQL(dbe, 'BEGIN', OPTS);
+    await executeSQL(dbe, 'SAVEPOINT s1', OPTS);
+    await executeSQL(dbe, "UPDATE sp_t SET v = 'b' WHERE id = 1", OPTS);
+    await executeSQL(dbe, 'ROLLBACK TO SAVEPOINT s1', OPTS);
+    const spRows = rowsOf(await executeSQL(dbe, 'SELECT v FROM sp_t', OPTS));
+    await executeSQL(dbe, 'COMMIT', OPTS);
+    ok('Database 引擎的保存点真的能回滚', JSON.stringify(spRows) === '[["a"]]', spRows);
   }
 
   /* ================= BUG 修复: 静默算错的标量函数（对齐 MySQL 8.0） ================= */
