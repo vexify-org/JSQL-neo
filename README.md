@@ -145,7 +145,7 @@ Detailed docs live in `doc/` — click to read.
 
 ## 🤝 Contributing & License
 
-MIT License — contributions welcome!
+Apache-2.0 License — contributions welcome!
 
 - **GitHub:** [vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
 - **Issues:** [Open an issue](https://github.com/vexify-org/JSQL-neo/issues)
