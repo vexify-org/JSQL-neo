@@ -23,10 +23,38 @@ CREATE TABLE orders (
 
 DROP TABLE IF EXISTS users;
 TRUNCATE TABLE users;
+
+-- 改表
 ALTER TABLE users ADD COLUMN phone TEXT;
 ALTER TABLE users DROP COLUMN phone;
 ALTER TABLE users RENAME TO old_users;
+ALTER TABLE users RENAME COLUMN phone TO mobile;
+ALTER TABLE users DROP INDEX idx_user;
 ```
+
+### 标识符与保留字
+
+MySQL 里属于**非保留**的关键字可以直接当表名/列名，不必加反引号：
+
+```sql
+CREATE TABLE events (
+  id INT PRIMARY KEY,
+  date DATE,          -- date / text / count / engine / first / after …
+  text TEXT,          -- 这些都不是保留字
+  count INT
+);
+SELECT date, count FROM events WHERE date = '2026-01-01';
+```
+
+真正的保留字（`key` / `order` / `group` / `index` / `column` / `table` /
+`case` / `when` / `end` / `select` / `from` …）仍须用反引号：
+
+```sql
+CREATE TABLE t (`key` TEXT, `order` INT);
+SELECT `key`, `order` FROM t;
+```
+
+> 标识符区分大小写：建了 `myCol` 就要写 `myCol`，写 `mycol` 取不到值。
 
 ## DML
 

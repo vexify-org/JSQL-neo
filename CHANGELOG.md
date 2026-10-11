@@ -8,6 +8,64 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Added
 
+- **`ALTER TABLE ... RENAME TO` / `RENAME COLUMN` / `DROP INDEX` 真正生效**。
+  这三条此前都以不同方式「看起来成功」：
+
+  | 语句 | 此前 | 现在 |
+  | --- | --- | --- |
+  | `ALTER TABLE t RENAME TO t2` | 返回 `ok:true`，表名根本没变 | 真的改名 |
+  | `ALTER TABLE t RENAME COLUMN a TO b` | 解析期报 `Expected table name, got 'COLUMN'` | 真的改列名 |
+  | `ALTER TABLE t DROP INDEX idx` | 返回 `ok:true`，索引还在 | 真的删索引 |
+
+  根因是执行器里 `rename` / `dropIndex` / `addForeign` 三类 op 落在同一个
+  `default: break` —— 也就是静默无操作。比报错更糟：调用方会以为改成功了。
+
+  改名要同步的地方比看上去多（`_tables`、`_tableNames`、`db.<表名>` 取值属性、
+  `_versions`、目录模式的 `_meta.tables` 与物理文件），少同步一处就会留下
+  「半改名」的表：查得到数据却列不出来。所以做成引擎方法 `Database.renameTable()`，
+  并补了 WAL 回放分支 —— 否则崩溃恢复后表名会退回去，而后续的 insert/update
+  记录全打在新名字上，全部丢失。
+
+  `RENAME COLUMN` 按原顺序重建 schema 与行对象，而不是 delete + 赋值 ——
+  后者会把这一列挪到末尾，`SELECT *` 的列序就变了。
+
+  做不到的明确报错（不再静默）：`ADD FOREIGN KEY` / `DROP FOREIGN KEY`
+  （本引擎没有实现外键约束）、`RENAME INDEX`（提示改用 DROP INDEX + CREATE INDEX）。
+  执行器的 `default` 分支也改成抛错。
+
+- **非保留关键字可以直接当表名/列名**。词法层的 KEYWORDS 表把一些
+  MySQL 里其实属于**非保留**的词也标成了 keyword，而 `parseTableName` /
+  `parseColumnRef` 只认 ident，于是这些最普通的写法被拒：
+
+  ```sql
+  CREATE TABLE t (date DATE, text TEXT, count INT);   -- 此前全部报错
+  SELECT date, count FROM t;
+  ```
+
+  实测 64 个常见列名里有 **31 个**被拒，其中 `date` / `text` / `count` /
+  `engine` / `first` / `after` / `unsigned` / `zerofill` / `spatial` /
+  `ignore` / `start` 在 MySQL 里都不是保留字 —— 用户没有理由必须加反引号。
+  修完剩 19 个被拒，正好都是 MySQL 的真保留字（`key` / `order` / `group` /
+  `index` / `column` / `table` / `case` / `when` / `end` …），继续要求反引号。
+
+  做法与文件里 `OVER` / `PARTITION` 那条既有注释一致：不让词法层去区分
+  （`parseColumnDef` 还依赖 `type === 'keyword'` 来认类型），改在
+  **「期望一个名字」的位置**放行 `NON_RESERVED_KEYWORDS` 里的词。
+
+  顺带修了两处由此暴露的连带问题：
+  - 关键字 token 的 `value` 在词法层被统一大写，直接拿它当列名会让
+    `CREATE TABLE t (date TEXT)` 建出名为 `DATE` 的列。token 上新增
+    `text` 字段保留原样拼写，名字位置一律走 `nameOfToken()`。
+  - `SELECT count FROM t` 被误判成 `COUNT` 聚合函数调用（`count` 是关键字，
+    代码只看了词本身没看后面有没有 `(`），进而要求一个不存在的括号。
+    改成必须紧跟 `(` 才算聚合调用。
+  - `parseAlias()` 也改用原样拼写 —— 别名与 `ORDER BY <别名>` 的引用必须
+    用同一个拼写，否则按别名排序会静默失效（`AS avg` 存成 `AVG`、
+    `ORDER BY avg` 找的是 `avg`）。
+
+  新增 `test/identifier-keywords.test.js`（62 项）。放行范围有专门用例兜底：
+  真保留字裸写仍须报错、反引号包裹仍可用。
+
 - **保存点（SAVEPOINT / ROLLBACK TO SAVEPOINT / RELEASE SAVEPOINT）真正可用**。
   此前这三个语句是个半成品：`SAVEPOINT` 只往 `engine._savepoints` 这个 Set 里
   登记一个名字就返回成功，`RELEASE` 把名字删掉，而 `ROLLBACK TO` 一律抛
@@ -57,6 +115,31 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   同一保存点反复回滚、RELEASE、生命周期、回滚建表、错误处理、
   三条事务路径、以及 wasm/native 的明确报错），已加入 `test:all`。
   文档补充在 `doc/sql-reference.md` 的「事务与保存点」一节。
+
+### Fixed
+
+- **标量函数的 NULL 语义（4 处）**。全是「静默算错」——不抛异常、
+  不影响其他测试，只有拿标准答案逐条对照才暴露。
+
+  | 表达式 | 此前 | 现在 | 说明 |
+  | --- | --- | --- | --- |
+  | `COALESCE(NULL, NULL)` | `undefined` | `null` | `find()` 全落空时返回 undefined，而 undefined 在结果行里会**让整列消失**（JSON.stringify 直接丢掉）；IFNULL 返回的是 null，两者不一致 |
+  | `GREATEST(NULL, 1)` | `1` | `null` | 与 LEAST 自相矛盾 |
+  | `LEAST(NULL, 1)` | `null` | `null` | 同上 |
+  | `CONCAT('a', NULL, 'b')` | `'ab'` | `null` | 本引擎其余所有标量函数遇到 NULL 一律返回 NULL，CONCAT 是唯一例外；MySQL 也是 NULL |
+  | `CONCAT_WS(NULL, 'a', 'b')` | `'a,b'` | `null` | 分隔符为 NULL 时悄悄退回逗号 |
+
+  `GREATEST` / `LEAST` 的矛盾根因是直接拿 JS 的 `>` / `<` 比较，而 JS 里
+  `null` 会强转成 0 —— `GREATEST(NULL,1)` 得 1 而 `LEAST(NULL,1)` 得 null。
+  这一对函数里总有一个是错的。现在按 MySQL 语义：任一参数为 NULL 即返回 NULL
+  （`GREATEST(3,1,2)` 等正常取值不受影响）。
+
+  `CONCAT` 把 NULL 当空串会拼出一个「看起来正常」的错值：
+  `CONCAT(first,' ',last)` 里 last 为 NULL 时得到 `"John "` 而不是 NULL，
+  缺失的字段就此被掩盖。`CONCAT_WS` 跳过 NULL 参数的行为是对的，予以保留。
+
+  新增 `test/null-semantics.test.js`（50 项），含「与其余标量函数 NULL 行为
+  一致」的回归护栏。
 
 ### Fixed
 
