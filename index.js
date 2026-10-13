@@ -1,5 +1,5 @@
 /**
- * JSQL-NEO v6.3.10 — Rust-Powered Embedded Database (WASM + HTTP)
+ * JSQL-NEO v6.3.16 — Rust-Powered Embedded Database (WASM + HTTP)
  *
  * @example
  * const jsql = require('jsql-neo');
