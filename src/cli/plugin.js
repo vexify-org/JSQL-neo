@@ -106,15 +106,19 @@ async function installPlugin(name) {
   const url = new URL(REGISTRY_BASE);
   url.searchParams.set('action', 'download');
   url.searchParams.set('name', name);
-
+  
   const res = await fetch(url.toString());
-  if (!res.ok) {
-    const text = await res.text();
+  const ct = res.headers.get('content-type') || '';
+  const buf = Buffer.from(await res.arrayBuffer());
+  
+  // 检查 Content-Type 或 magic bytes
+  if (!ct.includes('gzip') && buf[0] !== 0x1f) {
+    // 返回了错误 JSON，不是 tgz
+    const text = buf.toString('utf8');
     const body = extractJson(text);
     throw new Error(body?.error || `Download failed (HTTP ${res.status})`);
   }
 
-  const buf = Buffer.from(await res.arrayBuffer());
   const archivePath = path.join(PLUGIN_DIR, `${name}.tgz`);
   fs.writeFileSync(archivePath, buf);
 
