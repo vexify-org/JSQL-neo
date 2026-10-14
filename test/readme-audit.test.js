@@ -533,22 +533,23 @@ async function main() {
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
     const raw = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
     const v = pkg.version;
-    ok('package.json 版本号格式合法', /^\d+\.\d+\.\d+$/.test(v), v);
+    // 支持 prerelease 版本如 6.4.0-beta.1
+    ok('package.json 版本号格式合法', /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/.test(v), v);
 
-    // README 头部横幅必须与 package.json 一致
-    const banner = raw.match(/^> \*\*v(\d+\.\d+\.\d+)\*\*/m);
+    // README 头部横幅必须与 package.json 一致（支持 prerelease）
+    const banner = raw.match(/^> \*\*v(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)\*\*/m);
     ok('README 顶部版本横幅与 package.json 一致', banner && banner[1] === v,
       banner ? `README=${banner[1]} package=${v}` : '未找到顶部横幅');
 
-    // 所有 "jsql-neo vX.Y.Z" / "文档版本：vX.Y.Z" 形式的版本声明都必须等于当前版本
-    const claims = [...raw.matchAll(/(?:jsql-neo v|文档版本：v|ver=)(\d+\.\d+\.\d+)/g)]
+    // 所有 "jsql-neo vX.Y.Z" / "文档版本：vX.Y.Z" 形式的版本声明都必须等于当前版本（支持 prerelease）
+    const claims = [...raw.matchAll(/(?:jsql-neo v|文档版本：v|ver=)(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)/g)]
       .map(m => m[1]);
     const stale = [...new Set(claims.filter(c => c !== v))];
     ok('README 无陈旧版本号声明', stale.length === 0, stale);
 
-    // index.js 头部注释也必须同步
+    // index.js 头部注释也必须同步（支持 prerelease）
     const idx = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
-    const hdr = idx.match(/JSQL-NEO v(\d+\.\d+\.\d+)/);
+    const hdr = idx.match(/JSQL-NEO v(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)/);
     ok('index.js 头部版本注释与 package.json 一致', hdr && hdr[1] === v,
       hdr ? `index.js=${hdr[1]} package=${v}` : '未找到版本注释');
   }
