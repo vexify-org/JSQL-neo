@@ -247,6 +247,96 @@ const cli = yaggs({ pkg: require('../package.json') })
     console.log(`jsql-neo Redis server on ${argv.host || '127.0.0.1'}:${argv.port != null ? argv.port : 6379}${argv['data-dir'] ? ' (data: ' + argv['data-dir'] + ')' : ''}`);
     setInterval(() => {}, 1 << 30);
   })
+  .command('plugin', 'Plugin registry management (list, search, install, uninstall, info)', (sub) => {
+    sub.option('json', { type: 'boolean', description: 'Output as JSON' });
+    sub.option('category', { type: 'string', description: 'Filter by category' });
+    sub.option('limit', { type: 'number', description: 'Max results per page' });
+  }, async (argv) => {
+    const pluginMgr = require('../src/cli/plugin');
+    const action = argv._[0];
+    const arg = argv._[1];
+    const useJson = !!argv.json;
+
+    const fail = (e) => { console.error(`Error: ${e.message}`); process.exitCode = 1; };
+    const out = (obj) => {
+      if (obj === undefined) return;
+      if (useJson) console.log(JSON.stringify(obj, null, 2));
+      else console.log(obj);
+    };
+
+    try {
+      switch (action) {
+        case 'list':
+        case 'ls': {
+          const opts = {};
+          if (argv.category) opts.category = argv.category;
+          if (argv.limit) opts.limit = argv.limit;
+          const plugins = await pluginMgr.listPlugins(opts);
+          out(useJson ? plugins : pluginMgr.formatPluginList(plugins));
+          break;
+        }
+        case 'search': {
+          if (!arg) throw new Error('Usage: jsql plugin search <query>');
+          const opts = {};
+          if (argv.category) opts.category = argv.category;
+          const data = await pluginMgr.searchPlugins(arg, opts);
+          // search 返回 { results: [...], query, total } 或 [...]
+          const plugins = Array.isArray(data) ? data : (data.results || []);
+          if (useJson) {
+            out(data);
+          } else {
+            if (!plugins.length) {
+              console.log(`No plugins found for '${arg}'.`);
+            } else {
+              console.log(`Found ${plugins.length} plugin(s) for '${arg}':`);
+              console.log(pluginMgr.formatPluginList(plugins.map(p => p.plugin || p)));
+            }
+          }
+          break;
+        }
+        case 'install': {
+          if (!arg) throw new Error('Usage: jsql plugin install <name>');
+          const manifest = await pluginMgr.installPlugin(arg);
+          out(useJson ? manifest : `Installed plugin '${manifest.name}' (${manifest.version})`);
+          break;
+        }
+        case 'uninstall':
+        case 'remove': {
+          if (!arg) throw new Error('Usage: jsql plugin uninstall <name>');
+          const r = pluginMgr.uninstallPlugin(arg);
+          out(useJson ? r : `Uninstalled plugin '${r.name}'.`);
+          break;
+        }
+        case 'info': {
+          if (!arg) throw new Error('Usage: jsql plugin info <name>');
+          const p = await pluginMgr.getPluginInfo(arg);
+          out(useJson ? p : pluginMgr.formatPluginInfo(p));
+          break;
+        }
+        case undefined:
+          // 无子命令 → 显示已安装插件
+          const installed = pluginMgr.listInstalled();
+          if (useJson) {
+            out(installed);
+          } else {
+            if (!installed.length) {
+              console.log('No plugins installed.');
+              console.log(`Plugin directory: ${pluginMgr.PLUGIN_DIR}`);
+            } else {
+              console.log(`Installed plugins (${installed.length}):`);
+              installed.forEach(p => {
+                console.log(`  ${p.name.padEnd(24)} ${p.version || '?'}`);
+              });
+            }
+          }
+          break;
+        default:
+          throw new Error(`Unknown plugin action: ${action}`);
+      }
+    } catch (e) {
+      fail(e);
+    }
+  })
   .command('version', 'Show version', null, () => {
     console.log(require('../package.json').version);
   })

@@ -1,6 +1,6 @@
 {
   "name": "jsql-neo",
-  "version": "6.3.25",
+  "version": "6.4.0-beta.1",
   "description": "JSQL-NEO — Rust-powered embedded database with WASM, REST API, B-Tree indexes, WAL, crash recovery",
   "main": "index.js",
   "types": "index.d.ts",
@@ -88,7 +88,7 @@
     "node": ">=14.0.0"
   },
   "dependencies": {
-    "@vexify-org/yaggs": "^8.1.0"
+    "@vexify-org/yaggs": "^8.1.1"
   },
   "devDependencies": {
     "c8": "^10.1.2"
