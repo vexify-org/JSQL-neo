@@ -112,6 +112,27 @@ const db = new Database(':memory:');
 // same API as Node.js
 ```
 
+### 🦀 NativeJSQL
+
+Pure Rust native bindings — the highest-performance way to run JSQL-NEO:
+
+- **Zero abstraction overhead** — direct calls into the Rust core
+- **Batch operations** — up to **1.54M rows/sec** peak throughput
+- **Automatic memory management** with smart caching
+
+**Install:**
+
+```bash
+npm install jsql-neo
+```
+
+**Usage:**
+
+```javascript
+import { Database } from 'jsql-neo';
+const db = new Database('mydb.jsql');
+```
+
 ### Storage modes
 
 | Mode | Usage | Use Case |
