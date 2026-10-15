@@ -32,9 +32,9 @@ function ok(name, cond, extra) {
   ok('string prefix z', bt.prefix('z').length === 0);
 }
 
-{
+(async () => {
   const db = new Database(':memory:');
-  db.createTable('users', {
+  await db.createTable('users', {
     id: { type: 'integer', primaryKey: true, autoIncrement: true },
     name: { type: 'string', unique: true },
     age: { type: 'integer' }
@@ -63,11 +63,11 @@ function ok(name, cond, extra) {
 
   const one = db.users.findOne({ name: 'bob' });
   ok('findOne no full clone', one && one.name === 'bob' && one.age === 40);
-}
+})();
 
 (async () => {
   const db = new Database(':memory:');
-  db.createTable('users', {
+  await db.createTable('users', {
     id: { type: 'integer', primaryKey: true, autoIncrement: true },
     name: { type: 'string' },
     age: { type: 'integer' }
@@ -91,18 +91,18 @@ function ok(name, cond, extra) {
   {
     const pdb = new Database(':memory:');
     pdb.use('timestamps', { createdField: 'created_at', updatedField: 'updated_at' });
-    pdb.createTable('notes', { id: { type: 'integer', primaryKey: true, autoIncrement: true }, title: { type: 'string' } });
+    await pdb.createTable('notes', { id: { type: 'integer', primaryKey: true, autoIncrement: true }, title: { type: 'string' } });
     const schema = pdb.getTableSchema('notes');
     ok('use opts timestamps fields', !!(schema && schema.created_at && schema.updated_at), schema);
-    pdb.insert('notes', { title: 'hello' });
+    await pdb.insert('notes', { title: 'hello' });
     const row = pdb.notes.findOne({ title: 'hello' });
     ok('timestamps stamped', !!(row && row.created_at && row.updated_at), row);
 
     let afterInsertHits = 0;
     pdb.on('afterInsert', () => { afterInsertHits++; });
-    pdb.insert('notes', { title: 'one' });
+    await pdb.insert('notes', { title: 'one' });
     ok('single-row afterInsert', afterInsertHits === 1, afterInsertHits);
-    pdb.insert('notes', [{ title: 'a' }, { title: 'b' }]);
+    await pdb.insert('notes', [{ title: 'a' }, { title: 'b' }]);
     ok('batch afterInsert', afterInsertHits === 2, afterInsertHits);
   }
 
