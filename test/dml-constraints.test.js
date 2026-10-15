@@ -198,6 +198,22 @@ async function t(name, fn) {
     return eq(await scalar(`SELECT v FROM t WHERE id = 1`), 'c');
   });
 
+  // P2: INSERT 未知列曾静默接受 → 应报 Unknown column
+  console.log('\n--- INSERT 未知列应报错 ---');
+  await t('INSERT 未知列（指定列清单）→ 报错', async ({ exec, mustFail }) => {
+    await exec(`CREATE TABLE t (id INT, v TEXT)`);
+    return mustFail(`INSERT INTO t (id, unknown_col) VALUES (1, 'x')`);
+  });
+  await t('INSERT 未知列（VALUES 全列）→ 报错', async ({ exec, mustFail }) => {
+    await exec(`CREATE TABLE t (id INT, v TEXT)`);
+    return mustFail(`INSERT INTO t VALUES (1, 'x', 'extra')`);
+  });
+  await t('INSERT 已知列 → 正常', async ({ exec, scalar }) => {
+    await exec(`CREATE TABLE t (id INT, v TEXT)`);
+    await exec(`INSERT INTO t (id, v) VALUES (1, 'x')`);
+    return eq(await scalar(`SELECT v FROM t WHERE id = 1`), 'x');
+  });
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })();

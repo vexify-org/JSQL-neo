@@ -91,7 +91,9 @@ function tmp(name) {
       __meta__: { version: 1 },
       users: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }],
     }));
-    const ui = new WebUI({ port: 0, dataDir: path.dirname(dbFile) });
+    // API 认证模型（3895dca 起）：无 authToken 时 /api/* 一律 401。
+    // 本测试是功能测试，需要真实访问 API，故显式 noAuth: true。
+    const ui = new WebUI({ port: 0, dataDir: path.dirname(dbFile), noAuth: true });
     const port = await ui.start();
     const dbs = await (await fetch(`http://127.0.0.1:${port}/api/databases`)).json();
     ok('webui list databases', dbs.length === 1 && dbs[0].name === 'db');
