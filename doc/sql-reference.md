@@ -161,6 +161,100 @@ COMMIT;
 > 的事务在 Rust 侧，目前还没有保存点 —— 那两个引擎上执行保存点语句会
 > 明确报错，不会假装成功。
 
+## 函数
+
+### 字符串
+
+```sql
+SELECT UPPER('aB'), LOWER('aB');            -- 'AB'  'ab'
+SELECT LENGTH('中文'), CHAR_LENGTH('中文');  -- 2  2
+SELECT TRIM('  x  '), REVERSE('abc');       -- 'x'  'cba'
+SELECT SUBSTRING('abcdef', 2, 2);           -- 'bc'
+SELECT LEFT('abcdef', 3), RIGHT('abcdef', 3);  -- 'abc'  'def'
+SELECT REPLACE('aXbXc', 'X', '-');          -- 'a-b-c'
+SELECT INSTR('abcabc', 'b');                -- 2
+SELECT LOCATE('b', 'abcabc');               -- 2
+SELECT LPAD('7', 3, '0'), RPAD('7', 3, '0');   -- '007'  '700'
+SELECT REPEAT('ab', 3), SPACE(3);           -- 'ababab'  '   '
+SELECT ASCII('A'), CHAR(65);                -- 65  'A'
+SELECT FIELD('b', 'a', 'b', 'c');           -- 2（找不到为 0）
+SELECT ELT(2, 'a', 'b', 'c');               -- 'b'
+SELECT CONCAT('a', 'b');                    -- 'ab'
+SELECT CONCAT_WS('-', 'a', NULL, 'b');      -- 'a-b'（跳过 NULL）
+```
+
+**NULL 传播**：所有标量函数遇到 NULL 一律返回 NULL —— 包括 `CONCAT`
+（`CONCAT('a', NULL)` 是 NULL，不是 `'a'`）。`CONCAT_WS` 是例外：它跳过
+值为 NULL 的参数，但分隔符为 NULL 时整体返回 NULL。
+
+### 数值
+
+```sql
+SELECT ABS(-7), SIGN(-5);                   -- 7  -1
+SELECT ROUND(2.5), ROUND(2.345, 2);         -- 3  2.35
+SELECT CEIL(2.1), FLOOR(2.9);               -- 3  2
+SELECT TRUNCATE(2.789, 2);                  -- 2.78（截断，不四舍五入）
+SELECT MOD(7, 3), POWER(2, 10), SQRT(16);   -- 1  1024  4
+```
+
+### NULL 处理
+
+```sql
+SELECT COALESCE(NULL, NULL, 3);   -- 3；全为 NULL 时返回 NULL
+SELECT IFNULL(NULL, 5);           -- 5
+SELECT NULLIF(1, 1);              -- NULL
+SELECT GREATEST(3, 1, 2);         -- 3
+SELECT LEAST(3, 1, 2);            -- 1
+```
+
+`GREATEST` / `LEAST` 任一参数为 NULL 即返回 NULL（MySQL 语义）。
+`COALESCE` 全部取不到值时返回 NULL，不会返回 `undefined`。
+
+### 日期
+
+```sql
+SELECT YEAR('2026-03-04'), MONTH('2026-03-04'), DAY('2026-03-04');  -- 2026 3 4
+SELECT DATEDIFF('2026-03-10', '2026-03-04');                        -- 6
+SELECT DATE_ADD('2026-01-31', INTERVAL 1 MONTH);                    -- '2026-02-28'
+SELECT LAST_DAY('2026-02-10');                                      -- '2026-02-28'
+SELECT DATE_FORMAT('2026-03-04', '%Y/%m/%d');                       -- '2026/03/04'
+SELECT TIMESTAMPDIFF(HOUR, '2026-01-01 00:00:00', '2026-01-01 05:00:00');  -- 5
+```
+
+### JSON
+
+```sql
+SELECT JSON_EXTRACT('{"a":{"b":2}}', '$.a.b');   -- 2
+SELECT JSON_UNQUOTE('"hi"');                     -- 'hi'
+SELECT JSON_TYPE('{"a":1}');                     -- 'object'
+SELECT JSON_VALID('{bad');                       -- 0
+SELECT JSON_ARRAY_LENGTH('[1,2,3]');             -- 3
+```
+
+`->` / `->>` 同时支持两种路径写法：
+
+```sql
+-- JSONPath（MySQL 风格）
+SELECT d->>'$.name' FROM t;        -- 取文本
+SELECT d->'$.addr.city' FROM t;    -- 取原值
+SELECT d->>'$.arr[1]' FROM t;      -- 数组下标
+
+-- 纯键名（Postgres 风格），可链式
+SELECT d->>'name' FROM t;
+SELECT d->'addr'->>'city' FROM t;
+```
+
+### 条件与比较
+
+`IN` 遵循三值逻辑：列表里含 NULL 时，**只要有一个元素匹配就成立**；
+没匹配上才是 UNKNOWN（在 `WHERE` 里被过滤掉）。
+
+```sql
+SELECT 10 IN (10, NULL);      -- 1（TRUE）
+SELECT 99 IN (10, NULL);      -- NULL（UNKNOWN）
+SELECT 99 NOT IN (10, NULL);  -- NULL（UNKNOWN，所以 WHERE 里一行都不返回）
+```
+
 ## 索引
 
 ```sql

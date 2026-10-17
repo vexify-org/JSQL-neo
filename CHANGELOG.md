@@ -4,6 +4,68 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [Unreleased]
+
+### Fixed
+
+- **`IN` 列表里含 NULL 时整体失效**。`v IN (10, NULL)` 连 `v=10` 的行都匹配不上
+  （实测返回 0 行，应为 2 行）；而等价的 `v = 10 OR v = NULL` 是对的。
+
+  根因是求值时先判「列表里有 NULL 就返回 NULL」：
+
+  ```js
+  const hasNull = expr.list.some(x => x === null || x === undefined);
+  if (hasNull) return null;
+  ```
+
+  三值逻辑里 NULL 只在**没匹配上**时才让结果变 UNKNOWN。只要有一个非 NULL
+  元素等于被查找值，整个 `IN` 就是 TRUE —— 列表里别的位置有没有 NULL 都不影响。
+  现改为先找匹配、再看是否含 NULL。
+
+  `NOT IN` 一并修正：含 NULL 时恒为 UNKNOWN（`WHERE` 里一行都不返回），
+  这是标准行为，但对没匹配上的行仍要保持「有 NULL → UNKNOWN」而不是 FALSE。
+
+  新增 `test/sql-semantics.test.js`。
+
+- **窗口函数默认帧算错**。`SUM(sal) OVER (PARTITION BY dept ORDER BY id)`
+  返回的是**分区总和**（500）而不是累计值（100/300/500）。
+
+  SQL 标准：未显式写帧时，
+  - 有 `ORDER BY` → `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`
+  - 无 `ORDER BY` → 整个分区
+
+  此前一律返回整个分区（代码注释里也承认「RANGE 在当前实现下退化为整个分区，
+  保守处理」）。现按标准实现，并按 RANGE 语义把 ORDER BY 值相同的行（peer）
+  一并纳入当前行 —— 这正是 RANGE 与 ROWS 的区别。显式 `ROWS` 帧的行为不变。
+
+- **`d->>'$.name'` 永远返回 null**（文档 `doc/sql-reference.md`、
+  `doc/postgresql.md` 里都给了这个写法）。
+
+  解析层是对的（产出 `{type:'jsonAccess', asText:true}`），但求值层把
+  `'$.name'` 当成**字面键名**去取（`v['$.name']`），自然取不到。
+  纯键名写法 `d->>'name'` 一直正常，所以这个 bug 藏了很久。
+
+  现把 `JSON_EXTRACT` 里那段内联 JSONPath 解析抽成公用函数 `jsonPathGet()`，
+  `->` / `->>` 在路径以 `$` 开头时走它。两种写法并存：
+
+  ```sql
+  SELECT d->>'$.name' FROM t;        -- JSONPath（MySQL 风格）
+  SELECT d->'addr'->>'city' FROM t;  -- 纯键名链式（Postgres 风格）
+  ```
+
+- **6 个标量函数根本没实现，调用时静默返回 null**（不报错，所以一直没被发现）：
+  `ASCII` / `CHAR` / `SPACE` / `FIELD` / `ELT` / `JSON_ARRAY_LENGTH`。
+
+  已按 MySQL 8.0 语义补齐，含边界行为：`ASCII('')` 为 0、`FIELD` 找不到为 0、
+  `ELT` 越界为 NULL、`JSON_ARRAY_LENGTH` 非数组为 NULL。
+
+  这批是对照标准答案逐条跑出来的 —— 静默返回 null 比报错难发现得多。
+
+### 文档
+
+- `doc/sql-reference.md` 新增「函数」一节：字符串 / 数值 / NULL 处理 / 日期 /
+  JSON / 条件与比较，含 NULL 传播约定、`->` 的两种路径写法、`IN` 的三值逻辑。
+
 ## [6.4.0] — 2026-10-17
 
 ### Added
