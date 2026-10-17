@@ -83,6 +83,25 @@ async function t(name, fn) {
     return eq((await db.getTables()).slice().sort(), ['t']);
   });
 
+  // renameTable 后来被改成 async（它要 await _runHooks）。执行器这边一度
+  // 忘了 await —— 冲突时报错变成未处理的 Promise 拒绝：SQL 照常返回 ok:true，
+  // 调用方以为改名成功，随后进程被 rejection 打崩。
+  await t('改名冲突：报错且不产生未处理的 Promise 拒绝', async ({ db, exec, mustFail }) => {
+    let unhandled = null;
+    const onUnhandled = (e) => { unhandled = e; };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      await exec('CREATE TABLE a (id INT PRIMARY KEY)');
+      await exec('CREATE TABLE b (id INT PRIMARY KEY)');
+      const bad = await mustFail('ALTER TABLE a RENAME TO b');
+      // 让微任务队列跑完，未处理的 rejection 会在此暴露
+      await new Promise(r => setImmediate(r));
+      return bad && unhandled === null && eq((await db.getTables()).slice().sort(), ['a', 'b']);
+    } finally {
+      process.removeListener('unhandledRejection', onUnhandled);
+    }
+  });
+
   await t('改名后主键/自增/唯一约束仍然生效', async ({ exec, rows, mustFail }) => {
     await exec('CREATE TABLE t (id INTEGER PRIMARY KEY AUTOINCREMENT, e TEXT UNIQUE)');
     await exec("INSERT INTO t (e) VALUES ('a')");
