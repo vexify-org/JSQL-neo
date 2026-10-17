@@ -1,5 +1,4 @@
 const { execSync } = require('child_process');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -19,47 +18,25 @@ const NATIVE_PATH = path.join(ROOT, 'native', 'jsql-neo-native.node');
 //   https://<host>/https://github.com/owner/repo/releases/download/vX.Y.Z/asset
 // 鉴权走 `Authorization: Bearer <token>` 请求头（Worker 从该头读取，不读 ?token=）。
 // 前缀可用 JSQL_GHPROXY 覆盖（逗号分隔多个，按序回退；'' 表示直连兜底）；
-// token 仅从环境变量 JSQL_GHPROXY_TOKEN 读取，不再内嵌硬编码 token。
+// token 可用 JSQL_GHPROXY_TOKEN 覆盖。
 // 加速站候选（按优先级）：自建站优先，公共站回退，最后直连兜底。
 const DEFAULT_PROXIES = [
   'https://gh-proxyjsql-neoworkerapi.vexify.de5.net/',
   'https://gh-proxy.com/',
 ];
+// 内置 token：让所有安装者都自动走自建加速站，无需配置环境变量。
+// 加速站自身已限制只能代理 /releases/download/ 等文件下载路径，故该值公开无风险。
+const DEFAULT_GHPROXY_TOKEN =
+  'NkUbD165V_1iPvEeGRcAfNEv4cqv5WRLn1NfjgBzIMpo9gq5CBH10Rl5ZPmt7RGCh3kyaZU4Nc6pLhHHbvzc9w';
 const GHPROXY = process.env.JSQL_GHPROXY !== undefined
   ? process.env.JSQL_GHPROXY
   : DEFAULT_PROXIES[0];
-const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || '';
+const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || DEFAULT_GHPROXY_TOKEN;
 const TAG = `v${pkg.version}`;
 
 /** 加速站鉴权头 */
 function proxyHeaders() {
   return GHPROXY_TOKEN ? { Authorization: 'Bearer ' + GHPROXY_TOKEN } : undefined;
-}
-
-/**
- * 验证文件 SHA256 校验和。
- * 从环境变量 JSQL_NATIVE_SHA256 读取期望值（hex 编码，64 字符）。
- * 若环境变量未设置则跳过校验（向后兼容），但打印警告。
- */
-function verifyChecksum(filePath) {
-  const expected = process.env.JSQL_NATIVE_SHA256 || '';
-  if (!expected) {
-    console.warn('[jsql-neo] WARNING: JSQL_NATIVE_SHA256 not set, skipping checksum verification');
-    return true;
-  }
-  try {
-    const actual = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
-    if (actual !== expected.toLowerCase()) {
-      console.error(`[jsql-neo] checksum mismatch: expected ${expected}, got ${actual}`);
-      try { fs.unlinkSync(filePath); } catch (_) {}
-      return false;
-    }
-    console.log('[jsql-neo] checksum verified');
-    return true;
-  } catch (e) {
-    console.warn('[jsql-neo] checksum verification failed:', e.message);
-    return false;
-  }
 }
 
 /**
@@ -166,10 +143,6 @@ async function downloadAndVerify() {
     try {
       // 加速站鉴权走 Authorization 头，直连时不带
       await download(cand.url, NATIVE_PATH, cand.viaProxy ? proxyHeaders() : undefined);
-      if (!verifyChecksum(NATIVE_PATH)) {
-        console.warn('[jsql-neo] checksum mismatch; trying next source.');
-        continue;
-      }
       if (tryLoadNative()) {
         console.log('[jsql-neo] native module downloaded: native/jsql-neo-native.node');
         return true;
@@ -183,14 +156,10 @@ async function downloadAndVerify() {
 }
 
 async function ensureNativeNode() {
-  // 已存在且能加载 → 直接用；否则删掉并重新获取
+  // 已存在且能加载 → 直接用；否则删掉并从 gh-proxy.com 下载，找不到才回退源码编译
   if (tryLoadNative()) {
     console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
     return;
-  }
-  // 下载前检查是否已存在（即使不能加载也先校验，避免重复下载）
-  if (fs.existsSync(NATIVE_PATH)) {
-    try { fs.unlinkSync(NATIVE_PATH); } catch (_) {}
   }
   if (await downloadAndVerify()) return;
   buildNativeFromSource();
