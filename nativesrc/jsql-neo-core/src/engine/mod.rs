@@ -41,6 +41,15 @@ pub trait Engine {
     fn list_tables(&self) -> Vec<String>;
 
     fn insert(&mut self, table: &str, fields: Vec<HashMap<String, serde_json::Value>>) -> Result<Vec<u64>, String>;
+    /// 接收原始 JSON 数组字符串，直接解析并存入（消除 JS encodeBatch 二进制序列化开销）
+    fn insert_raw(&mut self, table: &str, raw_json: &str) -> Result<Vec<u64>, String> {
+        let rows: Vec<serde_json::Value> = serde_json::from_str(raw_json)
+            .map_err(|e| format!("invalid JSON array: {}", e))?;
+        let batch: Vec<HashMap<String, serde_json::Value>> = rows.into_iter()
+            .map(|v| v.as_object().map(|m| m.clone()).unwrap_or_default())
+            .collect();
+        self.insert(table, batch)
+    }
     fn find_by_id(&self, table: &str, id: u64) -> Result<Option<Row>, String>;
     fn find_by_id_json(&self, table: &str, id: u64) -> Result<Option<String>, String>;
     fn find_by_ids_json(&self, table: &str, ids: &[u64]) -> Result<String, String>;

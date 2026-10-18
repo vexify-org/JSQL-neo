@@ -274,6 +274,23 @@ fn do_insert_buf(eng: &mut HybridEngine, table: &str, buf_val: napi::JsBufferVal
     safe_json_result(res)
 }
 
+#[napi]
+pub fn jsql_insert_raw(table: String, raw_json: String) -> String {
+    with_engine_mut(|eng| do_insert_raw(eng, &table, &raw_json))
+}
+
+#[napi]
+pub fn jsql_insert_raw_h(handle: u32, table: String, raw_json: String) -> String {
+    with_engine_handle_mut(handle, |eng| do_insert_raw(eng, &table, &raw_json))
+}
+
+fn do_insert_raw(eng: &mut HybridEngine, table: &str, raw_json: &str) -> String {
+    match eng.insert_raw(table, raw_json) {
+        Ok(ids) => serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_string()),
+        Err(e) => format!(r#"{{"error":"{}"}}"#, e.replace('"', r#"\""#)),
+    }
+}
+
 napi_engine_fn!(jsql_find, jsql_find_h,
     (table: String, filter_json: String, limit: i32, offset: i32) => |eng| {
         let filter: Option<HashMap<String, serde_json::Value>> =

@@ -76,96 +76,18 @@ pub fn jsql_insert(table: &str, data_json: &str) -> String {
 #[wasm_bindgen]
 pub fn jsql_insert_json(table: &str, json: &str) -> String {
     ENGINE.with(|eng| {
-        let res = (|| -> Result<Vec<u64>, String> {
-            let mut eng = eng.borrow_mut();
-            let t = eng.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
+        match eng.borrow_mut().insert_raw(table, json) {
+            Ok(ids) => serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_string()),
+            Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+        }
+    })
+}
 
-            let data: Vec<serde_json::Value> = serde_json::from_str(json)
-                .map_err(|e| format!("invalid JSON: {}", e))?;
-            let n = data.len();
-            if n == 0 { return Ok(Vec::new()); }
-
-            let first = data[0].as_object()
-                .ok_or_else(|| "expected array of objects".to_string())?;
-            let field_names: Vec<String> = first.keys().cloned().collect();
-
-            let remap: Vec<Option<usize>> = t.field_order.iter()
-                .map(|name| field_names.iter().position(|n| n == name))
-                .collect();
-
-            let pk_idx = t.pk_field.as_ref().and_then(|pk| {
-                t.schema.get(pk.as_str()).and_then(|fs| {
-                    if fs.auto_increment { t.field_index.get(pk.as_str()).copied() } else { None }
-                })
-            });
-
-            let now = js_sys::Date::now() as u64;
-            let start_id = t.next_id;
-            t.next_id += n as u64;
-            t.pk_index.reserve(n);
-            t.rows.reserve(n);
-            t.values.reserve(t.field_order.len());
-            let start_ri = t.rows.len();
-
-            for (ri, row_val) in data.iter().enumerate() {
-                let auto_id = start_id + ri as u64;
-                let mut id = auto_id;
-                let obj = row_val.as_object()
-                    .ok_or_else(|| "non-object in array".to_string())?;
-
-                let mut values = Vec::with_capacity(t.field_order.len());
-                for (i, rp) in remap.iter().enumerate() {
-                    if let Some(fi) = rp {
-                        let key = &field_names[*fi];
-                        if let Some(jv) = obj.get(key) {
-                            values.push(FieldValue::from_json(jv.clone()));
-                            continue;
-                        }
-                    } else if let Some(pi) = pk_idx {
-                        if pi == i {
-                            values.push(FieldValue::Int(id as i64));
-                            continue;
-                        }
-                    }
-                    if let Some(name) = t.field_order.get(i) {
-                        if let Some(fs) = t.schema.get(name) {
-                            if let Some(ref default) = fs.default {
-                                values.push(FieldValue::from_json(default.clone()));
-                                continue;
-                            }
-                            if !fs.nullable {
-                                values.push(default_value(&fs.field_type));
-                                continue;
-                            }
-                        }
-                    }
-                    values.push(FieldValue::Null);
-                }
-
-                // auto-increment PK: keep explicit positive value, else fill with auto id
-                if let Some(pi) = pk_idx {
-                    if let Some(v) = values.get_mut(pi) {
-                        match v {
-                            FieldValue::Null => *v = FieldValue::Int(id as i64),
-                            FieldValue::Int(e) if *e > 0 => {
-                                id = *e as u64;
-                                t.next_id = t.next_id.max(id + 1);
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                t.pk_index.insert(id, start_ri + ri);
-                let vs = t.values.len();
-                t.values.extend(values);
-                t.rows.push(RowStore { id, values_start: vs, num_values: t.field_order.len(), created_at: now, updated_at: now });
-            }
-
-            let ids: Vec<u64> = (start_id..start_id + n as u64).collect();
-            Ok(ids)
-        })();
-        match res {
+/// JSON 字符串直接插入（绕过 JS encodeBatch 二进制序列化）
+#[wasm_bindgen]
+pub fn jsql_insert_raw(table: &str, raw_json: &str) -> String {
+    ENGINE.with(|eng| {
+        match eng.borrow_mut().insert_raw(table, raw_json) {
             Ok(ids) => serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_string()),
             Err(e) => format!(r#"{{"error":"{}"}}"#, e),
         }
