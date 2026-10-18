@@ -6,6 +6,33 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.4.4] — 2026-10-18
+
+### Performance
+
+- **SQL 执行路径快 2~3 倍。** `node --prof` 显示 10 万行查询有 **30% 时间
+  花在 GC** 上，热点是 `executeSelect` 对**每一行**调用 `_prefixRow` ——
+  它给每行新建一个对象、把所有键复制成「表.列」形式。而单表查询里这些
+  前缀键根本没被引用过，纯属白造。
+
+  现在「单表 + 无 JOIN + 无派生表 + 整棵树没有限定引用」时跳过前缀。
+  判定用 `hasQualifiedRef()` 遍历整棵语句树，**对象节点和字符串值两种形态
+  都查**（限定引用不一定长在 `{type:'column'}` 里，`ORDER BY` 的 `o.column`
+  就是纯字符串 `'t.age'`）；判定结果**不缓存到 statement 上**，
+  因为语句对象可能被 `prepare()` 复用，挂属性会串味。
+
+  | 查询（10 万行） | 之前 | 之后 |
+  | --- | --- | --- |
+  | `SELECT id FROM t` | 95ms | 34ms |
+  | `SELECT * FROM t WHERE age > 30` | 61ms | 37ms |
+  | `SELECT id FROM t WHERE age > 30` | 65ms | 38ms |
+  | `SELECT COUNT(*) FROM t` | 41ms | 14ms |
+  | `WHERE age > 30 ORDER BY age` | 116ms | 53ms |
+
+- **ORDER BY 比较器与 SELECT 投影改为编译期预解析。** 此前每次比较 /
+  每行每列都新建 `{type:'column', name}` 对象字面量，6.8 万行排序就是
+  ~230 万次白分配。改为一次性把每列编译成取值函数，普通列名直接属性访问。
+
 ## [6.4.3] — 2026-10-18
 
 ### Fixed
