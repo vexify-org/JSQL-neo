@@ -6,6 +6,28 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.4.3] — 2026-10-18
+
+### Fixed
+
+- **`renameTable` 改 async 后两处调用漏 `await`，冲突报错会打崩进程**。
+  `Database.renameTable` 因为内部要 `await _runHooks()` 而变成 async，
+  但 `lib/sql.js` 的 `ALTER TABLE ... RENAME` 执行分支和
+  `lib/database.js` 的 WAL 回放分支都没跟着加 await。
+
+  后果：`ALTER TABLE a RENAME TO b`（b 已存在）时，抛出的
+  `Table 'b' already exists` 变成**未处理的 Promise 拒绝** ——
+  SQL 这边照常返回 `ok:true`，调用方以为改名成功，随后 Node 进程被打崩。
+
+  sql.js 那处直接 `await` 即可（所在函数本就是 async）；
+  database.js 的 WAL 回放路径是同步的（`_recoverFromWAL` / `_replayWalOp`
+  都不是 async），改为同步发起并显式接住 rejection。
+
+  **注意不能把 promise 直接 `return` 给 `if (this._replayWalOp(op))`** ——
+  `if (promise)` 恒为真，失败会被当成成功。
+
+  排查过其余 22 个 async 引擎方法，SQL 执行器全部正确 await，无同类问题。
+
 ### Performance
 
 - **查询提速 11 倍，从比 sqlite 慢 5.2 倍变成快 2.1 倍。**
