@@ -6,6 +6,48 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Performance
+
+- **查询提速 11 倍，从比 sqlite 慢 5.2 倍变成快 2.1 倍。**
+
+  10 万行基准（`node bench/bench.js`）：
+
+  | 引擎 | 之前 | 之后 |
+  | --- | --- | --- |
+  | **Pure JS** | 18117ms | **1652ms** |
+  | Native (Rust) | 26652ms | 26858ms |
+  | sqlite (better-sqlite3) | 3455ms | 3467ms |
+  | sql.js (WASM) | 4026ms | 4057ms |
+
+  分项计时显示插入只占 182ms，其余 ~17900ms 全在查询 ——
+  而 `age` 上没有索引，每次查询都是 10 万行全表扫。
+
+  根因是 `_matchRow` 对**每一行**都做一遍反射：
+  `Object.entries(query)`、`Object.keys(condition)`、以及一串
+  `startsWith('$')` 判断。实测这部分占单次全表扫描耗时的 **98%** ——
+  点查 13.9ms/次，其中 13.6ms 是反射；同样语义的手写循环只要 0.28ms。
+  `$like` / `$regex` 更糟：正则每行每字段**重编一次**。
+
+  改为**把 filter 编译成谓词函数**（`_compileMatcher`）：
+  字段、点号路径、操作符、正则全部在编译期解析好，循环里只剩取值和比较。
+
+  | 操作 | 之前 | 之后 |
+  | --- | --- | --- |
+  | 点查 `{age:25}` | 13.86ms | 0.96ms（**14.4x**） |
+  | 范围查 `{score:{$gt:50}}` | 21.84ms | 2.02ms（**10.8x**） |
+  | `LIKE` ×300 次全表扫描 | ~3900ms | 6ms |
+
+  已接近手写循环的理论下限（当前 1.1x）。
+
+  语义保证：新增 `test/filter-compile.test.js`（37 项），核心是
+  **差分模糊测试** —— 随机数据 × 随机查询，逐行比对编译版与原 `_matchRow`，
+  4000 个查询零偏差。它当场抓到一个真分歧：`$nin` 的 target 非数组时，
+  原实现返回 false（不匹配），而编译版一度漏判、当成通过。
+
+  遇到冷门操作符（`$inSub` / `$elemMatch` / `$textSearch` / `$expr` …）
+  时只把那一个字段退回 `_matchRow`，其余字段仍走快路径 ——
+  既保语义，也不让混合查询整体退回。
+
 ### Fixed
 
 - **救活一个从未运行的测试文件（68 项）**。`test/extra-coverage.test.js`
