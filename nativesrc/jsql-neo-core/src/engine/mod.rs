@@ -46,7 +46,7 @@ pub trait Engine {
         let rows: Vec<serde_json::Value> = serde_json::from_str(raw_json)
             .map_err(|e| format!("invalid JSON array: {}", e))?;
         let batch: Vec<HashMap<String, serde_json::Value>> = rows.into_iter()
-            .map(|v| v.as_object().map(|m| m.clone()).unwrap_or_else(HashMap::new))
+            .map(|v| v.as_object().map(|m| m.clone().into_iter().collect()).unwrap_or_else(HashMap::new))
             .collect();
         self.insert(table, batch)
     }
