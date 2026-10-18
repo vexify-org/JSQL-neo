@@ -1,7 +1,7 @@
 /*
  * extra-coverage.test.js — JSQL-neo 边界情况全覆盖测试
  *
- * 运行：npx vitest run test/extra-coverage.test.js
+ * 运行：node test/extra-coverage.test.js
  *
  * 覆盖五大类边界情况：
  *   1. SQL 语义边界（NULL、除零、精度、Unicode、日期、BETWEEN）
@@ -12,9 +12,20 @@
  */
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { test } from 'vitest';
 import assert from 'assert';
 import { createRequire } from 'module';
+
+/*
+ * 原先这里是 `import { test } from 'vitest'`。但 vitest 既不在 package.json 的
+ * 依赖里、也没安装，而这个文件又不在 test:all 里 —— 结果是这 68 个用例
+ * **从来没跑过一次**，纯摆设。死测试比没有测试更糟：它给人虚假的信心。
+ *
+ * 好在断言本来就全用 Node 内置的 assert，需要替换的只有 test 这一层。
+ * 下面这个极简 runner 行为对齐 vitest：顺序执行、逐个报结果、
+ * 有失败就以非零码退出。
+ */
+const _tests = [];
+const test = (name, fn) => { _tests.push({ name, fn }); };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,9 +79,15 @@ test('NULL NOT IN (1,2) 返回 NULL（UNKNOWN）', async () => {
   assert.strictEqual(await one(q, 'SELECT NULL NOT IN (1,2)'), null);
 });
 
-test('1 IN (1,NULL) 返回 NULL（列表含 NULL → UNKNOWN）', async () => {
+test('1 IN (1,NULL) 返回 TRUE（有一个元素匹配就成立）', async () => {
   const { q } = makeDb();
-  assert.strictEqual(await one(q, 'SELECT 1 IN (1,NULL)'), null);
+  // 等价于 `1=1 OR 1=NULL` —— TRUE OR UNKNOWN 还是 TRUE。
+  // 列表里别的位置有没有 NULL 不影响；只有**没匹配上**时才是 UNKNOWN。
+  // （原先这里断言的是 null，即「列表含 NULL 就 UNKNOWN」——那是个常见误解，
+  //   MySQL / PostgreSQL 实测都返回 TRUE。）
+  assert.strictEqual(await one(q, 'SELECT 1 IN (1,NULL)'), 1);
+  assert.strictEqual(await one(q, 'SELECT 1 IN (NULL,1)'), 1);
+  assert.strictEqual(await one(q, 'SELECT 99 IN (1,NULL)'), null);
 });
 
 test('3 NOT IN (1,2) 返回 1（正常匹配）', async () => {
@@ -363,12 +380,20 @@ test('IN 子查询', async () => {
   );
 });
 
-test('IN 子查询含 NULL 导致 UNKNOWN（返回 0 行）', async () => {
+test('IN 子查询含 NULL：匹配上的行仍应返回', async () => {
   const { q } = makeDb();
   await q('CREATE TABLE t (id INT PRIMARY KEY, g INT)');
   await q('INSERT INTO t VALUES (1,1),(2,NULL)');
+  // 子查询结果是 {1, NULL}。g=1 那行匹配得上（1 IN (1,NULL) 为 TRUE），
+  // 只有 g=NULL 那行是 UNKNOWN 被过滤 —— 所以是 1 行，不是 0 行。
+  // （原先断言 0 行，把 bug 当成了预期。）
   assert.strictEqual(
     await one(q, 'SELECT COUNT(*) FROM t WHERE g IN (SELECT g FROM t)'),
+    1
+  );
+  // 反过来：NOT IN 的列表含 NULL 时恒为 UNKNOWN，一行都不返回
+  assert.strictEqual(
+    await one(q, 'SELECT COUNT(*) FROM t WHERE g NOT IN (SELECT g FROM t)'),
     0
   );
 });
@@ -567,3 +592,27 @@ test('IF 函数三值行为（NULL / 0 / 空串均为假）', async () => {
   assert.strictEqual(await one(q, "SELECT IF('', 'a', 'b')"), 'b');
   assert.strictEqual(await one(q, "SELECT IF(1, 'a', 'b')"), 'a');
 });
+
+// ---- runner：顺序执行全部用例，按 vitest 的习惯输出与退出码 ----
+;(async () => {
+  let pass = 0, fail = 0;
+  const failures = [];
+  for (const t of _tests) {
+    try {
+      await t.fn();
+      pass++;
+      console.log('[OK]  ', t.name);
+    } catch (e) {
+      fail++;
+      failures.push(t.name);
+      const msg = e && e.message ? e.message : String(e);
+      console.log('[FAIL]', t.name, '->', msg.slice(0, 130));
+    }
+  }
+  console.log(`\n${pass} passed, ${fail} failed`);
+  if (failures.length) {
+    console.log('\n失败用例：');
+    for (const n of failures) console.log('  - ' + n);
+  }
+  process.exit(fail === 0 ? 0 : 1);
+})();

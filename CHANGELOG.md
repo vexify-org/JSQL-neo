@@ -8,6 +8,24 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Fixed
 
+- **救活一个从未运行的测试文件（68 项）**。`test/extra-coverage.test.js`
+  是上游加进来的边界情况全覆盖测试，但：
+
+  - 它 `import { test } from 'vitest'`，而 vitest **既不在 package.json 的依赖里、也没安装**
+  - 它**不在 `test:all` 里**
+
+  也就是说这 68 个用例**一次都没跑过**。死测试比没有测试更糟 —— 它给人虚假的信心。
+  好在断言本来就全用 Node 内置的 `assert`，需要替换的只有 `test` 这一层：
+  换成本地极简 runner（顺序执行、逐个报结果、失败非零退出），并接入 `test:all`。
+
+  跑起来后 68/68 通过。其中有两条原本断言的是**错误行为**，已修正：
+  - `1 IN (1, NULL)` 断言为 NULL（即「列表含 NULL 就 UNKNOWN」）。
+    正确语义是 `1=1 OR 1=NULL` = TRUE OR UNKNOWN = **TRUE**，
+    MySQL / PostgreSQL 实测均返回 1。这与本轮 `IN` 的 NULL 语义修正是同一个问题。
+  - `SELECT COUNT(*) FROM t WHERE g IN (SELECT g FROM t)`
+    （g 取值 1/NULL）断言为 0 行。正确结果是 **1 行**：g=1 那行匹配得上，
+    只有 g=NULL 那行是 UNKNOWN 被过滤掉。
+
 - **`IN` 列表里含 NULL 时整体失效**。`v IN (10, NULL)` 连 `v=10` 的行都匹配不上
   （实测返回 0 行，应为 2 行）；而等价的 `v = 10 OR v = NULL` 是对的。
 
