@@ -6,6 +6,21 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.5.1-beta.1] — 2026-10-19
+
+### 预发布说明
+
+本次只改版本号，没有功能变更 —— 发出来是为了让你测 **star 提示的端到端链路**：
+
+- CLI 启动提示 → 浏览器授权 → auth.vexify.top 回调 → 写回 `~/.jsqlmr`。
+- 服务端已部署（`auth.vexify.top/callback`），redirect_uri 与 GitHub 后台注册的一致。
+- **OAuth 授权那一步尚未人工验证过**，所以先发 beta。
+
+若提示语碍事：`JSQL_NO_STAR_NAG=1` 关闭。
+
+## [6.5.0] — 2026-10-19
+
+
 ## [6.5.0] — 2026-10-19
 
 ### Added
