@@ -6,6 +6,54 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.5.0] — 2026-10-19
+
+### Added
+
+- **CLI 启动时的 star 提示。**
+
+  ```
+    If JSQL-NEO saved you time, a star helps others find it: https://github.com/vexify-org/JSQL-neo
+    (set JSQL_NO_STAR_NAG=1 to hide, or star it and it'll stop asking)
+  ```
+
+  **三条约束，避免它变成噪音：**
+
+  1. **star 过就彻底闭嘴。** 若环境里有 GitHub token（`GITHUB_TOKEN` /
+     `GH_TOKEN`），CLI 启动时会问 GitHub「这个身份 star 过没有」；
+     是的话在配置里记下，以后永不再提。
+  2. **30 天节流。** 同一台机器最多 30 天提一次。
+  3. **绝不挡命令。** 提示相关的任何异常都被吞掉 —— 配置读不了、写不了、
+     没装 curl、网络不通，都不该让 `jsql serve` 起不来。
+
+  配置文件：**`~/.jsqlmr`**（JSON），可用 `JSQL_MR_PATH` 覆盖。内容形如：
+
+  ```json
+  { "lastNagAt": 1792387275884, "starred": true, "starredAt": 1792387275884 }
+  ```
+
+- **新增 `jsql star` 子命令**：打印配置文件路径、当前 star 状态与仓库地址，
+  方便排查「为什么它还在提示」。
+
+### Fixed（README 与实情不符）
+
+审计 README 时发现三处与实现不符，已改：
+
+- **「One port, four protocols」不成立。** README 给出
+  `psql` / `mongosh` / `redis-cli` 都连 3306，实际 `jsql serve` 的
+  help 自己写着「Run the **MySQL-compatible** server」，只启 MySQL。
+  PG / Redis 以库形式提供需自行装配；MongoDB 与官方现代 driver 握手尚未打通。
+- **`import init, { Database } from 'jsql-neo/wasm'` 导入不了。**
+  package.json 的 exports map 里没有 `./wasm`，只有 `./wasm/browser.mjs`；
+  且该入口导出的是 `JSQL`，不是 `Database`。
+- **NativeJSQL 的入口与导出名写错了。** 顶层导出的是
+  `JSQL` / `NativeJSQL` / `Database` 等，README 只写
+  `import { Database } from 'jsql-neo'`，但 `Database` 是纯 JS 实现，
+  原生入口是 `NativeJSQL`。
+
+## [6.4.9] — 2026-10-19
+
+
 ## [6.4.9] — 2026-10-19
 
 ### Fixed

@@ -5,6 +5,10 @@ const yaggs = require('@vexify-org/yaggs');
 const { ModuleManager } = require('../lib/mod');
 const Database = require('../lib/database');
 const migrate = require('../lib/migrate');
+const { nag, setStarred, readConfig } = require('../lib/star-nag');
+
+// star 提示：任何异常都不该挡住命令本身
+if (!process.env.JSQL_NO_STAR_NAG) { try { nag(); } catch (e) { /* 提示失败与命令无关 */ } }
 
 function printModules(list) {
   if (list.length === 0) {
@@ -168,6 +172,13 @@ const cli = yaggs({ pkg: require('../package.json') })
     console.log(`jsql-neo MySQL server on ${options.host}:${options.port}${options.dataDir ? ' (data: ' + options.dataDir + ')' : ' (in-memory)'}`);
     setInterval(() => {}, 1 << 30);
   })
+  .command('star', 'Show or confirm this repo\'s star status', () => {},
+    async () => {
+      const c = readConfig();
+      console.log('config: ' + require('../lib/star-nag').configPath());
+      console.log('marked starred: ' + (c.starred ? 'yes' : 'no'));
+      console.log('' + require('../lib/star-nag').URL);
+    })
   .command('bench', 'Insert + query benchmark against a data directory', (sub) => {
     sub.option('n', { type: 'number', description: 'Number of rows (default 10000)' });
     sub.option('data-dir', { type: 'string', description: 'Data directory (default :memory:)' });

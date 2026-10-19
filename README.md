@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.4.9** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.5.0** — official release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -36,12 +36,18 @@ irm jsql.vexify.top/setup | iex
 npm install jsql-neo
 ```
 
-**JSQL-NEO** is a Rust-powered embedded database with **zero runtime dependencies** that speaks MySQL, PostgreSQL, MongoDB, and Redis wire protocols — all on the same engine, same data, one port. It runs in Node.js, CLI, Web UI, and the browser (WASM).
+**JSQL-NEO** is a Rust-powered embedded database with **zero runtime dependencies**. It runs in Node.js, CLI, Web UI, and the browser (WASM).
 
-- **Any client, same data** — MySQL, PostgreSQL, MongoDB, Redis tools connect simultaneously on **one port**
+- **MySQL wire protocol, ready to use** — `jsql serve` starts it; `mysql2` / most MySQL clients connect directly
 - **Zero dependencies** — no native libs to compile, no system deps to install
-- **Runs everywhere** — Node.js native addon, pure JS fallback, WASM for the browser
-- **~2× faster than better-sqlite3** — Rust core via N-API
+- **Three engines, same API** — `native` (Rust N-API), `wasm` (same Rust core), `js` (pure JS)
+- **~2× faster than better-sqlite3** on indexed point lookups
+
+> **About the other wire protocols** — PostgreSQL, MongoDB and Redis protocol stacks
+> ship as libraries (`lib/pg_server`, `lib/mongo_server`, `lib/redis_server`) and each
+> listens on its own port; there is **no single-port multi-protocol mode**, and the CLI
+> exposes no entry point for them. MongoDB additionally does not yet complete a
+> handshake with the modern official `mongodb` driver. Treat them as experimental.
 
 ---
 
@@ -88,36 +94,35 @@ console.log(rows); // [[1, 'Alice']]
 db.stop();
 ```
 
-### One port, four protocols
+### Wire protocol server
 
 ```bash
-npx jsql-neo serve --port 3306
+jsql serve --port 3306 --data-dir ./data
 ```
 
 ```bash
-# MySQL    mysql -h 127.0.0.1 -P 3306
-# PostgreSQL psql -h 127.0.0.1 -p 3306
-# MongoDB  mongosh mongodb://127.0.0.1:3306
-# Redis    redis-cli -p 3306
+# MySQL clients (mysql CLI, mysql2, DBeaver, DataGrip …) connect here
+mysql -h 127.0.0.1 -P 3306
 ```
 
-All four clients connect to the **same database** on the same port.
+Only MySQL is served by the CLI today. The PostgreSQL / Redis / MongoDB stacks are
+available as libraries — see the note near the top of this file.
 
 ### Browser / WASM
 
 ```js
-import init, { Database } from 'jsql-neo/wasm';
+import init, { JSQL } from 'jsql-neo/wasm/browser.mjs';
 await init();
-const db = new Database(':memory:');
-// same API as Node.js
+const db = new JSQL();
+// same API as the Node.js native client
 ```
 
 ### 🦀 NativeJSQL
 
 Pure Rust native bindings — the highest-performance way to run JSQL-NEO:
 
-- **Zero abstraction overhead** — direct calls into the Rust core
-- **Batch operations** — up to **1.54M rows/sec** peak throughput
+- **Low abstraction overhead** — direct calls into the Rust core
+- **Batch operations** — ~700k rows/sec measured on 200k rows (`INSERT` in 5k batches)
 - **Automatic memory management** with smart caching
 
 **Install:**
@@ -129,8 +134,9 @@ npm install jsql-neo
 **Usage:**
 
 ```javascript
-import { Database } from 'jsql-neo';
-const db = new Database('mydb.jsql');
+const { NativeJSQL } = require('jsql-neo');
+const db = new NativeJSQL();          // :memory: — persist by passing a path
+await db.start();
 ```
 
 ### Storage modes
