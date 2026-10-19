@@ -6,6 +6,12 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **star 提示的 OAuth 地址同步到 auth.vexify.top 新多文件结构。** 服务端已从单文件
+  `callback.php` 拆分为 `start.php` / `callback.php` / `result.php`；CLI 相应改用
+  `/start.php?nonce=xxx` 发起授权、`/result.php?nonce=xxx` 轮询结果。
+
 ## [6.5.1-beta.1] — 2026-10-19
 
 ### 预发布说明
