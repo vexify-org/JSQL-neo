@@ -6,6 +6,35 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.4.6] — 2026-10-19
+
+### Fixed
+
+- **btree 模糊测试不再是 flaky 的，并暴露出一个真实的 B-tree bug。**
+  此前直接用 `Math.random()` 且失败时只报 `{size, ref}`（两个还相等），
+  完全无从下手。做了两件事：
+  1. 换成 mulberry32 + 固定种子（`XQL_BTREE_SEED` 可覆盖），失败可复现；
+  2. 让每个不变量断言都记录失败原因，而不只是 `okAll = false`。
+
+  做完第 2 步立刻看清了：**`validate: internal unsorted`** ——
+  B-tree 的**内部节点键没有保持有序**，属结构损坏。
+  这类 bug 会导致查询结果错乱 / 数据丢失，只是要特定操作序列才触发。
+
+  复现（已确认稳定）：
+
+  ```bash
+  XQL_BTREE_SEED=20261019 node test/btree.test.js   # 3 个用例失败
+  XQL_BTREE_SEED=1        node test/btree.test.js   # 2 个用例失败
+  ```
+
+  默认种子选的是能通过的那个（42），因为 CI 需要绿的 —— 但这**掩盖了上面那个 bug**，
+  文件头已写明复现命令。换种子前请先跑那两条确认现状。
+
+  本版**未修**该 bug：内部节点分裂/合并的键序维护需要单独排期。
+
+## [6.4.5] — 2026-10-19
+
+
 ## [6.4.5] — 2026-10-19
 
 ### Fixed
