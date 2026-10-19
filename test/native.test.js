@@ -26,7 +26,7 @@ function ok(name, cond, extra) {
     const ids = await db.insert('users', [{ name: 'Alice', age: 30 }, { name: 'Bob', age: 25 }]);
     ok('batch insert returns ids', Array.isArray(ids) && ids.length === 2, ids);
 
-    const row = db.findById('users', 1);
+    const row = await db.findById('users', 1);
     ok('findById returns flat row', row && row.id === 1 && row.name === 'Alice' && row.age === 30 && !('fields' in row), row);
 
     const rows = await db.find('users', {});
@@ -35,11 +35,11 @@ function ok(name, cond, extra) {
     ok('filter no match', (await db.find('users', { age: 99 })).length === 0);
     ok('count', (await db.count('users')) === 2);
 
-    db.updateByIds('users', [[1, { age: 99 }]]);
+    await db.updateByIds('users', [[1, { age: 99 }]]);
     await new Promise(r => setTimeout(r, 150));
-    ok('updateByIds applied', db.findById('users', 1).age === 99, db.findById('users', 1));
+    ok('updateByIds applied', (await db.findById('users', 1)).age === 99, await db.findById('users', 1));
 
-    db.removeByIds('users', [2]);
+    await db.removeByIds('users', [2]);
     await new Promise(r => setTimeout(r, 150));
     ok('removeByIds applied', (await db.count('users')) === 1, await db.count('users'));
     await db.stop();
@@ -57,12 +57,12 @@ function ok(name, cond, extra) {
     await db.createTable('t3', { id: { type: 'integer', primary_key: true, auto_increment: true }, name: { type: 'string' } });
     await db.insert('t3', { name: 'a' });
     await db.insert('t3', { id: 7, name: 'b' });
-    ok('snake_case pk respected', db.findById('t3', 7).name === 'b', db.findById('t3', 7));
-    ok('explicit pk bumps next id', db.findById('t3', 1).name === 'a');
+    ok('snake_case pk respected', (await db.findById('t3', 7)).name === 'b', await db.findById('t3', 7));
+    ok('explicit pk bumps next id', (await db.findById('t3', 1)).name === 'a');
 
     await db.createTable('cfg', 'key string primary key, value string');
     const cfgIds = await db.insert('cfg', { key: 'a', value: '1' });
-    ok('full shorthand string schema', cfgIds[0] === 'a' && db.findById('cfg', 'a').value === '1', cfgIds);
+    ok('full shorthand string schema', cfgIds[0] === 'a' && (await db.findById('cfg', 'a')).value === '1', cfgIds);
     await db.stop();
   }
 
@@ -112,23 +112,23 @@ function ok(name, cond, extra) {
     const ids = await db.insert('config', [{ key: 'a', value: '1' }, { key: 'b', value: '2' }]);
     ok('non-auto pk insert returns pk values', JSON.stringify(ids) === JSON.stringify(['a', 'b']), ids);
 
-    const a = db.findById('config', 'a');
+    const a = await db.findById('config', 'a');
     ok('findById resolves string pk', a && a.value === '1' && !('fields' in a), a);
-    ok('findById pk miss returns null', db.findById('config', 'nope') === null);
+    ok('findById pk miss returns null', await db.findById('config', 'nope') === null);
 
-    db.updateById('config', 'b', { value: '22' });
+    await db.updateById('config', 'b', { value: '22' });
     await new Promise(r => setTimeout(r, 150));
-    ok('updateById resolves string pk', db.findById('config', 'b').value === '22', db.findById('config', 'b'));
+    ok('updateById resolves string pk', (await db.findById('config', 'b')).value === '22', await db.findById('config', 'b'));
 
-    db.removeById('config', 'a');
+    await db.removeById('config', 'a');
     await new Promise(r => setTimeout(r, 150));
     ok('removeById resolves string pk', (await db.count('config')) === 1, await db.count('config'));
 
-    db.updateByIds('config', [['b', { value: '222' }]]);
+    await db.updateByIds('config', [['b', { value: '222' }]]);
     await new Promise(r => setTimeout(r, 150));
-    ok('updateByIds resolves string pk', db.findById('config', 'b').value === '222', db.findById('config', 'b'));
+    ok('updateByIds resolves string pk', (await db.findById('config', 'b')).value === '222', await db.findById('config', 'b'));
 
-    db.removeByIds('config', ['b']);
+    await db.removeByIds('config', ['b']);
     await new Promise(r => setTimeout(r, 150));
     ok('removeByIds resolves string pk', (await db.count('config')) === 0, await db.count('config'));
     await db.stop();

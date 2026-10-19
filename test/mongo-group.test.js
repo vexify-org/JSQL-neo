@@ -1,3 +1,17 @@
+/* ⚠️ 已知损坏，未纳入任何 CI 套件（test:all / npm test 都不含本文件）
+ *
+ * 现状：本文件会崩在 `rows is not iterable`（lib/mongo_server.js:541）。
+ * 另外 MongoDB 协议栈与**官方现代 driver 的握手尚未打通** ——
+ * 用官方 mongodb driver 连不上。
+ *
+ * 因此「四协议」目前实际是「一个半」：MySQL 可用；PG / Redis 以库形式
+ * 提供、需自行装配；MongoDB 仅供实验。
+ * 文档已按此更正（doc/why.md、doc/cli.md）。
+ *
+ * 修好前请勿把本文件加进 CI —— 它一崩就会像之前那样掐断 `&&` 链。
+ * 修 MongoDB 需要单独排期，不属于性能/打包类改动。
+ */
+
 // Test: MongoDB $group aggregation operators
 // Directly tests the _dispatch method of createMongoServer
 const { createMongoServer } = require('../lib/mongo_server.js');

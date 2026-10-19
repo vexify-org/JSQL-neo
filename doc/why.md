@@ -28,9 +28,12 @@ JSQL-NEO 让三者兼得：
 
 核心亮点：
 
-- **一套引擎，三种形态** — `native`（Rust N-API）、`wasm`（同一 Rust 核心编译为 WebAssembly）、`js`（纯 JS 回退）。自动降级：native → wasm → js。
-- **真正的 Wire Protocol，不是模拟器** — 手写的 MySQL 4.1+、PostgreSQL Wire Protocol v3（SCRAM-SHA-256）、MongoDB OP_MSG/OP_QUERY（+ 压缩）、Redis RESP2 协议栈。
-- **一个端口，连接所有客户端** — 首字节 sniffing 自动路由，MySQL / PostgreSQL / MongoDB / Redis 客户端访问**同一份数据**。
+- **一套引擎，三种形态** — `native`（Rust N-API）、`wasm`（同一 Rust 核心编译为 WebAssembly）、`js`（纯 JS 实现）。三者功能等价，**但没有自动降级**：用哪种要在构造时显式指定 `new Database(path, { engine: 'native' | 'wasm' | 'js' })`。
+  直接 `require('./lib/native_client')` 而机器上没有预编译的 `.node` 时会**抛错**，不会悄悄退回纯 JS —— 这是刻意选择：静默降级会让「为什么突然慢了十倍」变得无法排查。需要无 native 环境时，请显式用 `lib/database` 的 `engine: 'js'`。
+- **Wire Protocol 栈，不是模拟器** — 手写的 MySQL 4.1+、PostgreSQL Wire Protocol v3（SCRAM-SHA-256）、MongoDB OP_MSG/OP_QUERY、Redis RESP2。
+  **成熟度不同**：MySQL 已验证可用；PG / Redis 以库形式提供、需自行装配；MongoDB 与官方现代 driver 的握手**尚未打通**，自带测试当前失败，仅供实验。
+- **多协议要在代码里装配** — 协议栈以库的形式提供（`lib/pg_server`、`lib/redis_server`、`lib/mongo_server`），各自监听自己的端口。
+  CLI 的 `serve` 子命令**目前只实现 MySQL**，「一个端口连接所有客户端」尚未落地。
 - **完整 SQL** — DDL/DML、JOIN、子查询、带保存点的事务、视图、索引、约束、89 个标量函数、窗口函数和 CTE 基础支持。
 - **文档语义** — MongoDB 风格操作符（`$gt`、`$regex`、`$elemMatch` 等）、聚合管道（`$match`、`$group`、`$sort` 等）。
 - **KV 语义** — 五种 Redis 数据类型、TTL、快照持久化。

@@ -90,50 +90,50 @@ function respClient(port) {
   /* ============ Core engine ============ */
   const db = new Database(':memory:', { autoSave: false });
   await db.start();
-  db.createTable('users', { id: 'integer primary key auto_increment', name: 'string', email: 'string unique', age: 'integer' });
-  for (const [n, a] of [['A', 10], ['B', 20], ['C', 30]]) db.insert('users', { name: n, email: n.toLowerCase() + '@x', age: a });
+  await db.createTable('users', { id: 'integer primary key auto_increment', name: 'string', email: 'string unique', age: 'integer' });
+  for (const [n, a] of [['A', 10], ['B', 20], ['C', 30]]) await db.insert('users', { name: n, email: n.toLowerCase() + '@x', age: a });
 
   {
-    const gt = db.find('users', { age: { $gt: 20 } }).map(r => r.name);
+    const gt = (await db.find('users', { age: { $gt: 20 } })).map(r => r.name);
     ok('find $gt excludes boundary', JSON.stringify(gt) === '["C"]', gt);
-    const lt = db.find('users', { age: { $lt: 20 } }).map(r => r.name);
+    const lt = (await db.find('users', { age: { $lt: 20 } })).map(r => r.name);
     ok('find $lt excludes boundary', JSON.stringify(lt) === '["A"]', lt);
   }
 
   {
-    db.removeById('users', 2); // B (id=2) removed, C still id=3
-    ok('removeById with PK count', db.count('users') === 2, db.count('users'));
-    ok('removeById PK lookup null', db.findById('users', 2) === null);
-    ok('removeById B-Tree still consistent', db.find('users', { age: { $gt: 15 } }).length === 1);
+    await db.removeById('users', 2); // B (id=2) removed, C still id=3
+    ok('removeById with PK count', await db.count('users') === 2, await db.count('users'));
+    ok('removeById PK lookup null', await db.findById('users', 2) === null);
+    ok('removeById B-Tree still consistent', (await db.find('users', { age: { $gt: 15 } })).length === 1);
   }
 
   {
-    db.createTable('np', { v: 'string', n: 'integer' });
-    for (let i = 0; i < 10; i++) db.insert('np', { v: 'v' + i, n: i });
-    db.createTable('h', { id: 'integer primary key auto_increment', grp: 'string', val: 'integer' });
-    for (let i = 0; i < 12; i++) db.insert('h', { grp: 'g' + (i % 4), val: i });
+    await db.createTable('np', { v: 'string', n: 'integer' });
+    for (let i = 0; i < 10; i++) await db.insert('np', { v: 'v' + i, n: i });
+    await db.createTable('h', { id: 'integer primary key auto_increment', grp: 'string', val: 'integer' });
+    for (let i = 0; i < 12; i++) await db.insert('h', { grp: 'g' + (i % 4), val: i });
     db._tables.h.createIndex('grp');
 
-    db.removeByIds('np', [1, 2]);
-    ok('removeByIds no-PK rebuilds indexes', db.find('np').length === 8, db.find('np').length);
+    await db.removeByIds('np', [1, 2]);
+    ok('removeByIds no-PK rebuilds indexes', (await db.find('np')).length === 8, (await db.find('np')).length);
 
-    const pre = db.find('h', { grp: 'g1' }).map(r => r.id).sort((a, b) => a - b);
-    db.removeById('h', 1); db.removeById('h', 5); db.removeById('h', 9); // the g0 rows
-    const post = db.find('h', { grp: 'g1' }).map(r => r.id).sort((a, b) => a - b);
+    const pre = (await db.find('h', { grp: 'g1' })).map(r => r.id).sort((a, b) => a - b);
+    await db.removeById('h', 1); await db.removeById('h', 5); await db.removeById('h', 9); // the g0 rows
+    const post = (await db.find('h', { grp: 'g1' })).map(r => r.id).sort((a, b) => a - b);
     ok('hash index survives swap-pop (g1 intact)', JSON.stringify(post) === JSON.stringify(pre), { pre, post });
-    ok('hash index has no stale g0 rows', db.find('h', { grp: 'g0' }).length === 0);
+    ok('hash index has no stale g0 rows', (await db.find('h', { grp: 'g0' })).length === 0);
     let stale = 0;
     for (const list of db._tables.h._indexes.grp.values()) for (const i of list) if (!db._tables.h._rows[i]) stale++;
     ok('hash index zero stale entries', stale === 0, stale);
   }
 
   {
-    db.createTable('docs', { id: 'integer primary key', data: 'string' });
-    db.insert('docs', { id: 1, data: JSON.stringify({ a: { b: 1 }, list: [1, 2, 3] }) });
+    await db.createTable('docs', { id: 'integer primary key', data: 'string' });
+    await db.insert('docs', { id: 1, data: JSON.stringify({ a: { b: 1 }, list: [1, 2, 3] }) });
     db.begin();
-    db.updateById('docs', 1, { data: JSON.stringify({ a: { b: 2 }, list: [9] }) });
+    await db.updateById('docs', 1, { data: JSON.stringify({ a: { b: 2 }, list: [9] }) });
     db.rollback();
-    const d = JSON.parse(db.findById('docs', 1).data);
+    const d = JSON.parse((await db.findById('docs', 1)).data);
     ok('transaction snapshot deep-copies nested object', d.a.b === 1, d);
     ok('transaction snapshot deep-copies arrays', JSON.stringify(d.list) === '[1,2,3]', d.list);
   }
@@ -148,31 +148,31 @@ function respClient(port) {
     ok('parseFieldShorthand default', s3.default === 'x' && s3.type === 'string', s3);
 
     let e = null;
-    try { db.insert('users', { name: 'X', email: 'a@x', age: 1 }); } catch (err) { e = err; }
+    try { await db.insert('users', { name: 'X', email: 'a@x', age: 1 }); } catch (err) { e = err; }
     ok('duplicate unique throws ER_DUP_ENTRY', e && (e.code === 1062 || String(e).includes('1062')), e && (e.code || e.message));
-    db.createTable('pk2', { a: 'integer primary key', b: 'string' });
-    db.insert('pk2', { a: 1, b: 'x' });
+    await db.createTable('pk2', { a: 'integer primary key', b: 'string' });
+    await db.insert('pk2', { a: 1, b: 'x' });
     e = null;
-    try { db.insert('pk2', { a: 1, b: 'y' }); } catch (err) { e = err; }
+    try { await db.insert('pk2', { a: 1, b: 'y' }); } catch (err) { e = err; }
     ok('duplicate primary key throws ER_DUP_ENTRY', e && (e.code === 1062 || String(e).includes('1062')), e && (e.code || e.message));
   }
 
   {
     const r = await migrate.importFromJSON(db, { table: 't1', schema: { id: 'integer primary key' }, rows: [{ id: 1 }, { id: 2 }] });
-    ok('importFromJSON single-table shape', r && db.count('t1') === 2);
+    ok('importFromJSON single-table shape', r && await db.count('t1') === 2);
     let threw = null;
     try { await migrate.importFromJSON(db, { table: 't1', schema: { id: 'integer primary key' }, rows: [{ id: 3 }] }); } catch (err) { threw = err; }
     ok('importFromJSON refuses existing table without overwrite', !!threw, threw && (threw.message || String(threw)));
     await migrate.importFromJSON(db, { table: 't1', schema: { id: 'integer primary key' }, rows: [{ id: 3 }] }, { overwrite: true });
-    ok('importFromJSON overwrite replaces table', db.count('t1') === 1, db.count('t1'));
+    ok('importFromJSON overwrite replaces table', await db.count('t1') === 1, await db.count('t1'));
   }
 
   {
-    db.createTable('lk', { s: 'string' });
-    for (const s of ['a.b', 'axb', 'aXb', 'abc']) db.insert('lk', { s });
-    const m = db.find('lk', { s: { $like: 'a.b' } }).map(r => r.s);
+    await db.createTable('lk', { s: 'string' });
+    for (const s of ['a.b', 'axb', 'aXb', 'abc']) await db.insert('lk', { s });
+    const m = (await db.find('lk', { s: { $like: 'a.b' } })).map(r => r.s);
     ok('$like escapes regex metacharacters', JSON.stringify(m) === '["a.b"]', m);
-    const m2 = db.find('lk', { s: { $like: 'a%b' } }).map(r => r.s);
+    const m2 = (await db.find('lk', { s: { $like: 'a%b' } })).map(r => r.s);
     ok('$like % wildcard still works', JSON.stringify(m2) === '["a.b","axb","aXb"]', m2);
   }
   await db.stop();

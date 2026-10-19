@@ -6,6 +6,57 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.4.5] — 2026-10-19
+
+### Fixed
+
+- **native.test.js 的 9 个失败全是测试自己的问题，不是 Rust 原生路径的 bug。**
+  `findById` / `updateById` / `updateByIds` / `removeById` / `removeByIds`
+  在 `lib/database` 与 `lib/native_client` 里**都是 async**，但用例按同步写，
+  拿到的是 Promise 不是行。9 个失败全落在主键语义（string pk、snake_case pk、
+  next-id 自增）只是因为那些用例恰好没 await。补 await 后 19/9 → 28/0。
+- **regress-5.1.0.js 同类问题**：37 处漏 await
+  （`db.find(...).map is not a function`），这是 `test:all` 的第二个崩溃点。
+  补齐后 43/0。
+
+### 文档更正（此前虚标）
+
+- **`js` 的回退已由 267f436 补上**（`native_client.js` 在 .node 缺失时不再崩）。
+  本条原写作「没有回退」，发版前发现上游已修，按实情更正。
+- **`js` 不是「自动降级」，是显式选项。** doc/why.md 原写「自动降级：
+  native → wasm → js」。实测删掉 `native/jsql-neo-native.node` 后
+  `require('./lib/native_client')` 直接抛 `Cannot find module` —— 没有任何回退。
+  纯 JS 引擎（`new Database(path, { engine: 'js' })`）功能完整可用，但必须
+  自己指定。已按实情改写，并说明为何不做静默降级：静默降级会让「为什么突然
+  慢了十倍」无法排查。
+- **CLI `serve` 只有 MySQL。** doc/cli.md 原列
+  `serve --mysql/--pg/--redis/--mongo` 四个旗标，实际 `bin/jsql` 的 serve
+  子命令只有 `--port/--host/--data-dir/--no-auth/--log`，且只调
+  `createMysqlServer`。同文档的 `--password`、`--auto-save`、
+  `--save-interval` 同样不存在。
+- **「四协议」实为「一个半」。** MySQL 已验证；PG / Redis 以库形式提供、
+  需自行装配（CLI 无入口）；MongoDB 与官方现代 driver 的握手尚未打通。
+  `test/mongo-group.test.js` 本就会崩，已在文件头标注「已知损坏、请勿加进 CI」。
+
+### 测试
+
+- **native.test.js 挪回默认 `npm test`（第 2 位）。** 它是原生路径唯一的
+  回归网，挪出去等于「native 改了没人知道坏了」。
+- `npm test` 现 exit=0（含 native）。
+
+### 已知问题（本版未修）
+
+- **`test/btree.test.js` 的随机混合用例是 flaky 的**：它直接用 `Math.random()`
+  没有种子，同一个 `t21` 两次跑出的 size 不同（38 / 37），失败无法复现定位。
+  因此 `test:all` 偶发 exit=1（约一半概率）。
+  试过改成 mulberry32 + 固定种子让它可复现，但五个不同种子给出**完全相同**的
+  60 failures / 97 passed —— 说明失败与随机序列无关，另有原因，已撤回该改动。
+  待查方向：`validate()` 的不变量断言、`greaterThan/lessThan` 的边界语义，
+  或用例里 `okAll` 被前面某个断言置 false 后没有区分是哪里出的问题。
+
+## [6.4.4] — 2026-10-18
+
+
 ## [6.4.4] — 2026-10-18
 
 ### Performance
