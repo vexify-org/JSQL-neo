@@ -6,6 +6,51 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.4.8] — 2026-10-19
+
+### Fixed
+
+- **native `updateById` / `updateByIds` 退化成全表扫描：20 万行上 250~500ms → 1.5ms。**
+
+  `_assertNoKeyConflictSync`（为修「`UPDATE t SET id = 1 WHERE id = 2`
+  静默产生两行同主键」而加的安全检查）实现成了：
+
+  ```js
+  const raw = this._n('jsqlFind', table, '{}', 1000000, 0);   // 整表 20 万行全量 JSON 化
+  // 然后进循环，对每个主键/UNIQUE 列做 all.find + all.some（O(n²)）
+  ```
+
+  这个整表导出是**无条件**的 —— 尽管循环体里本来就写着
+  `if (!hasOwnProperty(data, f)) continue`，也就是「这次更新没碰这个列就不必查」。
+  但取数发生在那之前。
+
+  于是 `UPDATE t SET age = 30 WHERE id = 1`（age 压根不是主键）也要先把整张表
+  导出成 JSON —— **比读整张表还贵，而它本来只需要定位一行**。
+
+  修法：先算出 `data` 里到底碰了哪些主键/UNIQUE 列，一个都没碰就直接返回。
+  冲突检查本身不变（仍会在改主键/UNIQUE 时全表扫，那是必要的）。
+
+  **20 万行实测**（`findById(id=100000)` / `updateById` / `find({age:25})`）：
+
+  | 操作 | 修复前 | 修复后 |
+  | --- | --- | --- |
+  | `updateById`（native） | 246~507ms | **1.52ms** |
+
+  同一批实测里另外两处与传闻不符，如实记录：
+  `findById` native 1.46ms vs pure-js 0.76ms（约 1.9x，并非数百倍 ——
+  `_seqIdByPk` 本就走带过滤 + limit 1 的索引查找）；
+  批量插入 20 万行 native 277ms vs pure-js 276ms（持平，非更慢）；
+  `find({age:25})` native 0.36ms 反而比 pure-js 1.97ms 快 5.5x。
+
+### 测试
+
+- 键冲突语义逐项复验：改主键 → `ER_DUP_ENTRY`；改 UNIQUE 列 → `ER_DUP_ENTRY`；
+  改普通列成功；改主键为新值成功。2/2 拦截，未丢语义。
+- `npm test` 与 `test:all` 均 exit=0。
+
+## [6.4.7] — 2026-10-19
+
+
 ## [6.4.7] — 2026-10-19
 
 ### Fixed
