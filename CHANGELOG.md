@@ -6,6 +6,63 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.4.9] — 2026-10-19
+
+### Fixed
+
+- **纯 JS 与 native 对 schema 字段名的认法不一致（静默正确性 bug）。**
+
+  `native_client` 在把 schema 交给 Rust 之前会归一化字段名
+  （`primary_key` → `primaryKey`，见 `lib/native_client.js`），
+  而**纯 JS 的 `lib/table.js` 只认驼峰**。
+
+  后果：README 与官方示例用的正是下划线写法
+  （`{ id: { type:'integer', primary_key:true, auto_increment:true } }`），
+  在 native 下正常，在纯 JS 下：
+
+  - 自增 id **根本不生成**（`row.id === undefined`）
+  - `find({ id: 1 })` 永远返回空
+  - `findById(1)` 返回的是一条**没有 id 的行**
+
+  **全程不报任何错** —— 这是最糟的一类：不报错、不崩，只是安静地给错结果，
+  而按文档写的代码换引擎就失效。
+
+  修法：`lib/table.js` 解析 schema 字段时同样归一化，两种写法都认。
+  已加回归用例，对两个引擎分别断言「自增 id 生成」与「findById 命中」。
+
+  修复前：
+
+  | 引擎 | 下划线写法结果 |
+  | --- | --- |
+  | native | `id=1`，`findById(1)` 命中 |
+  | 纯 JS | `id=undefined`，`findById(1)` 返回 `{"name":"a"}` |
+
+### 已知问题（本版未修，已确认存在）
+
+以下四点已复现/确认为真，需单独排期：
+
+1. **Rust 端 `find_rows()` 对任何 filter 都走 `rows.iter().filter()` 全表扫**，
+   明明有 O(1) 的 `pk_index`；JS 层 `_findRawById` 对 `{id:pk}` 也没走
+   O(1) 的 `jsqlFindById`。这是主键点查本可以更快却没走索引的原因
+   （注：本机实测 native `findById` 在 20 万行上为 1.46ms，
+   并非数量级劣化；真正的量级问题在 updateById，已于 6.4.8 修掉）。
+2. **批量插入**：整批 rows 在 JS 侧 map + `JSON.stringify` 成大字符串跨 N-API
+   传给 Rust 再解析，叠加 hook 的 async 开销。（实测 20 万行 native 277ms vs
+   纯 JS 276ms，持平，暂无劣化，但传输方式本身有优化空间。）
+3. **`updateById` 是 fire-and-forget**：写入经 opBuffer + 定时器，延迟约 50ms。
+   读前会 flush，但**不调 `stop()` 直接退出会丢写**。
+4. **`_assertNoKeyConflictSync`**：改主键 / UNIQUE 列时把最多 100 万行拉进 JS
+   做重复值检查 —— 6.4.8 已让它在「本次更新没碰主键/UNIQUE」时完全跳过，
+   但真正需要检查时仍是 O(n)，本可用索引做到 O(1)。
+
+### 测试
+
+- test/native.test.js 新增 4 项（两引擎 × 自增 id 生成 / findById 命中）。
+- `npm test` 与 `test:all` 均 exit=0。
+
+## [6.4.8] — 2026-10-19
+
+
 ## [6.4.8] — 2026-10-19
 
 ### Fixed

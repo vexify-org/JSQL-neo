@@ -151,6 +151,43 @@ function ok(name, cond, extra) {
     await db.stop();
   }
 
+/* ---- schema 字段名下划线写法：两引擎必须一致（静默正确性 bug）---- */
+/*
+ * README 与官方示例用下划线写法（primary_key / auto_increment）。
+ * native_client 交给 Rust 前会归一化，纯 JS 的 table.js 此前不认 ——
+ * 结果纯 JS 下自增 id 根本不生成、find({id:1}) 永远空，且**不报任何错**。
+ */
+{
+  const SNAKE = { id: { type: 'integer', primary_key: true, auto_increment: true }, name: { type: 'string' } };
+
+  // native
+  {
+    const d = new JSQL();
+    await d.start();
+    await d.createTable('snk', SNAKE);
+    await d.insert('snk', [{ name: 'a' }, { name: 'b' }]);
+    await new Promise(r => setTimeout(r, 200));
+    const rows = await d.find('snk', {});
+    const first = rows.find(r => r.name === 'a');
+    ok('schema 下划线写法 · native：自增 id 生成', !!(first && first.id !== undefined), rows);
+    const got = await d.findById('snk', first && first.id);
+    ok('schema 下划线写法 · native：findById 命中', !!(got && got.name === 'a'), got);
+    await d.stop();
+  }
+
+  // pure JS
+  {
+    const Database = require(path.join(ROOT, 'lib', 'database'));
+    const d = new Database(':memory:');
+    await d.createTable('snk', SNAKE);
+    await d.insert('snk', [{ name: 'a' }, { name: 'b' }]);
+    const rows = await d.find('snk', {});
+    const first = rows.find(r => r.name === 'a');
+    ok('schema 下划线写法 · pure-js：自增 id 生成', !!(first && first.id !== undefined), rows);
+    const got = await d.findById('snk', first && first.id);
+    ok('schema 下划线写法 · pure-js：findById 命中', !!(got && got.name === 'a'), got);
+  }
+}
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })().catch(e => {
