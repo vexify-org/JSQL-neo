@@ -8,7 +8,9 @@ const migrate = require('../lib/migrate');
 const { nag, setStarred, readConfig } = require('../lib/star-nag');
 
 // star 提示：任何异常都不该挡住命令本身
-if (!process.env.JSQL_NO_STAR_NAG) { try { nag(); } catch (e) { /* 提示失败与命令无关 */ } }
+if (!process.env.JSQL_NO_STAR_NAG && process.argv[2] !== 'star') {
+  try { nag(); } catch (e) { /* 提示失败与命令无关 */ }
+}
 
 function printModules(list) {
   if (list.length === 0) {
@@ -172,13 +174,23 @@ const cli = yaggs({ pkg: require('../package.json') })
     console.log(`jsql-neo MySQL server on ${options.host}:${options.port}${options.dataDir ? ' (data: ' + options.dataDir + ')' : ' (in-memory)'}`);
     setInterval(() => {}, 1 << 30);
   })
-  .command('star', 'Show or confirm this repo\'s star status', () => {},
-    async () => {
-      const c = readConfig();
-      console.log('config: ' + require('../lib/star-nag').configPath());
-      console.log('marked starred: ' + (c.starred ? 'yes' : 'no'));
-      console.log('' + require('../lib/star-nag').URL);
-    })
+  .command('star', 'Confirm whether you starred this repo (opens browser once)', (sub) => {
+    sub.option('reset', { type: 'boolean', description: 'Forget the saved star state and re-check' });
+  }, async (argv) => {
+    const sn = require('../lib/star-nag');
+    if (argv.reset) sn.setStarred(false);
+    const c = sn.readConfig();
+    if (c.starred) {
+      console.log('Already confirmed starred (config: ' + sn.configPath() + ')');
+      console.log('Run with --reset to re-check.');
+      return;
+    }
+    console.log('Opening browser to confirm your star…');
+    const nonceUrl = sn.startOauthCheck();     // 打开浏览器 + 后台轮询写回 ~/.jsqlmr
+    if (!process.stdout.isTTY) console.log('  ' + nonceUrl);
+    console.log('After you authorize, this config is updated: ' + sn.configPath());
+    console.log('Run `jsql star` again afterwards to see the result.');
+  })
   .command('bench', 'Insert + query benchmark against a data directory', (sub) => {
     sub.option('n', { type: 'number', description: 'Number of rows (default 10000)' });
     sub.option('data-dir', { type: 'string', description: 'Data directory (default :memory:)' });
