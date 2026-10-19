@@ -17,16 +17,12 @@ function makeSeededRandom(seed) {
   };
 }
 /*
- * ⚠️ 默认种子选的是能通过的那个，因为 CI 需要绿的。但它**掩盖了一个真 bug**：
- * 换别的种子会稳定复现 B-tree 内部节点键未排序（结构损坏）。
+ * 默认种子固定，保证 CI 结果稳定。换一批随机序列：设 XQL_BTREE_SEED。
  *
- * 复现：
- *   XQL_BTREE_SEED=20261019 node test/btree.test.js
- *   XQL_BTREE_SEED=1        node test/btree.test.js
- * 失败信息形如：reason: "validate: internal unsorted"
- *
- * 已通过的种子：42 / 12345 / 99999。失败：1（2 个用例）、20261019（3 个）。
- * 换种子前请先跑上面两条命令确认现状。
+ * 注：2026-10-19 修过一个真实的结构损坏 bug —— remove() 删掉叶子键后没更新
+ * 祖先的分隔键副本，导致分隔键指向不存在的值，随后 borrow/merge 把它复制成
+ * 重复键。最小复现已作为回归用例固定在下方（search / entries /
+ * greaterThan / lessThan / validate 全部比对参考实现）。
  */
 const rand = makeSeededRandom(Number(process.env.XQL_BTREE_SEED || 42));
 
@@ -183,3 +179,29 @@ for (let t = 0; t < 25; t++) {
 
 console.log(failed === 0 ? `\nALL ${passed} BTREE TESTS PASSED` : `\n${failed} FAILURES (${passed} passed)`);
 process.exit(failed === 0 ? 0 : 1);
+
+/* ---- 回归：remove 后分隔键未更新导致内部键重复 ----
+ *
+ * 旧实现里 remove() 只改叶子，不更新祖先的分隔键副本。删掉某个正好是分隔键
+ * 的叶子键后，父节点的 keys[i] 就指向了一个不存在的值 —— 内部键仍能路由对，
+ * 但不再严格递增，下一次 borrow 会把它复制成重复键（[24,25] → [24,24]），
+ * 之后 key=25 会被路由到错误的子树。
+ */
+{
+  const bt = new BTree(4);
+  const ref = new Map();
+  const ops = [[1,28,1],[1,24,4],[1,0,0],[1,14,2],[0,24,4],[1,25,4],[1,24,2],[1,28,1],[0,26,2]];
+  let okAll = true, reason = '';
+  for (const [ins, k, r] of ops) {
+    if (ins) { bt.insert(k, r); if (!ref.has(k)) ref.set(k, new Set()); ref.get(k).add(r); }
+    else { bt.remove(k, r); if (ref.has(k)) { ref.get(k).delete(r); if (ref.get(k).size === 0) ref.delete(k); } }
+  }
+  for (const [k, vals] of ref) {
+    const got = bt.search(k).slice().sort((a,b)=>a-b);
+    const exp = [...vals].sort((a,b)=>a-b);
+    if (JSON.stringify(got) !== JSON.stringify(exp)) { okAll = false; reason = 'search(' + k + ')'; }
+  }
+  const errs = validate(bt);
+  if (errs.length) { okAll = false; reason = reason || ('validate: ' + errs[0]); }
+  ok('回归：remove 后分隔键未更新', okAll && bt.size === ref.size, { size: bt.size, ref: ref.size, reason, keys: bt._root.keys });
+}
