@@ -6,6 +6,23 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.5.0-beta.4] — 2026-10-20
+
+### 服务端修复（不在本仓库，部署于 auth.vexify.top）
+
+- **redirect_uri 三处不一致**导致授权必然失败
+  （`The code passed is incorrect or expired.`）：start 发 `/callback`、
+  callback 换 token 发 `/callback.php`、GitHub 注册的是 `/callback.php`。
+  现已全部对齐到 `/callback.php`。
+- 补齐多文件端点的服务端文件：`start.php` / `result.php` / `config.php` /
+  根目录 `callback.php`（此前根目录 404，客户端 `AUTH_START`/`AUTH_RESULT` 全部打空）。
+
+本包本身无代码变更，发 beta 是为了配合服务端修复做端到端验证：
+`jsql star` → 授权 → `~/.jsqlmr` 写入 starred。
+
+## [6.5.0-beta.3] — 2026-10-19
+
+
 ### Fixed
 
 - **star 提示的 OAuth 地址同步到 auth.vexify.top 新多文件结构。** 服务端已从单文件
