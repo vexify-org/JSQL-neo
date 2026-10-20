@@ -8,7 +8,8 @@ const migrate = require('../lib/migrate');
 const { nag, setStarred, readConfig } = require('../lib/star-nag');
 
 // star 提示：任何异常都不该挡住命令本身
-if (!process.env.JSQL_NO_STAR_NAG && process.argv[2] !== 'star') {
+// version 只回版本号、star 本身就是干这件事的 —— 这两个不提示，其余全部提示
+if (!process.env.JSQL_NO_STAR_NAG && !['version','star'].includes(process.argv[2])) {
   try { nag(); } catch (e) { /* 提示失败与命令无关 */ }
 }
 

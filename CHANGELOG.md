@@ -6,6 +6,21 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.5.0-beta.5] — 2026-10-20
+
+### 提示语规则调整（用户明确要求：不强制）
+
+1. **去掉自动弹浏览器。** 此前提示语出现时会顺带 `startOauthCheck()`，
+   任何 jsql 命令都可能弹浏览器 —— 这是「强制」。现在只印文字，
+   要确认请用户自己跑 `jsql star`。
+2. **去掉 30 天节流。** 除 `version`（只回版本号）和 `star`（本身就是干这个的）
+   之外，**每个命令都印**，不再「只提醒一次」。
+3. **`~/.jsqlmr` 只记录是否 star。** `starred: true` 是唯一闭嘴开关；
+   `lastNagAt` 随节流一起废除，不再写入。`JSQL_NO_STAR_NAG=1` 可临时静音。
+
+## [6.5.0-beta.4] — 2026-10-20
+
+
 ## [6.5.0-beta.4] — 2026-10-20
 
 ### 服务端修复（不在本仓库，部署于 auth.vexify.top）
