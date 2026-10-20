@@ -8,8 +8,9 @@ const migrate = require('../lib/migrate');
 const { nag, setStarred, readConfig } = require('../lib/star-nag');
 
 // star 提示：任何异常都不该挡住命令本身
-// version 只回版本号、star 本身就是干这件事的 —— 这两个不提示，其余全部提示
-if (!process.env.JSQL_NO_STAR_NAG && !['version','star'].includes(process.argv[2])) {
+// version / --version 只回版本号、star 本身就是干这件事的 —— 这些不提示，其余全部提示
+const NO_NAG_ARGS = new Set(['version', '--version', '-v', 'star']);
+if (!process.env.JSQL_NO_STAR_NAG && !NO_NAG_ARGS.has(process.argv[2])) {
   try { nag(); } catch (e) { /* 提示失败与命令无关 */ }
 }
 
@@ -190,7 +191,20 @@ const cli = yaggs({ pkg: require('../package.json') })
     const nonceUrl = sn.startOauthCheck();     // 打开浏览器 + 后台轮询写回 ~/.jsqlmr
     if (!process.stdout.isTTY) console.log('  ' + nonceUrl);
     console.log('After you authorize, this config is updated: ' + sn.configPath());
-    console.log('Run `jsql star` again afterwards to see the result.');
+    console.log('Waiting for authorization (up to 3 minutes)…');
+    // startOauthCheck 的定时器是 unref 的，命令必须自己前台等，否则接不到结果
+    const res = sn.waitForResult(nonceUrl, 180000);
+    if (res && res.starred) {
+      sn.setStarred(true);
+      console.log(`Confirmed: ${res.login} has starred ${res.repo}. Thanks!`);
+      return;
+    }
+    if (res) {
+      console.log(`Authorization finished, but ${res.login} has not starred ${res.repo} yet.`);
+      console.log(`Star it at https://github.com/${res.repo} then run \`jsql star\` again.`);
+      return;
+    }
+    console.log('Timed out or the link expired. Run `jsql star` again to retry.');
   })
   .command('bench', 'Insert + query benchmark against a data directory', (sub) => {
     sub.option('n', { type: 'number', description: 'Number of rows (default 10000)' });

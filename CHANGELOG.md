@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.5.0-beta.6] — 2026-10-20
+
+### Fixed
+
+- **`jsql star` 接不到授权结果。** 轮询定时器是 `unref()` 的，CLI 打印完提示就退出，授权完成后 `~/.jsqlmr` 从不更新。`star` 命令改为前台等待（最长 3 分钟），拿到 done 后立即写入配置。
+- **`lib/star-nag.js` 的 `const URL` 遮蔽全局 `URL` 类**，解析 nonce 时 `new URL(...)` 抛 TypeError 被吞掉。改为 `require('url').URL`。
+- **`jsql --version` 被 star 提示语污染。** 排除列表只写了 `version` 子命令，漏了 `--version` / `-v`。
+- **服务端 star 检查误判。** GitHub 单仓库 endpoint 有同步延迟（列表已有、单查 404）。`auth/callback.php` 改为拉 star 列表做包含性检查（最多 5 页 × 100）。
+
 ## [6.5.0-beta.5] — 2026-10-20
 
 ### 提示语规则调整（用户明确要求：不强制）
