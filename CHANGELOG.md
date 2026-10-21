@@ -4,6 +4,18 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [Unreleased]
+
+### Changed
+
+- **CLI 提示改短，并改为中英双语。** `jsql star` 与启动提示（nag）现在一行英文
+  + 一行中文：正在打开浏览器 / 等待授权 / 已确认 / 还没 star / 授权被拒绝或失败
+  / 链接已过期 / 已超时，都缩短并在同一行给出两种语言。
+- OAuth 回调页文案改为英文（auth/callback.php、auth/start.php，部署于
+  auth.vexify.top）："Thanks for the star!"、"Not starred yet"、
+  "Authorization canceled"、"Missing parameters"、"Token exchange failed"、
+  "Cannot read account" 等。根目录 start.php / result.php 本就返回英文。
+
 ## [6.5.3] — 2026-10-21
 
 ### Fixed

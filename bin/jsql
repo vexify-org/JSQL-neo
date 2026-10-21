@@ -201,40 +201,40 @@ const cli = yaggs({ pkg: require('../package.json') })
     if (argv.reset) sn.setStarred(false);
     const c = sn.readConfig();
     if (c.starred) {
-      console.log('Already confirmed starred (config: ' + sn.configPath() + ')');
-      console.log('Run with --reset to re-check.');
+      console.log(`Already confirmed starred 已确认过: ${sn.configPath()}`);
+      console.log('Run with --reset to re-check · 用 --reset 重新检查');
       return;
     }
-    console.log('Opening browser to confirm your star…');
+    console.log('Opening browser to confirm your star… 正在打开浏览器确认');
     const nonceUrl = sn.startOauthCheck();     // 打开浏览器 + 后台轮询写回 ~/.jsqlmr
     if (!process.stdout.isTTY) console.log('  ' + nonceUrl);
-    console.log('After you authorize, this config is updated: ' + sn.configPath());
-    console.log('Waiting for authorization (up to 3 minutes)…');
+    console.log(`Authorization updates this config 授权后写入配置: ${sn.configPath()}`);
+    console.log('Waiting for authorization (up to 3 minutes)… 等待授权（最多 3 分钟）…');
     // startOauthCheck 的定时器是 unref 的，命令必须自己前台等，否则接不到结果
     const res = sn.waitForResult(nonceUrl, 180000);
     const status = res && res.status;
     if (status === 'starred') {
       sn.setStarred(true);
-      console.log(`Confirmed: ${res.login} has starred ${res.repo}. Thanks!`);
+      console.log(`Confirmed: ${res.login} starred ${res.repo} — thanks! 已确认，谢谢！`);
       return;
     }
     if (status === 'not-starred') {
-      console.log(`Authorization finished, but ${res.login} has not starred ${res.repo} yet.`);
-      console.log(`Star it at ${sn.URL} then run \`jsql star\` again.`);
+      console.log(`Not starred yet 还没 star: ${res.login} has not starred ${res.repo}`);
+      console.log(`Star it at ${sn.URL}, then run \`jsql star\` again · 点星后重跑 \`jsql star\``);
       return;
     }
     if (status === 'denied' || status === 'error') {
-      // 这不是「没 star」，是授权本身没走通（code 过期、链接被重复打开、被拒绝）。
-      // 老实现这里会把 login/repo 打印成 undefined，并让用户去 star —— 误导。
-      console.log(`Authorization ${status === 'denied' ? 'was declined' : 'failed'}: ${res.error || 'unknown reason'}`);
-      console.log('The link is single-use. Run `jsql star` again to get a fresh one.');
+      // 这不是「没 star」，是授权本身没走通（code 过期、链接被重复打开、被拒绝）
+      const why = status === 'denied' ? 'declined 被拒绝' : 'failed 失败';
+      console.log(`Authorization ${why}: ${res.error || 'unknown reason'}`);
+      console.log('The link is single-use — run `jsql star` again · 链接一次性，请重跑 `jsql star`');
       return;
     }
     if (status === 'expired') {
-      console.log('The link expired. Run `jsql star` again to retry.');
+      console.log('The link expired 链接已过期 — run `jsql star` again · 请重跑');
       return;
     }
-    console.log('Timed out. Run `jsql star` again to retry.');
+    console.log('Timed out 已超时 — run `jsql star` again · 请重跑');
   })
   .command('bench', 'Insert + query benchmark against a data directory', (sub) => {
     sub.option('n', { type: 'number', description: 'Number of rows (default 10000)' });

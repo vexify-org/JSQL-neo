@@ -89,13 +89,13 @@ async function main() {
   console.log('\n--- 假 result.php 驱动真实 CLI ---');
   const cases = [
     ['done + starred', { state: 'done', result: { starred: true, login: 'octocat', repo: 'vexify-org/JSQL-neo' } },
-      'Confirmed: octocat has starred vexify-org/JSQL-neo. Thanks!'],
+      'Confirmed: octocat starred vexify-org/JSQL-neo'],
     ['done + 未 star', { state: 'done', result: { starred: false, login: 'octocat', repo: 'vexify-org/JSQL-neo' } },
-      'Authorization finished, but octocat has not starred vexify-org/JSQL-neo yet.'],
+      'Not starred yet 还没 star: octocat has not starred vexify-org/JSQL-neo'],
     ['denied', { state: 'denied', result: { error: 'access_denied' } },
-      'Authorization was declined: access_denied'],
+      'Authorization declined 被拒绝: access_denied'],
     ['error（code 过期/复用）', { state: 'error', result: { error: 'The code passed is incorrect or expired.' } },
-      'Authorization failed: The code passed is incorrect or expired.'],
+      'Authorization failed 失败: The code passed is incorrect or expired.'],
   ];
   for (const [name, resp, expect] of cases) {
     scenario = resp; pollsLeft = 0; after = null;
@@ -111,8 +111,8 @@ async function main() {
     pollsLeft = 2;
     after = { state: 'done', result: { starred: true, login: 'octocat', repo: 'vexify-org/JSQL-neo' } };
     const out = await runCli(path.join(mrDir, 'slow'));
-    ok('等完 pending 后正确确认', out.includes('Confirmed: octocat has starred vexify-org/JSQL-neo. Thanks!'), out.trim().slice(0, 200));
-    ok('全程没有误判成完成', !/Authorization finished/.test(out), out.trim().slice(0, 200));
+    ok('等完 pending 后正确确认', out.includes('Confirmed: octocat starred vexify-org/JSQL-neo'), out.trim().slice(0, 200));
+    ok('全程没有误判成完成', !/Not starred yet/.test(out), out.trim().slice(0, 200));
     ok('全程没有 undefined', !/undefined/.test(out), out.trim().slice(0, 200));
   }
 
