@@ -4,6 +4,22 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [Unreleased]
+
+### Fixed
+
+- **`jsql star` 报「授权完成，但 undefined 没有 star undefined」。** 线上
+  `result.php` 把「state 文件存在」一律当成授权完成，而 `start.php` 一发起
+  就写入 `{"state":"started"}`——于是 CLI 第二轮轮询（+2s）拿到中间态当
+  done，打印一段 login/repo 全为 `undefined` 的假失败信息。已本地 PHP 复现，
+  逐字对上用户报告的输出。现在按 state 文件**自己**的 state 判定：
+  `done/denied/error` 才终态，`started` 继续等，仅超龄才清理。
+- CLI 侧同步收紧：`waitForResult` / 后台轮询只接受带布尔 `starred` 的
+  done，中间态继续等而不是误判；`denied` / `error` 会打印真实原因并提示
+  链接一次性，不再让用户白跑去 star。
+- `callback.php` 增加幂等：同一条授权链接被重复请求（浏览器刷新/后退）时
+  直接复用已存结果，不再用「code 已用过」的失败覆盖成功的 done。
+
 ## [6.5.1] — 2026-10-21
 
 ### Added

@@ -212,17 +212,29 @@ const cli = yaggs({ pkg: require('../package.json') })
     console.log('Waiting for authorization (up to 3 minutes)…');
     // startOauthCheck 的定时器是 unref 的，命令必须自己前台等，否则接不到结果
     const res = sn.waitForResult(nonceUrl, 180000);
-    if (res && res.starred) {
+    const status = res && res.status;
+    if (status === 'starred') {
       sn.setStarred(true);
       console.log(`Confirmed: ${res.login} has starred ${res.repo}. Thanks!`);
       return;
     }
-    if (res) {
+    if (status === 'not-starred') {
       console.log(`Authorization finished, but ${res.login} has not starred ${res.repo} yet.`);
-      console.log(`Star it at https://github.com/${res.repo} then run \`jsql star\` again.`);
+      console.log(`Star it at ${sn.URL} then run \`jsql star\` again.`);
       return;
     }
-    console.log('Timed out or the link expired. Run `jsql star` again to retry.');
+    if (status === 'denied' || status === 'error') {
+      // 这不是「没 star」，是授权本身没走通（code 过期、链接被重复打开、被拒绝）。
+      // 老实现这里会把 login/repo 打印成 undefined，并让用户去 star —— 误导。
+      console.log(`Authorization ${status === 'denied' ? 'was declined' : 'failed'}: ${res.error || 'unknown reason'}`);
+      console.log('The link is single-use. Run `jsql star` again to get a fresh one.');
+      return;
+    }
+    if (status === 'expired') {
+      console.log('The link expired. Run `jsql star` again to retry.');
+      return;
+    }
+    console.log('Timed out. Run `jsql star` again to retry.');
   })
   .command('bench', 'Insert + query benchmark against a data directory', (sub) => {
     sub.option('n', { type: 'number', description: 'Number of rows (default 10000)' });
