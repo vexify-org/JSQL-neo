@@ -4,7 +4,34 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
-## [Unreleased]
+## [6.5.1] — 2026-10-21
+
+### Added
+
+- **一个端口四协议，命令行可用。** `jsql serve` 默认启动 `lib/multiserver.js`
+  的嗅探网关，MySQL / PostgreSQL / MongoDB / Redis 客户端共用同一端口、
+  读写同一个 `Database`（Redis 仍是独立 key 命名空间）。新增
+  `--mysql-only` 退回只服务 MySQL；`idleProtocol` / `sniffTimeout`
+  控制静默连接的兜底协议与嗅探等待。
+- MongoDB OP_MSG 支持 kind 1 文档序列（`insertMany` 走这条路，此前被
+  整段丢掉）。
+- 新增 `test/multiprotocol.test.js`（原始 socket 嗅探 + 四协议握手 +
+  CLI 启动，14 项断言，不依赖外部驱动）。
+
+### Fixed
+
+- **MongoDB 协议栈此前完全收不到消息：** `_handleSocket` 里把消息循环
+  `processLoop` 定义成函数却去调用全局 `process()`，standalone 与多协议
+  两条路径都不通。
+- **信号量：引擎读写是异步的，而 mongo 调度代码按同步写。** `find` /
+  `insert` / `updateByIds` / `removeByIds` 全部没 `await`，`Promise.filter`
+  直接抛 `TypeError`，表现为「握手通、查询必失败」。现在逐步 await。
+- MongoDB 独立模式改为按 `$db` 取引擎，与多协议网关一致——否则 Mongo
+  永远落在 `default` 引擎上，看不见 MySQL/PG 建的表。
+- 无主键集合的 `_patchRows` / `_removeRows` 改走 `_rowKey`：用主键值，
+  没有主键时传行对象让 `_resolveId` 做深度匹配。
+- 顺手修好先前被标为「已知损坏、未纳入 CI」的 `test/mongo-group.test.js`
+  （`createTable` 未 await 且 schema 传参格式错），现已加入 `test:all`。
 
 ## [6.5.0-beta.6] — 2026-10-20
 

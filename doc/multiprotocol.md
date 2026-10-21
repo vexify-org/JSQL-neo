@@ -8,22 +8,26 @@
 const { createMultiServer } = require('jsql-neo');
 
 const srv = createMultiServer({
-  port: 5432,        // 监听端口
+  port: 3306,        // 监听端口
   host: '0.0.0.0',   // 对外监听地址
   dataDir: './data', // 数据目录（省略则为纯内存）
   noAuth: true,      // 免认证（默认 false）
   auth: { root: { password: 'secret', databases: ['*'] } }, // 用户表（可选）
+  idleProtocol: 'mysql', // 200ms 内无字节时按哪个协议处理
+  sniffTimeout: 200,
 });
 
-srv.listen(() => console.log('multiprotocol on 5432'));
+srv.listen(() => console.log('multiprotocol on', srv.address.port));
 // ... 之后 srv.close() 优雅退出
 ```
 
 命令行等价形式：
 
 ```bash
-jsql serve --pg -p 5432 --data-dir ./data --no-auth
+jsql serve -p 3306 --data-dir ./data --no-auth
 ```
+
+`jsql serve` 默认就是多协议模式；加 `--mysql-only` 可退回只服务 MySQL。
 
 ## 协议嗅探原理
 
@@ -35,21 +39,23 @@ jsql serve --pg -p 5432 --data-dir ./data --no-auth
 | `0x0a` / `0x0d` | MySQL | client handshake 协议版本字节 |
 | Int32LE 长度 + opCode `2004/2012/2013` | MongoDB | OP_QUERY / OP_COMPRESSED / OP_MSG |
 | ASCII 命令 / RESP 前缀（`* + $ - :`） | Redis | 普通命令或 RESP 数组 |
-| 200ms 内无任何字节 | MySQL | MySQL 客户端等待服务器握手包，超时后按 MySQL 处理 |
+| 200ms 内无任何字节 | `idleProtocol`（默认 MySQL） | MySQL 客户端等待服务器握手包；空闲的 Redis 连接也不发包，可用 `idleProtocol` 调整 |
 
 实现位于 `lib/multiserver.js` 的 `sniffProtocol(buf)`，判定基于前 16 字节，误判率极低：
 
 - Redis 命令首字节必为可打印 ASCII，而 Mongo 消息长度首字节几乎总是二进制字节
 - PG 首字节为 `0x00`，与 MySQL 的 `0x0a/0x0d` 不可能混淆
-- MySQL 不主动发包的客户端（等待握手）由 200ms 超时兜底
+- MySQL 不主动发包的客户端（等待握手）由 `sniffTimeout` 兜底
+- MongoDB 的 OP_MSG 同时支持 kind 0（命令体）与 kind 1（文档序列，
+  `insertMany` 走这条路径）
 
 ## 共享数据模型
 
-四种协议共享同一个 `Database` 引擎实例（按库名懒创建）：
+四种 SQL / 文档协议共享同一个 `Database` 引擎实例（按库名懒创建）：
 
-- MySQL / PG 的表 ↔ Mongo 的集合 ↔ Redis 的独立 key 命名空间
-- 用 MySQL 建的表可以直接被 Mongo 客户端按集合名访问（行即文档）
-- Redis key 使用独立命名空间（如 `app:users:count`），不与表冲突
+- MySQL / PG 的表 ↔ Mongo 的集合（行即文档，`_id` 对应主键或整行匹配）
+- 用 MySQL 建的表可以直接被 Mongo 客户端按集合名访问
+- Redis 使用独立 key 命名空间（如 `app:users:count`），不与表冲突
 
 ```js
 // 多协议服务器内部结构（伪代码）
@@ -57,14 +63,14 @@ getEngine('app')  // → Database('./data/app')
   ├── mysql 处理器   ── 读同一引擎
   ├── pg 处理器      ── 读同一引擎
   ├── mongo 处理器   ── 读同一引擎
-  └── redis 处理器   ── 读同一引擎（独立 key Map）
+  └── redis 处理器   ── 独立 key 存储
 ```
 
 ## 端口与进程管理
 
 ```js
 srv.listen();                  // 启动监听（幂等）
-srv.address()                  // → { address, port } 实际地址
+srv.address                    // → { address, port } 实际地址（getter）
 srv.close()                    // 关闭所有连接、停止所有引擎的落盘、释放端口
 ```
 

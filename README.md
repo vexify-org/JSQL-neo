@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.5.0-beta.6** — pre-release build · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.5.1** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -38,16 +38,17 @@ npm install jsql-neo
 
 **JSQL-NEO** is a Rust-powered embedded database with **zero runtime dependencies**. It runs in Node.js, CLI, Web UI, and the browser (WASM).
 
-- **MySQL wire protocol, ready to use** — `jsql serve` starts it; `mysql2` / most MySQL clients connect directly
+- **Four wire protocols on one port** — `jsql serve` accepts MySQL, PostgreSQL, MongoDB and Redis clients; `mysql2`, `pg`, `mongodb` and `ioredis` connect directly
 - **Zero dependencies** — no native libs to compile, no system deps to install
 - **Three engines, same API** — `native` (Rust N-API), `wasm` (same Rust core), `js` (pure JS)
 - **~2× faster than better-sqlite3** on indexed point lookups
 
-> **About the other wire protocols** — PostgreSQL, MongoDB and Redis protocol stacks
-> ship as libraries (`lib/pg_server`, `lib/mongo_server`, `lib/redis_server`) and each
-> listens on its own port; there is **no single-port multi-protocol mode**, and the CLI
-> exposes no entry point for them. MongoDB additionally does not yet complete a
-> handshake with the modern official `mongodb` driver. Treat them as experimental.
+> **Wire protocols** — MySQL, PostgreSQL, MongoDB and Redis share a single listener
+> (`jsql serve`, default port 3306). The server sniffs the first packet of each
+> connection and hands it to the matching protocol handler. MySQL / PostgreSQL /
+> MongoDB read the same `Database` engine (same tables), Redis keeps its own key
+> namespace. Verified with `mysql2`, `pg`, `mongodb` (driver 7.x) and `ioredis`;
+> pass `--mysql-only` to serve the MySQL protocol alone.
 
 ---
 
@@ -100,13 +101,23 @@ db.stop();
 jsql serve --port 3306 --data-dir ./data
 ```
 
+All four protocols share the same port:
+
 ```bash
-# MySQL clients (mysql CLI, mysql2, DBeaver, DataGrip …) connect here
-mysql -h 127.0.0.1 -P 3306
+# MySQL clients (mysql CLI, mysql2, DBeaver, DataGrip …)
+mysql -h 127.0.0.1 -P 3306 -u root
+
+# PostgreSQL clients (psql, pg, pgAdmin …)
+psql "host=127.0.0.1 port=3306 user=postgres dbname=app"
+
+# MongoDB clients (mongosh, mongodb driver, Compass …)
+mongosh "mongodb://127.0.0.1:3306/app?directConnection=true"
+
+# Redis clients (redis-cli, ioredis …)
+redis-cli -h 127.0.0.1 -p 3306 PING
 ```
 
-Only MySQL is served by the CLI today. The PostgreSQL / Redis / MongoDB stacks are
-available as libraries — see the note near the top of this file.
+Pass `--mysql-only` to serve the MySQL wire protocol alone.
 
 ### Browser / WASM
 

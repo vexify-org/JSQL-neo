@@ -7,14 +7,17 @@ npm install -g jsql-neo
 # 或直接 npx jsql-neo <command>
 ```
 
-## serve — MySQL 协议服务器
+## serve — 单端口多协议服务器
 
 ```bash
-# 启动 MySQL Wire Protocol 服务器（前台运行）
+# 启动多协议服务器（前台运行）：同一端口接受 MySQL / PostgreSQL / MongoDB / Redis
 jsql serve --port 3306 --data-dir ./data
 
 # 全部选项
 jsql serve --port 3306 --host 127.0.0.1 --data-dir ./data --no-auth --log
+
+# 只提供 MySQL 协议（旧行为）
+jsql serve --port 3306 --mysql-only
 ```
 
 | 选项 | 说明 |
@@ -24,31 +27,44 @@ jsql serve --port 3306 --host 127.0.0.1 --data-dir ./data --no-auth --log
 | `--data-dir` | 数据库存储目录 |
 | `--no-auth` | 允许无认证连接 |
 | `--log` | 把执行的查询打到 stdout |
+| `--mysql-only` | 只启动 MySQL Wire Protocol，不做协议嗅探 |
 
-> **范围说明（请勿照抄旧文档）**
->
-> `serve` 目前**只实现 MySQL Wire Protocol**。此前文档里写的
-> `--mysql` / `--pg` / `--redis` / `--mongo` 四个旗标**从未实现**，
-> 传了会被 commander 当未知选项；`--password` / `--auto-save` /
-> `--save-interval` 同理不存在。
->
-> 「一个端口四协议」目前只在 **Node API** 层面成立（见下节），
-> CLI 尚未提供对应入口。
+连接方式：
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -u root
+psql "host=127.0.0.1 port=3306 user=postgres dbname=app"
+mongosh "mongodb://127.0.0.1:3306/app?directConnection=true"
+redis-cli -h 127.0.0.1 -p 3306 PING
+```
+
+协议按连接首包嗅探：`0x00` → PostgreSQL，`0x0a/0x0d` → MySQL，
+OP_MSG/OP_QUERY → MongoDB，其余按 Redis 处理。MySQL 客户端等服务器先发
+握手包，因此 200ms 内没有字节的连接默认按 MySQL 处理（可用
+`idleProtocol` 改成 `redis` / `pg` / `mongo`）。
+
+> 此前文档里的 `--mysql` / `--pg` / `--redis` / `--mongo` 四个旗标从未实现，
+> 现在统一由协议嗅探处理；`--password` / `--auto-save` / `--save-interval`
+> 同样不存在。
 
 ### 多协议：Node API
 
-PG / MongoDB / Redis 的协议栈目前以库的形式提供，需要在代码里装配，
-没有对应的 `serve` 子命令：
+在代码里直接装配同一个监听端口：
 
 ```js
-const { createPgServer } = require('jsql/lib/pg_server');
-const { createMongoServer } = require('jsql/lib/mongo_server');
-const { createRedisServer } = require('jsql/lib/redis_server');
-// 各自监听自己的端口
+const { createMultiServer } = require('jsql-neo');
+
+const srv = createMultiServer({
+  port: 3306,
+  host: '0.0.0.0',
+  dataDir: './data',
+  noAuth: true,
+});
+srv.listen(() => console.log('listening on', srv.address.port));
 ```
 
-> MongoDB 协议栈与**官方现代 driver 的握手兼容性尚未验证通过**，
-> 自带的 mongo 测试当前失败。请勿用于生产。
+也可以按需单独启动某一个协议栈（`createPgServer` / `createMongoServer` /
+`createRedisServer`），各自监听独立端口。
 
 ## ui — Web UI
 

@@ -156,14 +156,14 @@ const cli = yaggs({ pkg: require('../package.json') })
       }
     } catch (e) { fail(e); }
   })
-  .command('serve', 'Run the MySQL-compatible server in the foreground', (sub) => {
+  .command('serve', 'Run the multi-protocol server (MySQL / PostgreSQL / MongoDB / Redis on one port)', (sub) => {
     sub.option('port', { alias: ['p'], type: 'number', description: 'Listen port (default 3306)' });
     sub.option('host', { type: 'string', description: 'Listen host (default 127.0.0.1)' });
     sub.option('data-dir', { type: 'string', description: 'Directory to store databases' });
     sub.option('no-auth', { type: 'boolean', description: 'Allow connections without authentication' });
     sub.option('log', { type: 'boolean', description: 'Log queries to stdout' });
+    sub.option('mysql-only', { type: 'boolean', description: 'Serve the MySQL wire protocol only' });
   }, async (argv) => {
-    const { createMysqlServer } = require('../lib/mysql_server');
     const options = {
       port: argv.port != null ? argv.port : 3306,
       host: argv.host || '127.0.0.1',
@@ -171,9 +171,27 @@ const cli = yaggs({ pkg: require('../package.json') })
       noAuth: argv['no-auth'] === true,
     };
     if (argv.log) options.onQuery = (q) => console.log('[sql]', q);
-    const srv = createMysqlServer(options);
-    srv.listen();
-    console.log(`jsql-neo MySQL server on ${options.host}:${options.port}${options.dataDir ? ' (data: ' + options.dataDir + ')' : ' (in-memory)'}`);
+    options.onError = (err) => {
+      console.error(`serve failed: ${err.message}`);
+      process.exit(1);
+    };
+    const mysqlOnly = argv['mysql-only'] === true;
+    if (mysqlOnly) {
+      const { createMysqlServer } = require('../lib/mysql_server');
+      const srv = createMysqlServer(options);
+      srv.listen();
+      console.log(`jsql-neo MySQL server on ${options.host}:${options.port}${options.dataDir ? ' (data: ' + options.dataDir + ')' : ' (in-memory)'}`);
+    } else {
+      const { createMultiServer } = require('../lib/multiserver');
+      const srv = createMultiServer(options);
+      srv.listen(() => {
+        console.log(`jsql-neo multi-protocol server on ${options.host}:${options.port}${options.dataDir ? ' (data: ' + options.dataDir + ')' : ' (in-memory)'}`);
+        console.log('  MySQL / PostgreSQL / MongoDB / Redis — one port, shared data');
+      });
+      const shutdown = () => srv.close(() => process.exit(0));
+      process.once('SIGINT', shutdown);
+      process.once('SIGTERM', shutdown);
+    }
     setInterval(() => {}, 1 << 30);
   })
   .command('star', 'Confirm whether you starred this repo (opens browser once)', (sub) => {
