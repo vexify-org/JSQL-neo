@@ -41,7 +41,7 @@ npm install jsql-neo
 - **Four wire protocols on one port** — `jsql serve` accepts MySQL, PostgreSQL, MongoDB and Redis clients; `mysql2`, `pg`, `mongodb` and `ioredis` connect directly
 - **Zero dependencies** — no native libs to compile, no system deps to install
 - **Three engines, same API** — `native` (Rust N-API), `wasm` (same Rust core), `js` (pure JS)
-- **~2× faster than better-sqlite3** on indexed point lookups
+- **O(1) primary-key lookups and updates** — hash index, no full-table scan; unindexed filters run in Rust
 
 > **Wire protocols** — MySQL, PostgreSQL, MongoDB and Redis share a single listener
 > (`jsql serve`, default port 3306). The server sniffs the first packet of each
@@ -61,7 +61,7 @@ JSQL-NEO: MySQL + PostgreSQL + MongoDB + Redis + SQL
 
 | Feature | Detail |
 |---|---|
-| **Rust Core** | N-API native addon, ~2× faster than better-sqlite3 |
+| **Rust Core** | N-API native addon — O(1) primary-key point lookups, binary bulk inserts, Rust-side row filtering |
 | **WASM Build** | Same engine runs in Node.js and any browser |
 | **MySQL** | `mysql2`, Sequelize, Knex, TypeORM — just work |
 | **PostgreSQL** | `pg`, `psql`, pgAdmin — SCRAM-SHA-256, JSONB, ILIKE |
