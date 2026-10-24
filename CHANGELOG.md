@@ -8,6 +8,33 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Fixed
 
+- **Native（Rust N-API）主键点查 / 按主键更新从 O(n) 全表扫描降为 O(1)。**
+  此前 `find({id})`、`findById()`、`SELECT ... WHERE id = ?`、`prepare()` 全部
+  走 `jsqlFind` 逐行过滤；`updateById` / `removeById` 还要先全表扫一遍找内部
+  行号。20 万行实测：PK 点查 ×500 512.6ms、updateById ×200 201.4ms。
+  现在：
+  1. Rust `Table` 记录主键是否自增，`find_rows` / `find_rows_json` 遇到
+     「自增主键 = 整数」的单条件直接查 `pk_index`（哈希），一次定位；
+     `update_by_filter` / `remove_by_filter` 同样走该快路径；
+  2. `lib/native_client.js` 的 `_findRawById` / `_seqIdByPk` 在自增整型主键下
+     直接调用 O(1) 的 `jsqlFindById`，不再构造 filter 调 `jsqlFind`；
+     `findByIds` 改为一次 `jsqlFindByIds` 批量取回；
+     非自增/字符串主键仍保持原 filter 语义。
+  20 万行实测：PK 点查 ×500 **512.6ms → 6ms**、updateById ×200 **201.4ms → 7ms**。
+- **Native 批量插入改走二进制跨 N-API 路径（Bug3）。** 此前整批
+  `JSON.stringify` → Rust `serde_json` 解析 → `HashMap` → `FieldValue`，
+  20 万行约 700ms。现在同构批次（行列集合一致、无 undefined/NaN）直接
+  `encodeBatch` 成二进制，Rust 按 tag 解析成 `FieldValue`，实测约 2×：
+  20 万行 **700ms → 365ms**、50 万行 **812ms**（与 better-sqlite3 的
+  833ms@500k 基本持平）。异构批次/包含 undefined 的批次仍回退 JSON 路径，
+  保持「缺列 = 用默认值」的语义。
+- **`_assertNoKeyConflictSync` 不再把整张表拉进 JS。** 只取回被更新的一行做现值
+  比较；确实改了主键/UNIQUE 列时才用 `limit 2` 的原生查询探测冲突，输出量恒定。
+- **进程直接退出不再丢 `updateById` / `removeById` 写入。** 注册进程级 `exit`
+  钩子，在退出前同步 flush opBuffer；disk/hybrid 模式顺带补一次脏表落盘。
+- **README 删除「~2× faster than better-sqlite3 on indexed point lookups」的
+  不实宣传**，改为如实描述：主键点查/更新走 O(1) 哈希索引，无索引过滤在 Rust
+  侧逐行执行。
 - **WASM `updateById` 不再整表导出，非键列更新降回 O(1)。**
   `lib/wasm_client.js` 的 `_assertNoKeyConflict` 此前无条件
   `this.find(table, {}, { limit: 1e9 })` 把整张表导出成 JSON 再逐字段查键冲突。

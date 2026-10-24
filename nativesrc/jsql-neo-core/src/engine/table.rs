@@ -102,6 +102,9 @@ pub struct Table {
     pub next_id: u64,
     pub pk_field: Option<String>,
     pub pk_index: FxHashMap<u64, usize>,
+    /// 主键是否为自增整型：只有这时内部行 id 才等于主键值，
+    /// `pk_index` 才能直接用于 O(1) 主键点查。
+    pub pk_auto: bool,
 }
 
 pub fn default_value(ft: &FieldType) -> FieldValue {
@@ -192,6 +195,10 @@ impl Table {
         let pk_field = schema.iter()
             .find(|(_, f)| f.primary_key)
             .map(|(name, _)| name.clone());
+        let pk_auto = schema.iter()
+            .find(|(_, f)| f.primary_key)
+            .map(|(_, f)| f.auto_increment)
+            .unwrap_or(false);
 
         let field_order: Vec<String> = schema.iter().map(|(n, _)| n.clone()).collect();
         let field_index: HashMap<String, usize> = field_order.iter()
@@ -202,8 +209,22 @@ impl Table {
         Self {
             name, schema, field_order, field_index,
             rows: Vec::new(), values: Vec::new(), next_id: 1, pk_field,
-            pk_index: FxHashMap::default(),
+            pk_index: FxHashMap::default(), pk_auto,
         }
+    }
+
+    /// 若过滤条件恰好是「自增主键 = 整数」则返回该主键值。
+    /// 这种查询可以直接走 `pk_index`，把 O(n) 全表扫描降到 O(1)。
+    pub(crate) fn pk_eq_id(&self, filter: &HashMap<String, serde_json::Value>) -> Option<u64> {
+        if !self.pk_auto || filter.len() != 1 {
+            return None;
+        }
+        let pk = self.pk_field.as_ref()?;
+        let id = filter.get(pk)?.as_i64()?;
+        if id <= 0 {
+            return None;
+        }
+        Some(id as u64)
     }
 
     pub fn to_row_map(&self, values: &[FieldValue]) -> HashMap<String, serde_json::Value> {
@@ -743,6 +764,23 @@ impl Table {
                           order_by: &Option<String>, order: &Option<String>) -> (String, bool) {
         let o = offset.unwrap_or(0);
         let cap = limit.unwrap_or(usize::MAX);
+
+        // 主键点查直通：一次哈希查找定位到行，不再逐行 parse_filter/matches_filter。
+        if let Some(id) = filter.as_ref().and_then(|f| self.pk_eq_id(f)) {
+            let mut out = String::with_capacity(160);
+            out.push('[');
+            if o == 0 && cap > 0 {
+                if let Some(&idx) = self.pk_index.get(&id) {
+                    if let Some(rs) = self.rows.get(idx) {
+                        let mut tc = TimeCache::new();
+                        self.write_row_json_into(rs, &mut out, &mut tc);
+                    }
+                }
+            }
+            out.push(']');
+            return (out, false);
+        }
+
         let conds = filter.as_ref().map(|f| self.parse_filter(f)).unwrap_or_default();
 
         let mut out = String::with_capacity(128);
@@ -797,6 +835,19 @@ impl Table {
                      order_by: &Option<String>, order: &Option<String>) -> Vec<Row> {
         let o = offset.unwrap_or(0);
         let l = limit.unwrap_or(usize::MAX);
+
+        // 主键点查直通（与 find_rows_json 一致）。
+        if let Some(id) = filter.as_ref().and_then(|f| self.pk_eq_id(f)) {
+            if o == 0 && l > 0 {
+                if let Some(&idx) = self.pk_index.get(&id) {
+                    if let Some(rs) = self.rows.get(idx) {
+                        return vec![self.to_row(rs)];
+                    }
+                }
+            }
+            return Vec::new();
+        }
+
         let conds = filter.as_ref().map(|f| self.parse_filter(f)).unwrap_or_default();
 
         if let Some(field) = order_by.as_ref().filter(|f| self.field_index.contains_key(*f)) {

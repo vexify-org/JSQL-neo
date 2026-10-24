@@ -132,11 +132,16 @@ impl Engine for MemoryEngine {
         let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
         let ids: Vec<u64> = match filter {
             Some(f) => {
-                let conds = t.parse_filter(f);
-                t.rows.iter()
-                    .filter(|r| matches_filter(t.get_row_values(r), &conds))
-                    .map(|r| r.id)
-                    .collect()
+                // 主键等值过滤：直接命中索引，不再逐行比较。
+                if let Some(id) = t.pk_eq_id(f) {
+                    if t.pk_index.contains_key(&id) { vec![id] } else { Vec::new() }
+                } else {
+                    let conds = t.parse_filter(f);
+                    t.rows.iter()
+                        .filter(|r| matches_filter(t.get_row_values(r), &conds))
+                        .map(|r| r.id)
+                        .collect()
+                }
             }
             None => t.rows.iter().map(|r| r.id).collect(),
         };
@@ -158,6 +163,10 @@ impl Engine for MemoryEngine {
             }
             Some(f) => f,
         };
+        // 主键等值删除：直接命索引，O(1)。
+        if let Some(id) = t.pk_eq_id(f) {
+            return Ok(if t.remove_row(id) { 1 } else { 0 });
+        }
         let conds = t.parse_filter(f);
         let to_remove: Vec<usize> = t.rows.iter().enumerate()
             .filter(|(_, r)| matches_filter(t.get_row_values(r), &conds))
