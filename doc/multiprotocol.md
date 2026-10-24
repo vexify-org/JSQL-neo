@@ -57,7 +57,7 @@ jsql serve -p 3306 --data-dir ./data --no-auth
 - 用 MySQL 建的表可以直接被 Mongo 客户端按集合名访问
 - Redis 使用独立 key 命名空间（如 `app:users:count`），不与表冲突
 
-```js
+```text
 // 多协议服务器内部结构（伪代码）
 getEngine('app')  // → Database('./data/app')
   ├── mysql 处理器   ── 读同一引擎
