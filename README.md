@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.5.5** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.5.4** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -87,13 +87,17 @@ npm install jsql-neo
 ```js
 const { Database, executeSQL } = require('jsql-neo');
 
-const db = new Database(':memory:');
-await executeSQL(db, "CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name TEXT)");
-await executeSQL(db, "INSERT INTO users (name) VALUES ('Alice')");
-const { rows } = await executeSQL(db, "SELECT * FROM users");
-console.log(rows); // [[1, 'Alice']]
-db.stop();
+(async () => {
+  const db = new Database(':memory:');
+  await executeSQL(db, "CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name TEXT)");
+  await executeSQL(db, "INSERT INTO users (name) VALUES ('Alice')");
+  const { rows } = await executeSQL(db, "SELECT * FROM users");
+  console.log(rows); // [[1, 'Alice']]
+  db.stop();
+})();
 ```
+
+> CJS 文件里没有顶层 `await`，所以包了一层 `async` IIFE；ESM (`"type": "module"`) 里可以直接写 `await`。
 
 ### Wire protocol server
 
@@ -122,11 +126,24 @@ Pass `--mysql-only` to serve the MySQL wire protocol alone.
 ### Browser / WASM
 
 ```js
-import init, { JSQL } from 'jsql-neo/wasm/browser.mjs';
-await init();
+import { JSQL } from 'jsql-neo/wasm/browser.mjs';
+
 const db = new JSQL();
-// same API as the Node.js native client
+await db.start();
+
+await db.createTable('users', {
+  id: { type: 'integer', primaryKey: true },
+  name: { type: 'string' },
+});
+await db.insert('users', { name: 'Alice' });
+console.log(await db.find('users', {})); // [{ id: 1, name: 'Alice', … }]
+
+db.stop();
 ```
+
+> 浏览器里 `start()` 会自动加载同目录的 `browser_bg.wasm`；WASM 引擎提供
+> `createTable` / `insert` / `find` / `findById` / `count` / `updateById` 等
+> 方法（没有 `executeSQL`）。
 
 ### 🦀 NativeJSQL
 
@@ -146,8 +163,13 @@ npm install jsql-neo
 
 ```javascript
 const { NativeJSQL } = require('jsql-neo');
-const db = new NativeJSQL();          // :memory: — persist by passing a path
-await db.start();
+
+(async () => {
+  const db = new NativeJSQL();        // :memory: — persist by passing a path
+  await db.start();
+  // … use db …
+  await db.stop();
+})();
 ```
 
 ### Storage modes
@@ -155,8 +177,8 @@ await db.start();
 | Mode | Usage | Use Case |
 |---|---|---|
 | Memory | `new Database(':memory:')` | Testing, caching |
-| Disk | `new Database('./data/app')` | Production persistence |
-| Hybrid | `new Database('./data', { autoSave: true, saveInterval: 3000 })` | Performance + durability |
+| Disk | `new Database('./data/app', { mode: 'disk' })` | Production persistence |
+| Hybrid | `new Database('./data', { mode: 'hybrid', autoSave: true, autoSaveInterval: 3000 })` | Performance + durability |
 
 ---
 
