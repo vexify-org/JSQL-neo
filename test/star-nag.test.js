@@ -1,3 +1,4 @@
+=== test/star-nag.test.js ===
 /**
  * jsql star 授权流回归测试
  *
@@ -42,7 +43,7 @@ let after = null;
 
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  if (new URL(req.url, 'http://127.0.0.1').pathname === '/result.php') {
+  if (new URL(req.url, 'http://127.0.0.1').pathname === '/result') {
     if (pollsLeft > 0 && --pollsLeft === 0 && after) scenario = after;
     res.end(JSON.stringify(scenario));
     return;
@@ -121,7 +122,7 @@ async function main() {
   {
     // waitForResult 用同步 curl，会阻塞本进程事件循环 —— server 必须留在父进程，
     // 轮询放到子进程里跑，否则 parent 的 server 被饿死，curl 全部 -m 超时。
-    const url = `http://127.0.0.1:${PORT}/start.php?nonce=abcdefghijklmnopqrst`;
+    const url = `http://127.0.0.1:${PORT}/start?nonce=abcdefghijklmnopqrst`;
     const poll = (resp, timeoutMs) => new Promise((resolve) => {
       scenario = resp; pollsLeft = 0; after = null;
       const code = [
@@ -158,3 +159,4 @@ async function main() {
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
+
