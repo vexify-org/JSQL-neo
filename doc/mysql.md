@@ -33,6 +33,8 @@ await conn.end();
 - `noAuth: true` 跳过认证（仅开发环境）
 
 ```js
+const { createMysqlServer } = require('jsql-neo');
+
 createMysqlServer({
   port: 3306,
   auth: {
