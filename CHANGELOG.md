@@ -4,6 +4,28 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.5] — Unreleased
+
+### Fixed
+
+- **WASM `updateById` 不再整表导出，非键列更新降回 O(1)。**
+  `lib/wasm_client.js` 的 `_assertNoKeyConflict` 此前无条件
+  `this.find(table, {}, { limit: 1e9 })` 把整张表导出成 JSON 再逐字段查键冲突。
+  这与 6.4.8 在 `native_client.js` 修掉的「无条件整表 JSON 导出」同源，但那次
+  修复没覆盖 wasm 客户端。后果：`UPDATE t SET age = 30 WHERE id = 1` 这类不碰
+  主键/UNIQUE 列的日常更新，也要先付一遍整表导出的钱 —— 10 万行 ~590ms/次、
+  1 万行 ~13.6ms/次，且随行数近线性放大，比读整张表还贵。
+  现在（性能从 O(表行数) 回到 O(1)）：
+  1. 只筛 pk + unique 列里**确实出现在 updateData 中**的；一个都没碰就直接
+     return，整张表一个字都不读；
+  2. 先用主键取回自己那一行（走 pk 的 find，limit 1），所有待改键值都与现值
+     相同 → 幂等更新，直接 return，不再触发全表扫描（也不误报 ER_DUP_ENTRY）；
+  3. 真的动了键才退化成整表扫描逐字段比对，正确性优先。
+  10 万行表实测：**590ms → 0.8ms/次**（约 740×）；1 万行 13.6ms → 0.10ms。
+- 顺带修正 `bench/bench_wasm_update.js` 里两处对语义的误判（此前恒 FAIL，与本次
+  修复无关）：UNIQUE 撞车用例拿列值 `'A'` 当自增主键去 update（命中不到行，自然
+  不报错）；删除后同 id 更新的用例断言行会复活（实际应为 no-op 返回 null）。
+
 ## [6.5.4] — 2026-10-21
 
 ### Changed
