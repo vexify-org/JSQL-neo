@@ -4,7 +4,7 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
-## [6.5.5] — Unreleased
+## [6.5.6] — 2026-10-24
 
 ### Fixed
 
@@ -35,6 +35,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - **README 删除「~2× faster than better-sqlite3 on indexed point lookups」的
   不实宣传**，改为如实描述：主键点查/更新走 O(1) 哈希索引，无索引过滤在 Rust
   侧逐行执行。
+
+## [6.5.5] — 2026-10-24
+
+### Fixed
+
 - **WASM `updateById` 不再整表导出，非键列更新降回 O(1)。**
   `lib/wasm_client.js` 的 `_assertNoKeyConflict` 此前无条件
   `this.find(table, {}, { limit: 1e9 })` 把整张表导出成 JSON 再逐字段查键冲突。
