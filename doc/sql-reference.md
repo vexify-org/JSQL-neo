@@ -16,20 +16,22 @@ CREATE TABLE users (
 CREATE TABLE orders (
   id INT PRIMARY KEY,
   user_id INT,
-  total DECIMAL(10,2),
-  INDEX idx_user (user_id),
-  UNIQUE INDEX idx_email (email)
+  total DECIMAL(10,2)
 );
-
-DROP TABLE IF EXISTS users;
-TRUNCATE TABLE users;
+CREATE INDEX idx_user ON orders(user_id);
+CREATE UNIQUE INDEX idx_email ON orders(email);
 
 -- 改表
 ALTER TABLE users ADD COLUMN phone TEXT;
-ALTER TABLE users DROP COLUMN phone;
-ALTER TABLE users RENAME TO old_users;
 ALTER TABLE users RENAME COLUMN phone TO mobile;
-ALTER TABLE users DROP INDEX idx_user;
+ALTER TABLE users DROP COLUMN mobile;
+ALTER TABLE orders DROP INDEX idx_user;
+ALTER TABLE users RENAME TO people;
+
+-- 清空 / 删除
+TRUNCATE TABLE people;
+DROP TABLE IF EXISTS people;
+DROP TABLE IF EXISTS orders;
 ```
 
 ### 标识符与保留字
@@ -62,7 +64,7 @@ SELECT `key`, `order` FROM t;
 -- 插入
 INSERT INTO users (name, age) VALUES ('Alice', 30);
 INSERT INTO users (name) VALUES ('Bob'), ('Carol');
-INSERT INTO users SET name = 'Dave', age = 25;
+INSERT INTO users (name, age) VALUES ('Dave', 25);
 
 -- 更新
 UPDATE users SET age = 31 WHERE id = 1;
@@ -119,7 +121,7 @@ SELECT name, salary,
 FROM employees;
 
 -- JSON
-SELECT json_extract(data, '$.name');
+SELECT json_extract(data, '$.name') FROM t;
 SELECT data->>'$.name' FROM t;
 ```
 
@@ -260,12 +262,12 @@ SELECT 99 NOT IN (10, NULL);  -- NULL（UNKNOWN，所以 WHERE 里一行都不�
 ```sql
 CREATE INDEX idx_name ON users(name);
 CREATE UNIQUE INDEX idx_email ON users(email);
-CREATE INDEX idx_composite ON orders(user_id, created_at DESC);
+CREATE INDEX idx_composite ON orders(user_id, created_at);
 DROP INDEX idx_name ON users;
-
--- 索引提示
-SELECT * FROM users USE INDEX (idx_name) WHERE name = 'Alice';
-SELECT * FROM users FORCE INDEX (idx_name) WHERE age > 18;
 ```
+
+> 索引只按列升序建立，不支持 `(col DESC)`，也不支持 `USE INDEX` /
+> `FORCE INDEX` 提示；查询计划由优化器自动选择，可用
+> `EXPLAIN SELECT ...` 查看。
 
 详见完整 [README.md](../README.md)。
