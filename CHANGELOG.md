@@ -1,3 +1,4 @@
+=== CHANGELOG.md ===
 # Changelog
 
 All notable changes to **JSQL-NEO** are documented here.
@@ -65,7 +66,7 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - **CLI 提示改短，并改为中英双语。** `jsql star` 与启动提示（nag）现在一行英文
   + 一行中文：正在打开浏览器 / 等待授权 / 已确认 / 还没 star / 授权被拒绝或失败
   / 链接已过期 / 已超时，都缩短并在同一行给出两种语言。
-- OAuth 回调页文案改为英文（auth/callback.php、auth/start.php，部署于
+- OAuth 回调页文案改为英文（auth/callback.php、auth/start，部署于
   auth.vexify.top）："Thanks for the star!"、"Not starred yet"、
   "Authorization canceled"、"Missing parameters"、"Token exchange failed"、
   "Cannot read account" 等。根目录 start.php / result.php 本就返回英文。
@@ -160,7 +161,7 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 - **star 提示的 OAuth 地址同步到 auth.vexify.top 新多文件结构。** 服务端已从单文件
   `callback.php` 拆分为 `start.php` / `callback.php` / `result.php`；CLI 相应改用
-  `/start.php?nonce=xxx` 发起授权、`/result.php?nonce=xxx` 轮询结果。
+  `/start?nonce=xxx` 发起授权、`/result?nonce=xxx` 轮询结果。
 
 ## [6.5.1-beta.1] — 2026-10-19
 
@@ -1735,3 +1736,4 @@ Big engineering pass: protocol servers, web UI, CLI tooling, types, benchmarks, 
 [4.0.2]: https://github.com/vexify-org/JSQL-neo/releases/tag/v4.0.2
 [4.0.1]: https://github.com/vexify-org/JSQL-neo/releases/tag/v4.0.1
 [4.0.0]: https://github.com/vexify-org/JSQL-neo/releases/tag/v4.0.0
+
