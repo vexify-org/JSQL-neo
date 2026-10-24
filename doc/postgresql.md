@@ -24,6 +24,8 @@ await client.end();
 同时也支持明文口令认证和 noAuth 模式。`psql` 和 `pg` 默认使用 SCRAM，无需额外配置。
 
 ```js
+const { createPgServer } = require('jsql-neo');
+
 createPgServer({
   port: 5432,
   auth: { 'jsql-admin': { password: 's3cret', databases: ['*'] } },
@@ -70,10 +72,11 @@ createPgServer({
 BEGIN;
 CREATE TABLE IF NOT EXISTS accounts (
   id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   meta JSONB DEFAULT '{}'::jsonb
 );
-INSERT INTO accounts (email) VALUES ('a@x.com')
+INSERT INTO accounts (name, email) VALUES ('Alice', 'a@x.com')
   ON CONFLICT (email) DO UPDATE SET meta = EXCLUDED.meta
   RETURNING *;
 SELECT name, meta->>'plan' FROM accounts WHERE name ILIKE '%ali%';
