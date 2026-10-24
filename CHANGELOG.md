@@ -1,3 +1,6 @@
+## 6.5.7 (2026-10-24)
+- fix: remove .php suffix from OAuth URLs in star-nag (`/start.php` → `/start`, `/result.php` → `/result`)
+
 === CHANGELOG.md ===
 # Changelog
 
