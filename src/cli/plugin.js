@@ -11,12 +11,69 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 const REGISTRY_BASE = 'https://registry-beta.vexify.top';
 const PLUGIN_DIR = path.join(os.homedir(), '.jsql', 'plugins');
+const MAX_ARCHIVE_BYTES = 50 * 1024 * 1024;
+const MAX_ARCHIVE_ENTRIES = 10000;
 
 // ─── 工具函数 ──────────────────────────────────────────────
+
+/** 插件名只允许字母/数字/点/下划线/连字符，杜绝路径注入 */
+function assertValidPluginName(name) {
+  if (typeof name !== 'string' || !name) {
+    throw new Error('Plugin name must be a non-empty string');
+  }
+  if (name.length > 128) {
+    throw new Error(`Invalid plugin name: too long (${name.length} > 128)`);
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) || name.includes('..')) {
+    throw new Error(`Invalid plugin name: '${name}'`);
+  }
+  return name;
+}
+
+/** 校验 tar 清单：拒绝绝对路径、`..`、设备/符号链接/硬链接 */
+function assertSafeTarEntries(archivePath, destDir) {
+  const names = execFileSync('tar', ['-tzf', archivePath], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: 16 * 1024 * 1024,
+  }).split(/\r?\n/).filter(Boolean);
+  if (names.length > MAX_ARCHIVE_ENTRIES) {
+    throw new Error(`Archive contains too many entries (${names.length} > ${MAX_ARCHIVE_ENTRIES})`);
+  }
+  const destResolved = path.resolve(destDir);
+  for (const entry of names) {
+    if (entry.startsWith('/') || entry.startsWith('\\') || /^[A-Za-z]:[\\/]/.test(entry)) {
+      throw new Error(`Archive contains absolute path: ${entry}`);
+    }
+    if (entry.split(/[\\/]+/).includes('..')) {
+      throw new Error(`Archive contains path traversal: ${entry}`);
+    }
+    const target = path.resolve(destResolved, entry);
+    if (target !== destResolved && !target.startsWith(destResolved + path.sep)) {
+      throw new Error(`Archive entry escapes plugin directory: ${entry}`);
+    }
+  }
+  // 类型检查单独用 -tvzf，避免解析带空格的路径
+  const verbose = execFileSync('tar', ['-tvzf', archivePath], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  for (const line of verbose.split(/\r?\n/)) {
+    if (!line) continue;
+    const type = line.charAt(0);
+    if (type === 'l' || type === 'h') {
+      throw new Error('Archive contains links, which are not allowed');
+    }
+    if (type !== '-' && type !== 'd') {
+      throw new Error(`Archive contains unsupported entry type '${type}'`);
+    }
+  }
+}
 
 /** 确保插件目录存在 */
 function ensurePluginDir() {
@@ -119,6 +176,7 @@ async function fetchWithRetry(url, retries = 3, baseDelay = 500) {
 
 /** 安装插件：下载 tgz 并解压到 ~/.jsql/plugins/<name>/ */
 async function installPlugin(name) {
+  assertValidPluginName(name);
   ensurePluginDir();
 
   // 检查是否已安装
@@ -138,6 +196,10 @@ async function installPlugin(name) {
   const ct = res.headers.get('content-type') || '';
   const buf = Buffer.from(await res.arrayBuffer());
 
+  if (buf.length > MAX_ARCHIVE_BYTES) {
+    throw new Error(`Plugin archive too large (${buf.length} > ${MAX_ARCHIVE_BYTES} bytes)`);
+  }
+
   // 检查 Content-Type 或 magic bytes
   if (!ct.includes('gzip') && buf[0] !== 0x1f) {
     // 返回了错误 JSON，不是 tgz
@@ -147,12 +209,15 @@ async function installPlugin(name) {
   }
 
   const archivePath = path.join(PLUGIN_DIR, `${name}.tgz`);
-  fs.writeFileSync(archivePath, buf);
+  fs.writeFileSync(archivePath, buf, { mode: 0o600 });
 
-  // 解压 tgz
+  // 解压 tgz：先校验清单，再用 execFile 避免 shell 注入
   fs.mkdirSync(pluginDir, { recursive: true });
   try {
-    execSync(`tar -xzf "${archivePath}" -C "${pluginDir}"`, { stdio: 'pipe' });
+    assertSafeTarEntries(archivePath, pluginDir);
+    execFileSync('tar', ['-xzf', archivePath, '-C', pluginDir], {
+      stdio: 'pipe',
+    });
   } catch (e) {
     fs.rmSync(pluginDir, { recursive: true, force: true });
     fs.rmSync(archivePath, { force: true });
@@ -267,6 +332,8 @@ function formatPluginInfo(p) {
 module.exports = {
   PLUGIN_DIR,
   ensurePluginDir,
+  assertValidPluginName,
+  assertSafeTarEntries,
   listPlugins,
   searchPlugins,
   getPluginInfo,

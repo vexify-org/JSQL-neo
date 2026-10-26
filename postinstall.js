@@ -1,4 +1,5 @@
 const { execSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -33,6 +34,10 @@ const GHPROXY = process.env.JSQL_GHPROXY !== undefined
   : DEFAULT_PROXIES[0];
 const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || DEFAULT_GHPROXY_TOKEN;
 const TAG = `v${pkg.version}`;
+
+// 原生模块体积上限（防代理/镜像返回超大文件打爆磁盘/内存）
+const MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
+const CHECKSUM_ASSET = 'SHA256SUMS';
 
 /** 加速站鉴权头 */
 function proxyHeaders() {
@@ -73,13 +78,18 @@ function nativeTargetSuffix(platform = process.platform, arch = process.arch) {
   return `${p}-${a}-msvc`;
 }
 
-function download(url, dest, headers) {
+function download(url, dest, headers, redirects = 0) {
   return new Promise((resolve, reject) => {
+    if (redirects > 5) {
+      reject(new Error(`too many redirects for ${url}`));
+      return;
+    }
     const mod = url.startsWith('https:') ? https : http;
     const req = mod.get(url, { headers: headers || {} }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
-        download(res.headers.location, dest, headers).then(resolve, reject);
+        const next = new URL(res.headers.location, url).toString();
+        download(next, dest, headers, redirects + 1).then(resolve, reject);
         return;
       }
       if (res.statusCode !== 200) {
@@ -87,14 +97,131 @@ function download(url, dest, headers) {
         reject(new Error(`HTTP ${res.statusCode} for ${url}`));
         return;
       }
+      const declared = Number(res.headers['content-length']);
+      if (Number.isFinite(declared) && declared > MAX_DOWNLOAD_BYTES) {
+        res.resume();
+        reject(new Error(`download too large: ${declared} bytes (limit ${MAX_DOWNLOAD_BYTES})`));
+        return;
+      }
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       const ws = fs.createWriteStream(dest);
-      ws.on('error', reject);
+      let received = 0;
+      let settled = false;
+      const fail = (err) => {
+        if (settled) return;
+        settled = true;
+        try { ws.destroy(); } catch (_) { /* ignore */ }
+        try { fs.unlinkSync(dest); } catch (_) { /* ignore */ }
+        reject(err);
+      };
+      ws.on('error', fail);
+      res.on('error', fail);
+      res.on('data', (chunk) => {
+        received += chunk.length;
+        if (received > MAX_DOWNLOAD_BYTES) {
+          fail(new Error(`download exceeded ${MAX_DOWNLOAD_BYTES} bytes`));
+          res.destroy();
+        }
+      });
       res.pipe(ws);
-      res.on('end', () => ws.end(() => resolve()));
+      ws.on('finish', () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      });
     });
     req.on('error', reject);
   });
+}
+
+function fetchText(url, headers, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 5) {
+      reject(new Error(`too many redirects for ${url}`));
+      return;
+    }
+    const mod = url.startsWith('https:') ? https : http;
+    const req = mod.get(url, { headers: headers || {} }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        const next = new URL(res.headers.location, url).toString();
+        fetchText(next, headers, redirects + 1).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        return;
+      }
+      const chunks = [];
+      let received = 0;
+      res.on('data', (chunk) => {
+        received += chunk.length;
+        if (received > 1024 * 1024) {
+          res.destroy();
+          reject(new Error('checksum manifest too large'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+  });
+}
+
+function sha256File(file) {
+  const hash = crypto.createHash('sha256');
+  const fd = fs.openSync(file, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(1024 * 1024);
+    for (;;) {
+      const n = fs.readSync(fd, buf, 0, buf.length, null);
+      if (n <= 0) break;
+      hash.update(buf.subarray(0, n));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return hash.digest('hex');
+}
+
+/** 从 SHA256SUMS 清单中取出指定资产的小写 sha256；找不到返回 null */
+function expectedHashFromManifest(text, asset) {
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const m = line.trim().match(/^([a-fA-F0-9]{64})\s+\*?(.+)$/);
+    if (!m) continue;
+    if (path.basename(m[2].trim()) === asset) return m[1].toLowerCase();
+  }
+  return null;
+}
+
+/**
+ * 获取原生模块的期望哈希：
+ *   1) JSQL_NATIVE_SHA256 显式指定（最高优先级）
+ *   2) 从 GitHub Release 的 SHA256SUMS 资产下载并解析
+ * 拿不到就返回 null —— 调用方会拒绝加载未校验的二进制（fail closed）。
+ */
+async function fetchExpectedHash(asset) {
+  const explicit = process.env.JSQL_NATIVE_SHA256;
+  if (explicit) {
+    if (!/^[a-fA-F0-9]{64}$/.test(explicit.trim())) {
+      throw new Error('JSQL_NATIVE_SHA256 must be a 64-character hex SHA-256 digest');
+    }
+    return explicit.trim().toLowerCase();
+  }
+  const raw = `https://github.com/${REPO}/releases/download/${TAG}/${CHECKSUM_ASSET}`;
+  for (const cand of proxyCandidates(raw)) {
+    try {
+      const text = await fetchText(cand.url, cand.viaProxy ? proxyHeaders() : undefined);
+      const hash = expectedHashFromManifest(text, asset);
+      if (hash) return hash;
+    } catch (e) {
+      // 清单不存在/代理失败时继续尝试下一个来源
+    }
+  }
+  return null;
 }
 
 function buildNativeFromSource() {
@@ -137,12 +264,45 @@ function tryLoadNative() {
 async function downloadAndVerify() {
   const asset = `jsql-neo-native.${nativeTargetSuffix()}.node`;
   const raw = `https://github.com/${REPO}/releases/download/${TAG}/${asset}`;
+
+  let expected = null;
+  try {
+    expected = await fetchExpectedHash(asset);
+  } catch (e) {
+    console.warn('[jsql-neo] failed to resolve native checksum:', e.message);
+  }
+
+  const allowUnverified = process.env.JSQL_ALLOW_UNVERIFIED_NATIVE === '1';
+  if (!expected && !allowUnverified) {
+    // fail closed：拿不到 SHA256SUMS 就不下载，绝不 require 未经校验的二进制
+    console.warn(
+      '[jsql-neo] no SHA256SUMS available for this release; refusing to download an unverified native module.\n' +
+      '[jsql-neo] set JSQL_NATIVE_SHA256=<64-hex> to pin a checksum, or JSQL_ALLOW_UNVERIFIED_NATIVE=1 to override (unsafe).'
+    );
+    return false;
+  }
+  if (!expected) {
+    console.warn('[jsql-neo] WARNING: JSQL_ALLOW_UNVERIFIED_NATIVE=1 — native module integrity is NOT verified.');
+  }
+
   // 依次尝试：环境变量指定的代理 → 内置加速站 → 直连
   for (const cand of proxyCandidates(raw)) {
     console.log(`[jsql-neo] downloading native module: ${cand.url}`);
+    const tmp = `${NATIVE_PATH}.${process.pid}.download`;
     try {
       // 加速站鉴权走 Authorization 头，直连时不带
-      await download(cand.url, NATIVE_PATH, cand.viaProxy ? proxyHeaders() : undefined);
+      await download(cand.url, tmp, cand.viaProxy ? proxyHeaders() : undefined);
+      if (expected) {
+        const actual = sha256File(tmp);
+        if (actual !== expected) {
+          console.warn(`[jsql-neo] checksum mismatch (expected ${expected}, got ${actual}); trying next source.`);
+          continue;
+        }
+        console.log('[jsql-neo] checksum verified:', actual);
+      }
+      fs.mkdirSync(path.dirname(NATIVE_PATH), { recursive: true });
+      fs.renameSync(tmp, NATIVE_PATH);
+      fs.chmodSync(NATIVE_PATH, 0o755);
       if (tryLoadNative()) {
         console.log('[jsql-neo] native module downloaded: native/jsql-neo-native.node');
         return true;
@@ -150,6 +310,8 @@ async function downloadAndVerify() {
       console.warn('[jsql-neo] downloaded module cannot be loaded; trying next source.');
     } catch (e) {
       console.warn('[jsql-neo] download failed:', e.message);
+    } finally {
+      try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) { /* ignore */ }
     }
   }
   return false;

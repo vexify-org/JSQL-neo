@@ -1,4 +1,4 @@
-=== test/star-nag.test.js ===
+// === test/star-nag.test.js ===
 /**
  * jsql star 授权流回归测试
  *
