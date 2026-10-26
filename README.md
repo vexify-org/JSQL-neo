@@ -188,3 +188,6 @@ Apache-2.0 License — contributions welcome!
 - **GitHub:** [vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo)
 - **Issues:** [Open an issue](https://github.com/vexify-org/JSQL-neo/issues)
 - **PRs:** Fork → branch → PR — thank you!
+- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Code of Conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- **Security:** [SECURITY.md](SECURITY.md) — please report vulnerabilities privately
