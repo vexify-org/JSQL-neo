@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const { detectLibc, nativeTargetSuffix, nativeNapiVersion, supportsNativeNapi, MIN_NAPI_VERSION } = require('./lib/native_target');
 
 const ROOT = __dirname;
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
@@ -69,13 +70,12 @@ const REPO = (pkg.repository && pkg.repository.url)
   ? pkg.repository.url.replace(/\.git$/, '').replace(/^.*github\.com\//i, '')
   : 'vexify-org/JSQL-neo';
 
-// 与 .github/workflows/build-native.yml 中发布的资产命名保持一致
-function nativeTargetSuffix(platform = process.platform, arch = process.arch) {
-  const p = platform === 'win32' ? 'win32' : platform === 'darwin' ? 'darwin' : 'linux';
-  const a = arch === 'x64' ? 'x64' : arch === 'arm64' ? 'arm64' : arch;
-  if (p === 'linux') return `${p}-${a}-gnu`;
-  if (p === 'darwin') return `${p}-${a}`;
-  return `${p}-${a}-msvc`;
+function sameOrigin(a, b) {
+  try { return new URL(a).origin === new URL(b).origin; } catch (_) { return false; }
+}
+
+function safeRedirect(next) {
+  return /^https?:/i.test(String(next || ''));
 }
 
 function download(url, dest, headers, redirects = 0) {
@@ -89,7 +89,11 @@ function download(url, dest, headers, redirects = 0) {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         const next = new URL(res.headers.location, url).toString();
-        download(next, dest, headers, redirects + 1).then(resolve, reject);
+        if (!safeRedirect(next)) {
+          reject(new Error(`invalid redirect target for ${url}`));
+          return;
+        }
+        download(next, dest, sameOrigin(next, url) ? headers : undefined, redirects + 1).then(resolve, reject);
         return;
       }
       if (res.statusCode !== 200) {
@@ -145,7 +149,11 @@ function fetchText(url, headers, redirects = 0) {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         const next = new URL(res.headers.location, url).toString();
-        fetchText(next, headers, redirects + 1).then(resolve, reject);
+        if (!safeRedirect(next)) {
+          reject(new Error(`invalid redirect target for ${url}`));
+          return;
+        }
+        fetchText(next, sameOrigin(next, url) ? headers : undefined, redirects + 1).then(resolve, reject);
         return;
       }
       if (res.statusCode !== 200) {
@@ -262,7 +270,15 @@ function tryLoadNative() {
 }
 
 async function downloadAndVerify() {
-  const asset = `jsql-neo-native.${nativeTargetSuffix()}.node`;
+  if (!supportsNativeNapi()) {
+    console.warn(
+      `[jsql-neo] Node ${process.versions.node} provides N-API ${nativeNapiVersion() || 'unknown'}, ` +
+      `but the native module requires N-API >= ${MIN_NAPI_VERSION}; skipping native download.`
+    );
+    return false;
+  }
+  const libc = detectLibc();
+  const asset = process.env.JSQL_NATIVE_ASSET || `jsql-neo-native.${nativeTargetSuffix(process.platform, process.arch, libc)}.node`;
   const raw = `https://github.com/${REPO}/releases/download/${TAG}/${asset}`;
 
   let expected = null;
@@ -274,11 +290,18 @@ async function downloadAndVerify() {
 
   const allowUnverified = process.env.JSQL_ALLOW_UNVERIFIED_NATIVE === '1';
   if (!expected && !allowUnverified) {
-    // fail closed：拿不到 SHA256SUMS 就不下载，绝不 require 未经校验的二进制
-    console.warn(
-      '[jsql-neo] no SHA256SUMS available for this release; refusing to download an unverified native module.\n' +
-      '[jsql-neo] set JSQL_NATIVE_SHA256=<64-hex> to pin a checksum, or JSQL_ALLOW_UNVERIFIED_NATIVE=1 to override (unsafe).'
-    );
+    if (libc === 'musl') {
+      console.warn(
+        `[jsql-neo] musl libc detected but this release has no native asset for ${asset}; ` +
+        'falling back to the WASM/JS engine. Set JSQL_NATIVE_ASSET to a compatible musl build if available.'
+      );
+    } else {
+      // fail closed：拿不到 SHA256SUMS 就不下载，绝不 require 未经校验的二进制
+      console.warn(
+        '[jsql-neo] no SHA256SUMS available for this release; refusing to download an unverified native module.\n' +
+        '[jsql-neo] set JSQL_NATIVE_SHA256=<64-hex> to pin a checksum, or JSQL_ALLOW_UNVERIFIED_NATIVE=1 to override (unsafe).'
+      );
+    }
     return false;
   }
   if (!expected) {
@@ -321,6 +344,13 @@ async function ensureNativeNode() {
   // 已存在且能加载 → 直接用；否则删掉并从 gh-proxy.com 下载，找不到才回退源码编译
   if (tryLoadNative()) {
     console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
+    return;
+  }
+  if (!supportsNativeNapi()) {
+    console.warn(
+      `[jsql-neo] Node ${process.versions.node} provides N-API ${nativeNapiVersion() || 'unknown'}, ` +
+      `but the native module requires N-API >= ${MIN_NAPI_VERSION}; using the WASM/JS engine.`
+    );
     return;
   }
   if (await downloadAndVerify()) return;
