@@ -1,12 +1,25 @@
-## 6.5.7 (2026-10-24)
-- fix: remove .php suffix from OAuth URLs in star-nag (`/start.php` → `/start`, `/result.php` → `/result`)
-
-=== CHANGELOG.md ===
 # Changelog
 
 All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
+
+## [6.5.8] — 2026-10-26
+
+### Fixed
+
+- **协议层加固**：Redis/PG 解析增加长度上限，Mongo wire frame/缓冲区限长；监听端口被占用时通过 `onError`/回调报告，不再崩进程。
+- **原生模块下载**：校验 SHA256SUMS、限制重定向深度、跨域重定向不转发代理鉴权；检测 musl/N-API，新增 linux x64/arm64 musl 预编译产物。
+- **插件安装**：校验插件名与 tar 清单，拒绝路径穿越/链接，改用 `execFileSync` 避免 shell 注入。
+- **JS 沙箱**：`mod.js` 与 SQLite UDF 默认在受限 vm 中执行，需显式设置 `JSQL_ALLOW_UNSAFE_*` 才开放宿主能力。
+- **迁移导出**：`exportToFile` 分页流式写入，避免整表读入内存。
+- 修复 MySQL binary resultset NULL bitmap 偏移、PG `$n` 参数绑定、MultiServer 跨协议共享引擎等正确性问题。
+
+## [6.5.7] — 2026-10-24
+
+### Fixed
+
+- 移除 star-nag OAuth URL 的 `.php` 后缀（`/start.php` → `/start`，`/result.php` → `/result`）。
 
 ## [6.5.6] — 2026-10-24
 
