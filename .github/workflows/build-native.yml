@@ -38,6 +38,14 @@ jobs:
             lib: ''
             ext: .dll
             asset: jsql-neo-native.win32-x64-msvc.node
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            asset: jsql-neo-native.linux-x64-musl.node
+            musl: true
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            asset: jsql-neo-native.linux-arm64-musl.node
+            musl: true
 
     steps:
       - uses: actions/checkout@v5
@@ -47,17 +55,20 @@ jobs:
           node-version: 24
 
       - name: Install Rust toolchain
+        if: ${{ !matrix.musl }}
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Cache cargo
+        if: ${{ !matrix.musl }}
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: nativesrc/jsql-neo-native -> target
           key: ${{ matrix.target }}
 
       - name: Build
+        if: ${{ !matrix.musl }}
         shell: bash
         run: |
           set -euo pipefail
@@ -66,11 +77,33 @@ jobs:
           cp "target/${{ matrix.target }}/release/${{ matrix.lib }}jsql_neo_native${{ matrix.ext }}" \
              "../../${{ matrix.asset }}"
 
+      - name: Build (musl)
+        if: ${{ matrix.musl }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/w" -w /w node:22-alpine sh -c '
+            set -e
+            apk add --no-cache build-base rust cargo
+            cd nativesrc/jsql-neo-native
+            cargo build --release
+            cp target/release/libjsql_neo_native.so "/w/${{ matrix.asset }}"
+          '
+
       - name: Smoke load test
+        if: ${{ !matrix.musl }}
         shell: bash
         run: |
           set -euo pipefail
           node -e "require('./${{ matrix.asset }}'); console.log('${{ matrix.asset }} load ok')"
+
+      - name: Smoke load test (musl)
+        if: ${{ matrix.musl }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/w" -w /w node:22-alpine \
+            node -e "require('./${{ matrix.asset }}'); console.log('${{ matrix.asset }} load ok')"
 
       # 所有平台统一先传成 artifact（手动跑、分支跑也能在这里下产物）
       - name: Upload artifact
