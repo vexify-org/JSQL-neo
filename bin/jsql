@@ -66,7 +66,7 @@ const cli = yaggs({ pkg: require('../package.json') })
           if (!argv.address) return fail(new Error("'mod add' requires --address <path>"));
           const ext = path.extname(argv.address).toLowerCase();
           if (ext === '.js' || ext === '.cjs' || ext === '.mjs') {
-            console.warn("Warning: JS modules run without sandbox isolation (trust model). Use .json files for data-only plugins.");
+            console.warn("Warning: JS modules run in a restricted vm sandbox (no require/process/Buffer). Set JSQL_ALLOW_UNSAFE_MODULES=1 only for trusted code. Use .json files for data-only plugins.");
           }
           const entry = manager.add(argv.address);
           out(useJson ? entry : `Module '${entry.name}' added (${entry.path}). Use 'jsql mod enable ${entry.name}' to enable.`);
