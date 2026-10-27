@@ -4,6 +4,15 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.9] — 2026-10-27
+
+### Fixed
+
+- **大表聚合崩溃**：`MIN`/`MAX` 用 `Math.min(...)`/`Math.max(...)` 展开超大数组，超过 V8 参数上限导致 `RangeError`；改为循环求值。
+- **深 JSON 栈溢出**：`JSON_DEPTH` 对深层嵌套 JSON 递归调用栈溢出；改为显式栈迭代。
+- **同类 spread 隐患**：Mongo `$min`/`$max`、JSON 深度计算，以及 B-tree/分组/导出等 10 处大数组 `push(...)` 展开全部改为 `for...of`，消除参数上限依赖。
+- 修复大表 `GROUP_CONCAT`/ROLLUP 等大分组路径上的同类风险。
+
 ## [6.5.8] — 2026-10-26
 
 ### Fixed
