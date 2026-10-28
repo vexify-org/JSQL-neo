@@ -4,6 +4,16 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.10] — 2026-10-28
+
+### Fixed
+
+- **ORDER BY 别名/位置序号被忽略**：非分组路径下 `ORDER BY` 引用输出别名（`ORDER BY val`）或位置序号（`ORDER BY 1`）此前不排序，现解析回投影列的底层表达式正确排序。
+- **字符串比较与 LIKE 不一致**：默认 `=`/`<>`/`<`/`IN` 现按大小写不敏感（utf8mb4_general_ci）处理，与 `LIKE` 一致；字符串列不再参与等值下推（数值列仍走索引）。
+- **BINARY 限定符**：新增 `BINARY expr` 前缀解析，强制大小写敏感比较；字面量与 IN 列表元素正确求值。
+- **UPDATE ... ORDER BY ... LIMIT**：与 DELETE 对称，先按 WHERE 过滤、再按 ORDER BY 排序、最后 LIMIT 截取再逐行更新。
+- **date ± INTERVAL n UNIT**：`'2026-01-01' + INTERVAL 3 DAY` 等区间算术语法现可解析并正确计算（复用 DATE_ADD 逻辑，月末钳制、小时/分钟/秒均支持）。
+
 ## [6.5.9] — 2026-10-27
 
 ### Fixed
