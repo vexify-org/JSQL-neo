@@ -4,6 +4,16 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.11] — 2026-10-28
+
+### Fixed
+
+- **布尔三值逻辑**：`SELECT TRUE AND TRUE` / `NULL AND TRUE` / `NULL OR FALSE` 此前全部返回 0——`resolveOperand` 缺 `and`/`or`/`xor`/`not` 分支，落到 default 返回 `undefined` 再数值化成 0。新增 `sqlTruthy`/`sqlAnd`/`sqlOr`/`sqlXor` 三值真值表，`TRUE AND TRUE`=1、`NULL AND TRUE`=NULL、`NULL OR FALSE`=NULL。
+- **CREATE TABLE 重复列名**：`CREATE TABLE d(a INT, a INT)` 此前不报错（对象键覆盖静默丢列），现抛 `Duplicate column name`。
+- **JSON/JSONB 非法值**：`{bad json` 这类非法 JSON 字符串此前能塞进 JSONB 列，现两引擎（Database `_validateDataTypes` + WASM insert）都做 `JSON.parse` 校验，非法抛 `Truncated incorrect object value`。
+- **ORDER BY 不存在列**：`ORDER BY nonexistent_col` 此前静默忽略（ORDER BY 列解析成裸字符串，列引用校验 walk 检不到），现抛 `no such column`；输出别名/位置序号仍豁免。
+- **超大整数序列化**：`SELECT 1000000000000000000000` 此前抛 `Do not know how to serialize a BigInt`，现输出前递归把 BigInt 转字符串（保留精度、可序列化，防循环引用/Buffer 递归爆栈）。
+
 ## [6.5.10] — 2026-10-28
 
 ### Fixed
