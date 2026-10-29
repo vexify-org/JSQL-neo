@@ -4,6 +4,13 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.13] — 2026-10-29
+
+### Fixed
+
+- **注册表插件无法自动加载**：`jsql plugin install <name>` 装出的插件（manifest `entry` 是仓库相对路径如 `plugins/xql/index.js`，tgz 解出来文件在根级）此前在 `new Database()` 时匹配不到入口、静默不加载。`_loadInstalledPlugins` 现在追加 `path.basename(entryFile)` 候选，兼容仓库相对 / 根级相对 / `plugins/` 子目录三种布局。
+- **`jsql plugin` 命令在 npm 安装下崩溃**：npm 包的 `files` 漏掉 `src/`，`bin/jsql` 的 `require('../src/cli/plugin')` 找不到模块。已把 `src/` 加回发布文件清单。
+
 ## [6.5.12] — 2026-10-29
 
 ### Added
