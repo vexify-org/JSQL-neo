@@ -16,6 +16,17 @@
 
 ---
 
+## Demo
+
+![JSQL-NEO terminal demo](doc/demo.gif)
+
+A real `jsql tui` session: joins, NULL semantics, exact 64-bit integers, and
+savepoint rollback.
+
+[MP4 version](doc/demo.mp4) · [asciinema recording](doc/demo.cast)
+
+---
+
 ## 🚀 Quick Start
 
 ### One-line install
