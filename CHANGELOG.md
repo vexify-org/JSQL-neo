@@ -4,6 +4,12 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.12] — 2026-10-29
+
+### Added
+
+- **XQL 集成**：内置 `xql` 插件（`db.use('xql')`），用 XQL（eXtend Query Language）查询 JSQL 表——支持等值 hash 索引与范围 range 索引、管道式语法（`FROM t |> WHERE … |> LIMIT n`）。API：`db.xql()` / `xqlLoad()` / `xqlRefresh()` / `xqlIndex()` / `xqlTables()` / `xqlCollection()` / `xqlClear()`，写入自动失效、下次查询重建。XQL v0.3.0 源码内置（`lib/xql/`），零额外依赖。注册表已发布 `xql` 插件（`jsql plugin install xql`）。
+
 ## [6.5.11] — 2026-10-28
 
 ### Fixed
