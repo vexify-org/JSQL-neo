@@ -125,10 +125,33 @@ async function testTableName() {
   await db.stop();
 }
 
+async function testInstalledPluginAutoLoad() {
+  console.log('\n===== 注册表插件自动加载（entry 仓库相对路径 + 根级文件）=====');
+  const os = require('os');
+  const fs = require('fs');
+  const home = os.homedir();
+  const name = '_xqltest_registry';
+  const dir = path.join(home, '.jsql', 'plugins', name);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'index.js'),
+    "module.exports = { name: '" + name + "', install(engine) { engine.__xqltest = true; } };\n");
+  fs.writeFileSync(path.join(dir, 'manifest.json'),
+    JSON.stringify({ name, version: '1.0.0', entry: 'plugins/' + name + '/index.js', files: [] }));
+  try {
+    const db = new Database(':memory:', { modules: true });
+    await db.start();
+    ok('仓库相对 entry + 根级 index.js 能自动加载', db.__xqltest === true);
+    await db.stop();
+  } finally {
+    try { fs.rmSync(path.join(home, '.jsql', 'plugins', name), { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+}
+
 (async () => {
   await testEngine(Database, 'Database (Pure JS)');
   await testAutoLoadOff();
   await testTableName();
+  await testInstalledPluginAutoLoad();
 
   // native 引擎（Linux 上可用；Android 等平台无二进制时跳过）
   try {
