@@ -115,6 +115,22 @@ declare namespace JSQLNeo {
     query(sql: string, paramsOrOpts?: unknown[] | Record<string, unknown>, opts?: Record<string, unknown>): Promise<any>;
     exists(table: string, filter?: Record<string, unknown>): Promise<boolean>;
     prepare(sql: string): PreparedStatement;
+
+    // ── xql 插件（db.use('xql') 后可用）─────────────────────
+    /** 用 XQL 查询（自动加载源表）。opts.table 可显式指定数据源。 */
+    xql(sql: string, opts?: { table?: string }): Promise<Row[]>;
+    /** 显式加载一张表成 XQL 集合 */
+    xqlLoad(table: string): Promise<unknown>;
+    /** 强制重建某表的 XQL 集合 */
+    xqlRefresh(table: string): Promise<unknown>;
+    /** 运行时建索引（type 缺省按字段类型猜，'range' 为有序索引） */
+    xqlIndex(table: string, field: string, type?: 'hash' | 'range'): this;
+    /** 已加载的 XQL 集合名 */
+    xqlTables(): string[];
+    /** 取某表的 XQL 集合（未加载返回 null） */
+    xqlCollection(table: string): unknown | null;
+    /** 清缓存（不传清全部） */
+    xqlClear(table?: string): this;
   }
 
   export interface PreparedStatement {
