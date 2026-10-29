@@ -171,6 +171,33 @@ await db.start();
 
 ---
 
+## ✨ XQL 集成
+
+用 [XQL](https://github.com/vexify-org/XQL) 查询 JSQL 表：把 SQL 直接接到文档上，
+支持等值 hash 索引与范围 range 索引，速度不低于手写 JS 循环，并支持管道式语法。
+
+```js
+const { NativeJSQL } = require('jsql-neo');
+const db = new NativeJSQL();
+await db.start();
+
+db.use(require('jsql-neo/lib/plugins').xql());
+
+// 标准 SQL
+const rows = await db.xql('SELECT name FROM users WHERE age > 18 ORDER BY name');
+// 管道式（同样的语义）
+const pipe = await db.xql('FROM users |> WHERE age > 18 |> SELECT name |> ORDER BY name');
+
+// 索引：等值 → hash 索引 O(1)，范围 → 有序索引 O(log n + k)
+db.xqlIndex('users', 'id');
+db.xqlIndex('users', 'score', 'range');
+```
+
+写入（INSERT / UPDATE / DELETE）后 XQL 缓存自动失效、下次查询重建；XQL 只读，
+不做写回——数据的唯一权威仍是 JSQL 引擎。详见 [PLUGINS.md](PLUGINS.md#xql-插件)。
+
+---
+
 ## 📖 Documentation
 
 Detailed docs live in `doc/` — click to read.

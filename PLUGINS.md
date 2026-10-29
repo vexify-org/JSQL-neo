@@ -116,6 +116,47 @@ db.removeByIds('users', ids);
 await db.stop();
 ```
 
+## xql 插件
+
+用 XQL（eXtend Query Language）查询 JSQL 表：把 SQL 直接接到 JS 文档上，
+支持等值 hash 索引与范围 range 索引，速度不低于手写 JS 循环，支持管道式语法。
+
+```js
+db.use(require('jsql-neo/lib/plugins').xql());
+
+const rows = await db.xql('SELECT name FROM users WHERE age > 18 ORDER BY name');
+const pipe = await db.xql('FROM users |> WHERE age > 18 |> SELECT name |> ORDER BY name');
+
+db.xqlIndex('users', 'id');             // 等值 → hash 索引，O(1)
+db.xqlIndex('users', 'score', 'range'); // 范围 → range 索引
+```
+
+写入（INSERT / UPDATE / DELETE）后缓存自动失效，下次查询重建；XQL 只读，
+不做写回，数据的唯一权威仍是 JSQL 引擎。
+
+配置项：
+
+| 选项 | 默认 | 说明 |
+|------|------|------|
+| `indexes` | `{}` | 自动建索引：`{ users: ['id', ['score', 'range']] }` |
+| `pageSize` | `1000` | 读表分页大小（`find` 有默认 limit） |
+| `autoLoad` | `true` | 首次查询自动加载源表 |
+
+API（也可用 `db.plugin('xql')` 取同一套）：
+
+| API | 说明 |
+|-----|------|
+| `db.xql(sql, { table })` | 用 XQL 查询（自动加载源表；`opts.table` 可指定数据源） |
+| `db.xqlLoad(table)` | 显式加载一张表成 XQL 集合 |
+| `db.xqlRefresh(table)` | 强制重建某表 |
+| `db.xqlIndex(table, field, type)` | 运行时建索引（`type` 缺省按字段类型猜） |
+| `db.xqlTables()` | 已加载集合名列表 |
+| `db.xqlCollection(table)` | 取 XQL 集合（未加载返回 `null`） |
+| `db.xqlClear(table?)` | 清缓存（不传清全部） |
+
+> XQL 源码以 `lib/xql/` 内置（vendored from `vexify-org/XQL` v0.3.0），
+> 因此 `db.use('xql')` 无需额外安装依赖。
+
 ## 模块系统（CLI + 代码）
 
 ### CLI
