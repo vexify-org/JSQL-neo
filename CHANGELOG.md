@@ -4,6 +4,17 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.15] — 2026-10-30
+
+### Fixed
+
+- **相关子查询带表层限定符时恒为 NULL（H3 补全）**：`UPDATE a SET v = (SELECT w FROM b WHERE b.id = a.id)` / SELECT 投影里的同类写法，内层行已套前缀后回退被禁止，`ctx.__outer` 又只按 `a.id` 查键，导致外层裸列 `id` 取不到、整条相关子查询返回 NULL。现在外层回退同时按裸列名再查一次。
+- **updateById 允许把主键/必填列改成 NULL（H5 补全）**：`Database.updateById` 此前只做类型校验与重复检查，跳过了 `Table._validateConstraints`，`UPDATE t SET id = NULL` 会静默写入。`updateById` / `updateByIds` 现在都走完整约束校验。
+
+### Tests
+
+- 新增 `test/v6.5.14-regression.test.js`（60 项断言），逐条固化 C1 / H1–H6 / M1–M6 / M9–M11，并纳入 `test:all`。
+
 ## [6.5.14] — 2026-10-30
 
 ### Fixed
