@@ -4,6 +4,30 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.14] — 2026-10-30
+
+### Fixed
+
+- **B-Tree 索引损坏（C1）**：混合插入/删除时 `_rebalanceChild` 在删除前就合并/再平衡叶子，导致索引条目丢失（`search(6)` 漏 44，`size` 6≠7），进而破坏所有索引查询与唯一约束检查，可插入重复主键/唯一值。改为惰性删除 + 按需 `_normalize` / `_cleanNode` / `_relinkLeaves`，删除永远先确认存在再调整结构。
+- **PostgreSQL 认证绕过（H1）**：未配置认证时 `_userPassword` 返回 `''`，触发 trust，任何用户名 + 空密码均可连入。现在未配置且未显式 `noAuth` 时返回 `undefined`（拒绝），仅 `noAuth:true` 才放行。
+- **NeDB `$regex` 全匹配（H2）**：字符串模式此前被 `new RegExp(undefined)` 解析成 `/(?:)/`，匹配一切文档。现支持 RegExp 或字符串，非法模式返回不匹配。
+- **UPDATE 标量子查询变 NULL（H3）**：`UPDATE t SET c = (SELECT …)` 此前求值为 NULL。现在先物化子查询并对每行按相关列求值。
+- **BETWEEN 字典序（H4）**：BETWEEN 此前按字符串字典序比较，数值列 `10 BETWEEN 2 AND 20` 判错。现对数值操作数按数值比较。
+- **主键允许 NULL（H5）**：主键列隐式 NOT NULL 未在所有写入路径生效。`_validateConstraints` 与 `insertMany` 均已强制；非自增主键插入 NULL 抛 `Column 'x' cannot be null`。
+- **索引列 `=null` 漏行（H6）**：`WHERE col = NULL`（或 `$in` 含 null）走 B-Tree 快路径时漏掉行。现条件为 null/undefined 或 `$in` 含 null 时跳过索引、回退全表比较。
+- **错误消息 `%s` 污染（M1）**：`createError` 用链式 `replace` 导致后续参数误替换。改为单遍替换。
+- **浅拷贝数据污染（M2）**：`Table.insert`/`find`/`findOne`/`findById`/`findAll` 及 `Database.find`/`findById`/`findByIds` 此前返回浅拷贝，调用方改动嵌套对象会污染内部行。新增 `cloneRow` 深拷贝（Date/Array/普通对象）。
+- **migrate 删 length（M3）**：`normalizeSchema` 丢失显式 `length`。现在保留，仅在缺失时由 `maxLength` 回填。
+- **READ_COMMITTED 下 ROLLBACK 不撤销行（M4）**：`begin('READ_COMMITTED')` 只拍自增值快照，回滚后插入行仍在。现在任何隔离级别都拍完整快照并在 `rollback` 时恢复。
+- **XOR 破坏三值逻辑（M5）**：`TRUE XOR FALSE` 及 NULL 组合结果错误。新增 `sqlXor` 三值真值表。
+- **REGEXP BINARY 失效（M6）**：`expr REGEXP BINARY 'pat'` 的大小写敏感标志丢失/解析错。现在解析 `binary` 修饰并设 `ci:!binary`，非法正则安全返回不匹配。
+- **Web UI XSS + 默认无鉴权（M7）**：转义漏 `"`/`'`，且列表用内联 `onclick` 拼接字符串。现补全转义，改用 `data-name` + `addEventListener`。
+- **star-nag 误判（M8）**：空响应体被当作已 star。现用 `curl -w '%{http_code}'` 按 204/404 判定，其余返回未知。
+- **插件优先级失效（M9）**：`runHooks` 未按 `priority` 排序。现在注册时打标、执行前按优先级降序排序。
+- **XQL NULL 传播（M10）**：编译器对 `=`/`!=`/`BETWEEN`/`IN` 未做三值逻辑，NULL 参与比较返回布尔。现在两边任一 NULL 输出 NULL，`IN`/`NOT IN` 支持列表内含 NULL。
+- **Mongo 泄漏内部行（M11）**：查询/聚合/findAndModify 结果带出 `_deleted`/`_rid`/`_score`。新增 `_publicDoc` 剥离内部字段。
+- **MySQL 序列号错误（M12）**：COM_PROCESS_INFO 多自增一次序列号，跳过响应序号。已移除多余的 `this.sequence++`。
+
 ## [6.5.13] — 2026-10-29
 
 ### Fixed
