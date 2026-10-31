@@ -272,6 +272,32 @@ function makeDb() { return new Database(':memory:'); }
   ok('RLIKE BINARY 同样生效', eq((await q("SELECT id FROM r6 WHERE s RLIKE BINARY 'abc'")).rows, [[1]]));
   ok('非法正则安全返回不匹配', eq((await q("SELECT id FROM r6 WHERE s REGEXP BINARY '('")).rows, []));
 
+  // ── B1–B6. 标量函数语义（v6.5.17） ─────────────────────────
+  console.log('\n--- B1–B6. 标量函数 ---');
+  ok('B1 LENGTH 按字节（héllo=6）', (await one("SELECT LENGTH('héllo')")) === 6, await one("SELECT LENGTH('héllo')"));
+  ok('B1 CHAR_LENGTH 按字符（héllo=5）', (await one("SELECT CHAR_LENGTH('héllo')")) === 5);
+  ok('B1 emoji 字节数（🚀🌟=8）', (await one("SELECT LENGTH('🚀🌟')")) === 8);
+  ok('B2 OCTET_LENGTH 已实现（héllo=6）', (await one("SELECT OCTET_LENGTH('héllo')")) === 6);
+  ok('B2 OCTET_LENGTH NULL → NULL', (await one('SELECT OCTET_LENGTH(NULL)')) === null);
+  ok("B3 LEFT('hello',-3) → ''", (await one("SELECT LEFT('hello',-3)")) === '');
+  ok("B3 RIGHT('hello',-3) → ''", (await one("SELECT RIGHT('hello',-3)")) === '');
+  ok("B3 LEFT('hello',0) → ''", (await one("SELECT LEFT('hello',0)")) === '');
+  ok("B3 LEFT('hello',3) → 'hel'", (await one("SELECT LEFT('hello',3)")) === 'hel');
+  ok("B3 RIGHT('hello',3) → 'llo'", (await one("SELECT RIGHT('hello',3)")) === 'llo');
+  ok("B4 LPAD('hi',5,'xy') → 'xyxhi'", (await one("SELECT LPAD('hi',5,'xy')")) === 'xyxhi',
+    await one("SELECT LPAD('hi',5,'xy')"));
+  ok("B4 RPAD('hi',5,'xy') → 'hixyx'", (await one("SELECT RPAD('hi',5,'xy')")) === 'hixyx',
+    await one("SELECT RPAD('hi',5,'xy')"));
+  ok("B4 LPAD 目标更短时截断", (await one("SELECT LPAD('hello',3,'xy')")) === 'hel');
+  ok('B4 LPAD 填充串为 NULL → NULL', (await one("SELECT LPAD('hi',5,NULL)")) === null);
+  ok('B5 POWER(2,NULL) → NULL', (await one('SELECT POWER(2,NULL)')) === null);
+  ok('B5 POW(NULL,2) → NULL', (await one('SELECT POW(NULL,2)')) === null);
+  ok('B5 POWER 正常仍为 8', (await one('SELECT POWER(2,3)')) === 8);
+  ok('B6 CAST(-5 AS UNSIGNED) 64 位回绕', String(await one('SELECT CAST(-5 AS UNSIGNED)')) === '18446744073709551611',
+    String(await one('SELECT CAST(-5 AS UNSIGNED)')));
+  ok('B6 CAST(5 AS UNSIGNED) 保持原值', String(await one('SELECT CAST(5 AS UNSIGNED)')) === '5');
+  ok('B6 CAST(-5 AS SIGNED) 不回绕', (await one('SELECT CAST(-5 AS SIGNED)')) === -5);
+
   // ── M9. 插件钩子优先级 ─────────────────────────────────────
   console.log('\n--- M9. 钩子优先级 ---');
   {

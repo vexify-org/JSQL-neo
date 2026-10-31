@@ -4,6 +4,22 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.17] — 2026-10-31
+
+### Fixed
+
+- **B1 `LENGTH()` 返回字符数而非字节数**：`LENGTH('héllo')` 此前返回 5，MySQL 是 6。现在 `LENGTH` / `OCTET_LENGTH` 按 UTF-8 字节计（`Buffer.byteLength`），`CHAR_LENGTH` / `CHARACTER_LENGTH` 才按字符计。
+- **B2 `OCTET_LENGTH()` 未实现**：调用时静默返回 NULL；现在与 `LENGTH` 同义（`'héllo'` = 6）。
+- **B3 `LEFT` / `RIGHT` 负长度返回非空结果**：`LEFT('hello',-3)` 此前得到 `'he'`，MySQL 应为 `''`。现在负长度与 0 都返回空串。
+- **B4 `LPAD` / `RPAD` 结果超长**：此前每轮拼接整个填充串，`LPAD('hi',5,'xy')` 得到 `'xyxyhi'`。现在按需截取填充串，正确结果是 `'xyxhi'`（`RPAD` 为 `'hixyx'`）；填充串显式 NULL 返回 NULL。
+- **B5 `POWER` / `POW` 第二参数为 NULL 返回 1**：`Math.pow(2, null)` 按 0 计算。现在任一参数 NULL 都返回 NULL。
+- **B6 `CAST(x AS UNSIGNED)` 负数未回绕**：`CAST(-5 AS UNSIGNED)` 此前返回 `-5`，MySQL 应为 64 位补码 `18446744073709551611`。现在用 `BigInt.asUintN(64, …)` 保精度回绕，`AS SIGNED` 行为不变。
+
+### Tests
+
+- 回归套件新增 B1–B6 共 20 项断言（70 → 90）。
+- `test/extra-coverage.test.js` 的 Unicode / Emoji 用例改用 MySQL 字节语义（`LENGTH('héllo')` 5→6、`'🚀🌟'` 4→8），并补 `CHAR_LENGTH('héllo')` = 5。
+
 ## [6.5.16] — 2026-10-31
 
 ### Fixed
