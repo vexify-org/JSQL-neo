@@ -177,9 +177,6 @@ for (let t = 0; t < 25; t++) {
   ok('random mixed t' + t + ' vs reference', okAll && bt.size === ref.size, { size: bt.size, ref: ref.size, reason: reason });
 }
 
-console.log(failed === 0 ? `\nALL ${passed} BTREE TESTS PASSED` : `\n${failed} FAILURES (${passed} passed)`);
-process.exit(failed === 0 ? 0 : 1);
-
 /* ---- 回归：remove 后分隔键未更新导致内部键重复 ----
  *
  * 旧实现里 remove() 只改叶子，不更新祖先的分隔键副本。删掉某个正好是分隔键
@@ -205,3 +202,56 @@ process.exit(failed === 0 ? 0 : 1);
   if (errs.length) { okAll = false; reason = reason || ('validate: ' + errs[0]); }
   ok('回归：remove 后分隔键未更新', okAll && bt.size === ref.size, { size: bt.size, ref: ref.size, reason, keys: bt._root.keys });
 }
+
+/* ---- 回归：混合增删触发再平衡后索引条目丢失（C1）----
+ *
+ * 报告数据：search(6) → [54,28]（应为 [28,44,54]）、size 少 1。
+ * 根因是删除路径「先再平衡、后确认键是否存在」：把分支合并/借用之后才去删，
+ * 目标键可能已被搬到别的节点，于是这个 rowIndex 静默消失，size 也随之错位。
+ * 下面用固定操作序列（含多行同键 + 反复删除触发 merge/borrow）锁定该场景，
+ * 逐值与参考实现比对。
+ */
+{
+  const bt = new BTree(4);
+  const ref = new Map();
+  const ops = [];
+  // 先铺满两层，制造出可合并/可借用的兄弟节点
+  for (let k = 1; k <= 12; k++) ops.push([1, k, k]);
+  // key=6 挂三个行号（报告里的 28 / 44 / 54）
+  ops.push([1, 6, 28], [1, 6, 44], [1, 6, 54]);
+  // 删掉一批键，触发叶子合并 / 内部键下移
+  for (let k = 1; k <= 11; k += 2) ops.push([0, k, k]);
+  // 再插入新键，触发分裂
+  for (let k = 13; k <= 20; k++) ops.push([1, k, k]);
+  // 继续混合删除，踩 borrow/merge 路径
+  for (let k = 2; k <= 10; k += 2) ops.push([0, k, k]);
+  for (let k = 14; k <= 20; k += 2) ops.push([0, k, k]);
+  // 再插入，反复触发结构变化
+  ops.push([1, 21, 21], [1, 22, 22], [1, 23, 23], [0, 21, 21]);
+
+  let okAll = true, reason = '';
+  for (const [ins, k, r] of ops) {
+    if (ins) {
+      bt.insert(k, r);
+      if (!ref.has(k)) ref.set(k, new Set());
+      ref.get(k).add(r);
+    } else {
+      bt.remove(k, r);
+      if (ref.has(k)) { ref.get(k).delete(r); if (ref.get(k).size === 0) ref.delete(k); }
+    }
+  }
+  for (const [k, vals] of ref) {
+    const got = bt.search(k).slice().sort((a, b) => a - b);
+    const exp = [...vals].sort((a, b) => a - b);
+    if (JSON.stringify(got) !== JSON.stringify(exp)) { okAll = false; reason = reason || ('search(' + k + ')=' + JSON.stringify(got) + ' exp ' + JSON.stringify(exp)); }
+  }
+  const errs = validate(bt);
+  if (errs.length) { okAll = false; reason = reason || ('validate: ' + errs[0]); }
+  const six = bt.search(6).slice().sort((a, b) => a - b);
+  ok('C1 回归：key=6 三行号全部保留', JSON.stringify(six) === '[28,44,54]', six);
+  ok('C1 回归：混合增删后 size 与参考一致', bt.size === ref.size, { size: bt.size, ref: ref.size, reason });
+  ok('C1 回归：混合增删后逐键可搜到', okAll, reason);
+}
+
+console.log(failed === 0 ? `\nALL ${passed} BTREE TESTS PASSED` : `\n${failed} FAILURES (${passed} passed)`);
+process.exit(failed === 0 ? 0 : 1);

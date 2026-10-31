@@ -157,8 +157,8 @@ function tmp(name) {
     ok('sql aggregate', agg.rows[0][0] === 2);
     const fn = await executeSQL(db, 'SELECT VERSION(), CONCAT("x","y")');
     ok('sql func column names', fn.columns[0] === 'VERSION()');
-    await executeSQL(db, 'UPDATE users SET age = 31 WHERE name = \'Bob\'');
-    await executeSQL(db, 'DELETE FROM users WHERE id = 1');
+    await executeSQL(db, 'UPDATE users SET age = 31 WHERE name = \'Bob\'', { safety: false });
+    await executeSQL(db, 'DELETE FROM users WHERE id = 1', { safety: false });
     ok('sql count after delete', (await db.count('users')) === 1);
     await executeSQL(db, 'BEGIN');
     await executeSQL(db, "INSERT INTO users (name, age) VALUES ('Temp', 99)");
@@ -166,7 +166,7 @@ function tmp(name) {
     ok('sql rollback', (await db.count('users')) === 1);
     await executeSQL(db, 'START TRANSACTION');
     await executeSQL(db, "INSERT INTO users (name, age) VALUES ('X', 1)");
-    await executeSQL(db, 'TRUNCATE TABLE users');
+    await executeSQL(db, 'TRUNCATE TABLE users', { safety: false });
     ok('sql truncate', (await db.count('users')) === 0);
     const sqlApi = require(path.join(ROOT, 'lib/sql'));
     const parsed = sqlApi.parseSQL('SELECT * FROM t WHERE id = 5');

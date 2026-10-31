@@ -4,6 +4,22 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.16] — 2026-10-31
+
+### Fixed
+
+- **N1 多语句注入面（安全模式）**：`db.query("SELECT …; DROP TABLE s;")` 此前会把第二条一起执行并删表。安全模式现在：
+  1. 默认只允许 **一条** 语句（`maxStatements` 默认 1；显式 `allowMultiStatement: true` 或 `safety:false` 可放开）；
+  2. 单条 `DROP` / `TRUNCATE` / `DELETE` / `UPDATE`（含 `WITH … DELETE`）默认拦截，需显式 `{ allowWrites: true }`；
+  3. 所有语句先解析、再统一做破坏性检查，避免「第一条 SELECT 先执行、第二条才报错」的半执行状态。
+  协议服务器（MySQL / mysql2 兼容层 / SQLite 兼容层 / Web 管理台）显式传 `allowWrites`，原有客户端能力不变。
+- 报告里 **M4（READ_COMMITTED 下 ROLLBACK 不撤销）** 在 6.5.14 已修复，当前 HEAD 用 INSERT / UPDATE / DELETE 三种变体均无法复现，无需追加变更。
+
+### Tests
+
+- **N2 B-Tree 测试盲区**：`test/btree.test.js` 在第 181 行提前 `process.exit`，其后的回归块实际从未执行。把汇总/退出移到文件末尾，既有回归恢复运行；另新增固定操作序列的「混合增删触发再平衡」回归（key=6 三行号 28/44/54 全部保留、size 与参考一致、逐键可搜到），B-Tree 用例 157 → 161。
+- `test/v6.5.14-regression.test.js` 增加 N1 断言（多语句拒绝、四条破坏性语句拦截、WITH 包装、allowWrites / allowMultiStatement / safety:false 放行），共 60 → 70 项。
+
 ## [6.5.15] — 2026-10-30
 
 ### Fixed

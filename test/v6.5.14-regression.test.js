@@ -92,6 +92,34 @@ function makeDb() { return new Database(':memory:'); }
     ok('options.user 不匹配拒绝', srvOpt._userPassword('other') === undefined);
   }
 
+  // ── N1. SQL 安全策略：多语句 / 破坏性语句 ────────────────────
+  console.log('\n--- N1. SQL 安全策略 ---');
+  {
+    const attempts = async (sql, opts) => {
+      try { await executeSQL(db, sql, opts); return null; } catch (e) { return e.message; }
+    };
+    await q('CREATE TABLE guard(id INT PRIMARY KEY, v INT)');
+    await q("INSERT INTO guard VALUES (1, 1)");
+    const multi = await attempts('SELECT 1; DROP TABLE guard');
+    ok('多语句被拒绝（默认单语句）', /too many statements/i.test(multi || ''), multi);
+    ok('被拒后目标表仍在', (await q('SELECT * FROM guard')).rows.length === 1);
+    const drop = await attempts('DROP TABLE guard');
+    ok('单条 DROP 被拦截', /blocked by security policy: dropTable/i.test(drop || ''), drop);
+    const del = await attempts('DELETE FROM guard');
+    ok('单条 DELETE 被拦截', /blocked by security policy: delete/i.test(del || ''), del);
+    const upd = await attempts('UPDATE guard SET v = 2');
+    ok('单条 UPDATE 被拦截', /blocked by security policy: update/i.test(upd || ''), upd);
+    const trunc = await attempts('TRUNCATE TABLE guard');
+    ok('单条 TRUNCATE 被拦截', /blocked by security policy: truncate/i.test(trunc || ''), trunc);
+    ok('WITH ... DELETE 同样被拦截',
+      /blocked by security policy: delete/i.test(await attempts('WITH x AS (SELECT 1) DELETE FROM guard') || ''));
+    const allowed = await attempts('DELETE FROM guard', { allowWrites: true });
+    ok('allowWrites: true 放行写操作', allowed === null, allowed);
+    const multiAllowed = await attempts('SELECT 1; SELECT 2', { allowMultiStatement: true, allowWrites: true });
+    ok('allowMultiStatement 可显式放开多语句（非破坏性）', multiAllowed === null, multiAllowed);
+    ok('safety:false 仍可执行破坏性语句', (await attempts('DROP TABLE guard', { safety: false })) === null);
+  }
+
   // ── H2. NeDB $regex ─────────────────────────────────────────
   console.log('\n--- H2. NeDB $regex ---');
   {
