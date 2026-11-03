@@ -319,7 +319,7 @@ impl HybridEngine {
             for _ in 0..n_fields { row.push(parse_fv(&mut off)?); }
             row_batch.push(row);
         }
-        let ids = t.add_rows_vec_fv(&field_names, row_batch);
+        let ids = t.add_rows_vec_fv(&field_names, row_batch)?;
         drop(mem);
         self.mark_dirty(table);
         Ok(ids)

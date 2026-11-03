@@ -285,7 +285,15 @@ impl Table {
         true
     }
 
-    pub fn add_rows(&mut self, fields_batch: Vec<HashMap<String, serde_json::Value>>) -> Vec<u64> {
+    /// 主键冲突错误：消息与 JS 侧 ER_DUP_ENTRY 保持一致
+    /// （`Duplicate entry '<id>' for key '<pk>'`），前缀带错误码，便于上层 JS
+    /// 还原成 code/errno 相同的异常（两引擎同输入 → 同报错）。
+    fn dup_pk_error(&self, id: u64) -> String {
+        let pk = self.pk_field.clone().unwrap_or_else(|| "id".to_string());
+        format!("ER_DUP_ENTRY: Duplicate entry '{}' for key '{}'", id, pk)
+    }
+
+    pub fn add_rows(&mut self, fields_batch: Vec<HashMap<String, serde_json::Value>>) -> Result<Vec<u64>, String> {
         let now = now_millis();
         let batch_len = fields_batch.len();
         let mut ids = Vec::with_capacity(batch_len);
@@ -323,6 +331,11 @@ impl Table {
                 }
             }
 
+            // 显式指定的主键已存在：报错而不是覆盖 pk_index（否则原行变影子行）
+            if self.pk_index.contains_key(&id) {
+                return Err(self.dup_pk_error(id));
+            }
+
             let values_start = self.values.len();
             if fields.len() < self.schema.len() {
                 for name in &self.field_order {
@@ -356,17 +369,17 @@ impl Table {
             self.rows.push(RowStore { id, values_start, num_values: self.field_order.len(), created_at: now, updated_at: now });
             ids.push(id);
         }
-        ids
+        Ok(ids)
     }
 
-    pub fn add_rows_vec(&mut self, field_names: &[String], batch: Vec<Vec<serde_json::Value>>) -> Vec<u64> {
+    pub fn add_rows_vec(&mut self, field_names: &[String], batch: Vec<Vec<serde_json::Value>>) -> Result<Vec<u64>, String> {
         let batch_fv: Vec<Vec<FieldValue>> = batch.into_iter()
             .map(|row| row.into_iter().map(FieldValue::from_json).collect())
             .collect();
         self.add_rows_vec_fv(field_names, batch_fv)
     }
 
-    pub fn add_rows_vec_fv(&mut self, field_names: &[String], batch: Vec<Vec<FieldValue>>) -> Vec<u64> {
+    pub fn add_rows_vec_fv(&mut self, field_names: &[String], batch: Vec<Vec<FieldValue>>) -> Result<Vec<u64>, String> {
         let now = now_millis();
         let batch_len = batch.len();
         let mut ids = Vec::with_capacity(batch_len);
@@ -404,6 +417,9 @@ impl Table {
                         }
                     }
                 }
+                if self.pk_index.contains_key(&id) {
+                    return Err(self.dup_pk_error(id));
+                }
                 let values_start = self.values.len();
                 self.values.append(&mut row_vals);
                 let idx = self.rows.len();
@@ -411,7 +427,7 @@ impl Table {
                 self.rows.push(RowStore { id, values_start, num_values: self.field_order.len(), created_at: now, updated_at: now });
                 ids.push(id);
             }
-            return ids;
+            return Ok(ids);
         }
 
         // slow path: remap field names
@@ -433,6 +449,9 @@ impl Table {
                         self.next_id = self.next_id.max(id + 1);
                     }
                 }
+            }
+            if self.pk_index.contains_key(&id) {
+                return Err(self.dup_pk_error(id));
             }
             let values_start = self.values.len();
             for (i, remapped_si) in remap.iter().enumerate() {
@@ -475,7 +494,7 @@ impl Table {
             self.rows.push(RowStore { id, values_start, num_values: self.field_order.len(), created_at: now, updated_at: now });
             ids.push(id);
         }
-        ids
+        Ok(ids)
     }
 
     pub fn row_matches(&self, r: &RowStore, filter: &HashMap<String, serde_json::Value>) -> bool {
@@ -733,6 +752,10 @@ impl Table {
             let created_at = rv.get("created_at").and_then(|v| v.as_u64()).unwrap_or_else(now_millis);
             let updated_at = rv.get("updated_at").and_then(|v| v.as_u64()).unwrap_or(created_at);
             let fields = rv.get("fields").and_then(|v| v.as_object()).ok_or("row missing fields")?;
+            // 落盘数据里出现重复主键：报错而非静默覆盖（异常数据不应遮蔽真实行）
+            if self.pk_index.contains_key(&id) {
+                return Err(self.dup_pk_error(id));
+            }
             let values_start = self.values.len();
             for name in &self.field_order {
                 if let Some(jv) = fields.get(name) {
