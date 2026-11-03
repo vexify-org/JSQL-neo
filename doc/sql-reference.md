@@ -169,7 +169,7 @@ COMMIT;
 
 ```sql
 SELECT UPPER('aB'), LOWER('aB');            -- 'AB'  'ab'
-SELECT LENGTH('中文'), CHAR_LENGTH('中文');  -- 2  2
+SELECT LENGTH('中文'), CHAR_LENGTH('中文');  -- 6  2（LENGTH/OCTET_LENGTH 是 UTF-8 字节数）
 SELECT TRIM('  x  '), REVERSE('abc');       -- 'x'  'cba'
 SELECT SUBSTRING('abcdef', 2, 2);           -- 'bc'
 SELECT LEFT('abcdef', 3), RIGHT('abcdef', 3);  -- 'abc'  'def'
