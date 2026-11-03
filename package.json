@@ -21,6 +21,8 @@
     },
     "./wasm/browser.d.ts": "./wasm/browser.d.ts",
     "./wasm/*": "./wasm/*",
+    "./compat/v1": "./lib/compat/v1.js",
+    "./compat/v1.js": "./lib/compat/v1.js",
     "./lib/plugins": "./lib/plugins/index.js",
     "./lib/*.js": "./lib/*.js",
     "./lib/*": "./lib/*.js",
@@ -66,7 +68,8 @@
     "test:ident": "node test/identifier-keywords.test.js",
     "test:null": "node test/null-semantics.test.js",
     "test:semantics": "node test/sql-semantics.test.js",
-    "test:filter": "node test/filter-compile.test.js"
+    "test:filter": "node test/filter-compile.test.js",
+    "test:v1": "node test/compat-v1.test.js"
   },
   "keywords": [
     "database",

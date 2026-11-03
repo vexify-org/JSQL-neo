@@ -131,6 +131,9 @@ function injectMySQLCompat(mod) {
 
 module.exports = {
     JSQL: WasmClient.JSQL,
+    // jsql 1.0.0 怀旧兼容层（同步 createTable/dropTable + db.<表名> 属性）
+    // 用法：const { Database } = require('jsql-neo/compat/v1');
+    compatV1: require('./lib/compat/v1'),
     NativeJSQL: NativeClient.JSQL,
     Database: require('./lib/database'),
     Table: require('./lib/table'),
