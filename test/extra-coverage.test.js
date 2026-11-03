@@ -159,15 +159,18 @@ test('超长字符串 100000 字符正常处理', async () => {
   assert.strictEqual(await one(q, `SELECT LENGTH('${long}')`), 100000);
 });
 
-test('Unicode é 正确处理（LENGTH=5, UPPER 含重音）', async () => {
+test('Unicode é：LENGTH 为字节数（6），CHAR_LENGTH 为字符数（5）', async () => {
   const { q } = makeDb();
-  assert.strictEqual(await one(q, "SELECT LENGTH('héllo')"), 5);
+  // MySQL 语义：LENGTH/OCTET_LENGTH 返回 UTF-8 字节数，CHAR_LENGTH 才是字符数。
+  assert.strictEqual(await one(q, "SELECT LENGTH('héllo')"), 6);
+  assert.strictEqual(await one(q, "SELECT CHAR_LENGTH('héllo')"), 5);
   assert.strictEqual(await one(q, "SELECT UPPER('café')"), 'CAFÉ');
 });
 
-test('Emoji 按 UTF-16 单元计数（LENGTH=4）', async () => {
+test('Emoji 按 UTF-8 字节计数（LENGTH=8, CHAR_LENGTH=4）', async () => {
   const { q } = makeDb();
-  assert.strictEqual(await one(q, "SELECT LENGTH('🚀🌟')"), 4);
+  assert.strictEqual(await one(q, "SELECT LENGTH('🚀🌟')"), 8);
+  assert.strictEqual(await one(q, "SELECT CHAR_LENGTH('🚀🌟')"), 4);
 });
 
 test('Emoji UPPER 无变化', async () => {
