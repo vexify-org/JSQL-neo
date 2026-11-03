@@ -47,10 +47,10 @@ irm jsql.vexify.top/setup | iex
 npm install jsql-neo
 ```
 
-**JSQL-NEO** is a Rust-powered embedded database with **zero runtime dependencies**. It runs in Node.js, CLI, Web UI, and the browser (WASM).
+**JSQL-NEO** is a Rust-powered embedded database with a **single runtime dependency** (`@vexify-org/yaggs`, used only by the `jsql` CLI argument parser) — no native libs to compile, no system deps to install. It runs in Node.js, CLI, Web UI, and the browser (WASM).
 
 - **Four wire protocols on one port** — `jsql serve` accepts MySQL, PostgreSQL, MongoDB and Redis clients; `mysql2`, `pg`, `mongodb` and `ioredis` connect directly
-- **Zero dependencies** — no native libs to compile, no system deps to install
+- **Nearly dependency-free** — only `@vexify-org/yaggs` (CLI arg parsing); no native libs to compile, no system deps to install
 - **Three engines, same API** — `native` (Rust N-API), `wasm` (same Rust core), `js` (pure JS)
 - **O(1) primary-key lookups and updates** — hash index, no full-table scan; unindexed filters run in Rust
 
@@ -80,7 +80,7 @@ JSQL-NEO: MySQL + PostgreSQL + MongoDB + Redis + SQL
 | **Redis** | `ioredis`, `redis-cli` — all data types + TTL |
 | **One Port** | Protocol sniffing routes all four clients to the same data |
 | **Zero-Dep TUI** | `jsql tui` — line editing, history, Tab, CJK tables |
-| **Web UI** | Zero-dependency management console + HTTP API |
+| **Web UI** | Management console + HTTP API with no frontend framework |
 | **WASM** | Full engine in browser, no server needed |
 
 ---
