@@ -57,7 +57,7 @@ impl Engine for MemoryEngine {
 
     fn insert(&mut self, table: &str, fields_batch: Vec<HashMap<String, serde_json::Value>>) -> Result<Vec<u64>, String> {
         let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
-        Ok(t.add_rows(fields_batch))
+        t.add_rows(fields_batch)
     }
 
     fn find_by_id(&self, table: &str, id: u64) -> Result<Option<Row>, String> {
