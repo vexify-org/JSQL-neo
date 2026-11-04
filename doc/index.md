@@ -1,6 +1,6 @@
 # JSQL-NEO 文档
 
-> 完整的离线文档站点
+> 完整的离线文档站点 · 当前版本 **v6.5.20**
 
 ## 📚 文档导航
 
@@ -23,9 +23,11 @@
 
 | 特性 | 说明 |
 |---|---|
-| 多协议 | MySQL / PostgreSQL / MongoDB / Redis 一端口同时服务 |
-| 零依赖 | 数据库核心零运行时依赖 |
+| 多协议 | MySQL / PostgreSQL / MongoDB / Redis 一端口同时服务（`jsql serve`） |
+| 轻依赖 | 核心引擎零运行时依赖；仅 CLI 参数解析用 `@vexify-org/yaggs` |
 | 三引擎 | Native (N-API) / WASM / Pure JS |
 | 存储模式 | 内存模式 / 混合模式 / 磁盘模式 |
 | 内置 UI | 零依赖 Web 管理界面 + HTTP API |
 | TUI | 交互式终端，Tab 补全、CJK 对齐 |
+| XQL 插件 | 内置 `xql`，hash / range 索引 + 管道式查询 |
+| 兼容层 | `jsql-neo/compat/v1` 提供 jsql 1.0.0 怀旧 API |

@@ -1,5 +1,11 @@
 # SQL 参考
 
+> 适用于 **v6.5.20**。
+>
+> 安全提示：`executeSQL` 安全模式（默认开启）只允许**单条**语句，并拒绝无 WHERE 的
+> `DROP` / `TRUNCATE` / `DELETE` / `UPDATE`（含 `WITH ... DELETE`）。需要写入时传
+> `{ allowWrites: true }`，或 `{ safety: false }` 关闭安全检查。协议服务器已默认放行写入。
+
 ## DDL
 
 ```sql

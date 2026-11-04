@@ -108,6 +108,8 @@ const r = await db.query("SELECT name FROM users");
 ```
 
 > `executeSQL` 默认拒绝 SQL 注释（`--`、`#`、`/* */`），需要时传 `{ safety: false }` 或 `{ allowComments: true }`。
+>
+> 自 v6.5.16 起，安全模式还默认**单语句**（`maxStatements: 1`），并拒绝无 WHERE 的 `DROP` / `TRUNCATE` / `DELETE` / `UPDATE`（含 `WITH ... DELETE`）。需要写入时显式传 `{ allowWrites: true }`（服务端协议层已默认放行写入），或 `{ safety: false }` 关闭全部安全检查。
 
 ### 链式查询（Query）
 
@@ -204,5 +206,26 @@ table.toJSON();                      // → Row[]
 await table.createIndex('email');    // 字段级索引
 await table.dropIndex('email');
 ```
+
+## 插件与 XQL
+
+```js
+await db.use('xql');                     // 启用内置 XQL 插件（v6.5.12+）
+await db.xqlIndex('users', 'id');        // hash / range 索引
+await db.xqlRefresh('users');
+const rows = await db.xql('FROM users |> WHERE id == 1 |> LIMIT 10');
+await db.xqlClear();
+```
+
+其他 API：`xqlLoad()` / `xqlTables()` / `xqlCollection()` / `xqlIndex()` / `xqlRefresh()` / `xqlClear()`。写入会自动使索引失效，下次查询时重建。插件也可通过 `jsql plugin install <name>` 从注册表安装。
+
+## 兼容层（jsql 1.0.0）
+
+```js
+const { compatV1 } = require('jsql-neo/compat/v1');
+const db = compatV1('./data/app');   // 包装 Database
+```
+
+`V1Database` 把 `createTable` / `dropTable` 变为同步、镜像 `db.<table>` 访问器；`import` 可从行推断 schema 并恢复自增主键，`export` 返回深拷贝。v6 的 `Table` / `Query` 本就同步且签名与 1.0.0 一致，因此兼容层只补齐建表/删表与表访问器。
 
 详见完整 [README.md](../README.md) 中的完整 API 文档。

@@ -103,27 +103,40 @@ jsql bench --rows 10000 --iterations 100
 ## export / import — 数据迁移
 
 ```bash
-# 导出
-jsql export --output backup.json
-jsql export --output backup.json --tables users,orders
+# 导出单表（JSON 或 CSV；流式写入，不整表读入内存）
+jsql export users backup.json
+jsql export orders orders.csv --db ./data/app.json
 
-# 导入
-jsql import backup.json
-jsql import backup.json --overwrite
+# 导入（自动识别 .sql / .json / .csv）
+jsql import dump.sql --db ./data/app.json
+jsql import data.json --db ./data/app.json
+jsql import data.csv --table users --db ./data/app.json
 ```
 
-## backup / restore — 备份恢复
+| 选项 | 说明 |
+|---|---|
+| `--db` | 目标数据库文件（默认 `./db.json`） |
+| `--table` | CSV 导入的目标表（必需） |
+| `--strict` | 导入遇错即中止 |
+| `--json` | 输出机器可读结果 |
+
+## plugin — 插件注册表
 
 ```bash
-jsql backup ./data --output backup-$(date +%Y%m%d).json
-jsql restore backup-20261010.json
+jsql plugin list
+jsql plugin search <keyword>
+jsql plugin install <name>
+jsql plugin uninstall <name>
+jsql plugin info <name>
 ```
+
+安装的插件（如 `xql`）会在 `new Database()` 时自动加载，也可在代码里 `db.use('xql')`。
 
 ## version — 版本信息
 
 ```bash
 jsql version
-# jsql-neo v6.3.6
+# jsql-neo v6.5.20
 # engine: native
 # node: v22.10.0
 ```
@@ -132,9 +145,11 @@ jsql version
 
 | 选项 | 说明 |
 |---|---|
-| `--port, -p` | 端口号 |
+| `--port, -p` | 端口号（`serve` / `ui` / `redis` / `tui` 可用） |
+| `--host` | 监听地址（默认 127.0.0.1） |
 | `--data-dir, -d` | 数据目录 |
-| `--password` | 数据库密码 |
-| `--auto-save` | 启用自动保存 |
-| `--save-interval` | 自动保存间隔(ms) |
-| `--verbose, -v` | 输出详细日志 |
+| `--no-auth` | 允许无认证连接（仅本地开发） |
+| `--log` | 把执行的查询 / 命令打到 stdout |
+| `--json` | 以 JSON 输出（export / import / bench / plugin 等） |
+
+> 不存在 `--password` / `--auto-save` / `--save-interval` / `--verbose` 这些旧文档中的旗标；认证请用 `--auth`（`redis` / `server`）或 `--auth-token`（`ui`）。

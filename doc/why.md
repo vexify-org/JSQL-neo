@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-JSQL-NEO 是一个嵌入式数据库，使用 Rust 编写的核心引擎，支持 **MySQL、PostgreSQL、MongoDB、Redis** 四种协议，一个 npm 包、零运行时依赖，同时支持原生（Native）和浏览器（WASM）运行。
+JSQL-NEO 是一个嵌入式数据库，使用 Rust 编写的核心引擎，支持 **MySQL、PostgreSQL、MongoDB、Redis** 四种协议，一个 npm 包、核心引擎零运行时依赖（整套包仅 CLI 参数解析用到 `@vexify-org/yaggs`），同时支持原生（Native）和浏览器（WASM）运行。
 
 ## 为什么选择 JSQL-NEO？
 
@@ -18,7 +18,7 @@ JSQL-NEO 让三者兼得：
 |---|---|---|---|---|---|
 | 原生速度（Rust N-API） | ✅ | ✅ | ❌ | ✅ | ✅ |
 | 浏览器运行（WASM） | ✅ | ❌ | ✅ | ❌ | ❌ |
-| 零运行时依赖 | ✅ | ✅ | ✅ | ✅ | ❌ |
+| 零运行时依赖 | ✅（核心） | ✅ | ✅ | ✅ | ❌ |
 | MySQL 协议 | ✅ | ❌ | ❌ | ❌ | ❌ |
 | PostgreSQL 协议 | ✅ | ❌ | ❌ | ❌ | ❌ |
 | MongoDB Wire Protocol | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -31,9 +31,8 @@ JSQL-NEO 让三者兼得：
 - **一套引擎，三种形态** — `native`（Rust N-API）、`wasm`（同一 Rust 核心编译为 WebAssembly）、`js`（纯 JS 实现）。三者功能等价，**但没有自动降级**：用哪种要在构造时显式指定 `new Database(path, { engine: 'native' | 'wasm' | 'js' })`。
   直接 `require('./lib/native_client')` 而机器上没有预编译的 `.node` 时会**抛错**，不会悄悄退回纯 JS —— 这是刻意选择：静默降级会让「为什么突然慢了十倍」变得无法排查。需要无 native 环境时，请显式用 `lib/database` 的 `engine: 'js'`。
 - **Wire Protocol 栈，不是模拟器** — 手写的 MySQL 4.1+、PostgreSQL Wire Protocol v3（SCRAM-SHA-256）、MongoDB OP_MSG/OP_QUERY、Redis RESP2。
-  **成熟度不同**：MySQL 已验证可用；PG / Redis 以库形式提供、需自行装配；MongoDB 与官方现代 driver 的握手**尚未打通**，自带测试当前失败，仅供实验。
-- **多协议要在代码里装配** — 协议栈以库的形式提供（`lib/pg_server`、`lib/redis_server`、`lib/mongo_server`），各自监听自己的端口。
-  CLI 的 `serve` 子命令**目前只实现 MySQL**，「一个端口连接所有客户端」尚未落地。
+  自 v6.5.1 起，`jsql serve` 单端口即可按首包嗅探同时服务四种客户端，MongoDB 官方 driver 的握手与 `insertMany` 已打通；MySQL 路径验证最久，PG / Redis / Mongo 也已有端到端测试（`test/multiprotocol.test.js`），但相较 MySQL 仍属较新路径。
+- **一个端口，四种协议** — `jsql serve --port 3306` 默认启动 `lib/multiserver.js` 嗅探网关，MySQL / PostgreSQL / MongoDB / Redis 客户端共用同一端口、读写同一个 `Database`（Redis 为独立 key 命名空间）；`--mysql-only` 可退回只服务 MySQL。也可在代码里用 `createMultiServer(...)` 装配。
 - **完整 SQL** — DDL/DML、JOIN、子查询、带保存点的事务、视图、索引、约束、89 个标量函数、窗口函数和 CTE 基础支持。
 - **文档语义** — MongoDB 风格操作符（`$gt`、`$regex`、`$elemMatch` 等）、聚合管道（`$match`、`$group`、`$sort` 等）。
 - **KV 语义** — 五种 Redis 数据类型、TTL、快照持久化。
@@ -46,7 +45,7 @@ JSQL-NEO 让三者兼得：
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│                    jsql serve --pg -p 5432                     │
+│                    jsql serve --port 3306                       │
 │                     (single TCP port)                          │
 │                                                                │
 │  mysql2 ──┐                                                   │
@@ -85,6 +84,6 @@ JSQL-NEO 让三者兼得：
 |---|---|---|
 | 嵌入式（内存） | `new Database(':memory:')` | 测试、缓存 |
 | 嵌入式（磁盘） | `new Database('./data/db')` | 单进程应用 |
-| 服务器（4 协议） | `createMultiServer(...)` / `jsql serve --pg` | 多客户端、微服务 |
+| 服务器（4 协议） | `createMultiServer(...)` / `jsql serve` | 多客户端、微服务 |
 | 浏览器（WASM） | `JSQL`（lib/wasm_client） | 浏览器内查询 |
 | 交互终端 | `jsql tui` | 手动管理、调试 |
