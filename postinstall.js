@@ -16,24 +16,24 @@ const BP = path.join(ROOT, 'bin', BIN_NAME);
 // Native N-API module (native/jsql-neo-native.node)
 const NATIVE_PATH = path.join(ROOT, 'native', 'jsql-neo-native.node');
 
-// GitHub 加速代理前缀；加速站的用法是把原始 URL 直接拼在后面：
+// GitHub 加速代理前缀（可选）。加速站的用法是把原始 URL 直接拼在后面：
 //   https://<host>/https://github.com/owner/repo/releases/download/vX.Y.Z/asset
 // 鉴权走 `Authorization: Bearer <token>` 请求头（Worker 从该头读取，不读 ?token=）。
-// 前缀可用 JSQL_GHPROXY 覆盖（逗号分隔多个，按序回退；'' 表示直连兜底）；
-// token 可用 JSQL_GHPROXY_TOKEN 覆盖。
-// 加速站候选（按优先级）：自建站优先，公共站回退，最后直连兜底。
-const DEFAULT_PROXIES = [
-  'https://gh-proxyjsql-neoworkerapi.vexify.de5.net/',
-  'https://gh-proxy.com/',
-];
-// 内置 token：让所有安装者都自动走自建加速站，无需配置环境变量。
-// 加速站自身已限制只能代理 /releases/download/ 等文件下载路径，故该值公开无风险。
-const DEFAULT_GHPROXY_TOKEN =
-  'NkUbD165V_1iPvEeGRcAfNEv4cqv5WRLn1NfjgBzIMpo9gq5CBH10Rl5ZPmt7RGCh3kyaZU4Nc6pLhHHbvzc9w';
+// 前缀必须显式设置 JSQL_GHPROXY（逗号分隔多个，按序回退；'' 表示直连）；
+// token 只能从环境变量 JSQL_GHPROXY_TOKEN 读取，代码内不再内置任何 token。
+//
+// 供应链安全（issue #25）：默认不配置任何第三方加速站，直连官方 github.com；
+// 只有用户显式设置 JSQL_GHPROXY 时才走代理。已移除内置 de5.net 加速站与硬编码
+// token，避免安装路径信任第三方端点 / token 泄露带来的投毒风险。
+const DEFAULT_PROXIES = [];
 const GHPROXY = process.env.JSQL_GHPROXY !== undefined
   ? process.env.JSQL_GHPROXY
-  : DEFAULT_PROXIES[0];
-const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || DEFAULT_GHPROXY_TOKEN;
+  : '';
+const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || '';
+// 原生二进制自动下载默认关闭（opt-in）：防止每次 npm install 都从网络拉取并
+// require() 一个预编译二进制（issue #25 供应链风险）。显式设置
+// JSQL_AUTO_DOWNLOAD_NATIVE=1 才下载；否则只用本地已有模块，或回退源码编译。
+const AUTO_DOWNLOAD_NATIVE = process.env.JSQL_AUTO_DOWNLOAD_NATIVE === '1';
 const TAG = `v${pkg.version}`;
 
 // 原生模块体积上限（防代理/镜像返回超大文件打爆磁盘/内存）
@@ -341,7 +341,7 @@ async function downloadAndVerify() {
 }
 
 async function ensureNativeNode() {
-  // 已存在且能加载 → 直接用；否则删掉并从 gh-proxy.com 下载，找不到才回退源码编译
+  // 已存在且能加载 → 直接用；否则默认不再自动下载（opt-in），只回退源码编译。
   if (tryLoadNative()) {
     console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
     return;
@@ -353,7 +353,14 @@ async function ensureNativeNode() {
     );
     return;
   }
-  if (await downloadAndVerify()) return;
+  if (AUTO_DOWNLOAD_NATIVE) {
+    if (await downloadAndVerify()) return;
+  } else {
+    console.warn(
+      '[jsql-neo] native module not present; auto-download is OFF (opt-in, default).\n' +
+      '[jsql-neo] set JSQL_AUTO_DOWNLOAD_NATIVE=1 to fetch the prebuilt binary, or run: npm run build:native'
+    );
+  }
   buildNativeFromSource();
 }
 
@@ -392,4 +399,9 @@ async function main() {
   ensureServerBinary();
 }
 
-main();
+// 仅当直接执行时才运行（build:native / 测试可 require 本文件复用构建逻辑）
+if (require.main === module) {
+  main();
+}
+
+module.exports = { buildNativeFromSource, downloadAndVerify, ensureNativeNode };
