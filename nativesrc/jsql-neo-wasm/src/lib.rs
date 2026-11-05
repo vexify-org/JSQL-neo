@@ -135,17 +135,15 @@ fn insert_buf_parse(eng: &mut MemoryEngine, table: &str, data: &[u8]) -> Result<
         .map(|name| field_names.iter().position(|n| n == name))
         .collect();
 
-    let start_id = t.next_id;
-    t.next_id += row_count as u64;
     t.pk_index.reserve(row_count);
     t.rows.reserve(row_count);
     t.values.reserve(t.field_order.len() * row_count);
     let now = js_sys::Date::now() as u64;
     let start_ri = t.rows.len();
 
+    let mut assigned_ids = Vec::with_capacity(row_count);
     for ri in 0..row_count {
-        let auto_id = start_id + ri as u64;
-        let mut id = auto_id;
+        let mut id: u64 = 0;
         let mut row_vals = Vec::with_capacity(n_fields);
         for _fi in 0..n_fields {
             let tag = *data.get(off).ok_or_else(|| "truncated row data".to_string())?;
@@ -220,17 +218,36 @@ fn insert_buf_parse(eng: &mut MemoryEngine, table: &str, data: &[u8]) -> Result<
             }
         }
 
-        // auto-increment PK: keep explicit positive value (row id = pk), else fill with auto id
+        // 决定本行 id（issue #36）：
+        // - 显式正整型主键：直接采用该值；若与已存在行 / 本批前几行冲突则报错（不静默覆盖）。
+        // - 其余（null / 0 / 负 / 非整型 / 无主键）：自动分配，跳过任何已被占用的 id，
+        //   保证显式主键落在预留区间内也不会与自动分配的行撞车。
         if let Some(pi) = pk_idx {
-            if let Some(v) = values.get_mut(pi) {
-                match v {
-                    FieldValue::Null => *v = FieldValue::Int(id as i64),
-                    FieldValue::Int(e) if *e > 0 => {
-                        id = *e as u64;
-                        t.next_id = t.next_id.max(id + 1);
+            match values.get(pi) {
+                Some(FieldValue::Int(e)) if *e > 0 => {
+                    id = *e as u64;
+                    if t.pk_index.contains_key(&id) {
+                        let pk = t.pk_field.clone().unwrap_or_else(|| "id".to_string());
+                        return Err(format!("ER_DUP_ENTRY: Duplicate entry '{}' for key '{}'", id, pk));
                     }
-                    _ => {}
+                    t.next_id = t.next_id.max(id + 1);
                 }
+                _ => {
+                    id = t.next_id;
+                    while t.pk_index.contains_key(&id) { id += 1; }
+                    t.next_id = id + 1;
+                }
+            }
+        } else {
+            id = t.next_id;
+            while t.pk_index.contains_key(&id) { id += 1; }
+            t.next_id = id + 1;
+        }
+
+        // pk 列最终写入真实 id（显式主键时 = 该值，自动分配时 = 分配值）
+        if let Some(pi) = pk_idx {
+            if pi < values.len() {
+                values[pi] = FieldValue::Int(id as i64);
             }
         }
 
@@ -238,9 +255,10 @@ fn insert_buf_parse(eng: &mut MemoryEngine, table: &str, data: &[u8]) -> Result<
         let vs = t.values.len();
         t.values.extend(values);
         t.rows.push(RowStore { id, values_start: vs, num_values: t.field_order.len(), created_at: now, updated_at: now });
+        assigned_ids.push(id);
     }
 
-    Ok((start_id..start_id + row_count as u64).collect())
+    Ok(assigned_ids)
 }
 
 #[wasm_bindgen]
