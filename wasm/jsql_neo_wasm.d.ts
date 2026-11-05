@@ -31,6 +31,11 @@ export function jsql_insert_buf_count(table: string, data: Uint8Array): string;
 
 export function jsql_insert_json(table: string, json: string): string;
 
+/**
+ * JSON 字符串直接插入（绕过 JS encodeBatch 二进制序列化）
+ */
+export function jsql_insert_raw(table: string, raw_json: string): string;
+
 export function jsql_remove_by_id(table: string, id: bigint): string;
 
 export function jsql_remove_by_ids(table: string, ids_json: string): string;

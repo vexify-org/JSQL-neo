@@ -342,6 +342,34 @@ function jsql_insert_json(table, json) {
 exports.jsql_insert_json = jsql_insert_json;
 
 /**
+ * JSON 字符串直接插入（绕过 JS encodeBatch 二进制序列化）
+ * @param {string} table
+ * @param {string} raw_json
+ * @returns {string}
+ */
+function jsql_insert_raw(table, raw_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(table, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(raw_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.jsql_insert_raw(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred3_0 = r0;
+        deferred3_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
+    }
+}
+exports.jsql_insert_raw = jsql_insert_raw;
+
+/**
  * @param {string} table
  * @param {bigint} id
  * @returns {string}
