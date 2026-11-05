@@ -256,12 +256,18 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
   /* ================= 边界与错误输入 ================= */
   console.log('\n--- 边界与错误输入应抛出明确错误而非崩溃 ---');
   {
-    const bad = ['SELECT', 'SELECT * FROM', 'SELECT * FROM t WHERE', 'FOO BAR', 'SELECT a FROM t WHERE a'];
+    const bad = ['SELECT', 'SELECT * FROM', 'SELECT * FROM t WHERE', 'FOO BAR'];
     for (const sql of bad) {
       let threw = null;
       try { parseSQL(sql); } catch (e) { threw = e; }
       ok(`畸形输入抛出 Error: ${sql}`, threw instanceof Error);
     }
+    // #21: WHERE 允许裸布尔谓词（WHERE a / WHERE 1 / WHERE NULL），不再视为畸形输入
+    let bareThrew = null;
+    try { parseSQL('SELECT a FROM t WHERE a'); } catch (e) { bareThrew = e; }
+    ok('WHERE 裸列名合法（#21）', bareThrew === null);
+    ok('WHERE 裸列名解析为裸布尔谓词',
+      parseSQL('SELECT a FROM t WHERE a').where && parseSQL('SELECT a FROM t WHERE a').where.type === 'column');
     ok('空语句 parseSQL 返回 null', parseSQL('') === null);
     let threw = null;
     try { parseSQL('SELECT * FROM t WHERE a = ?'); } catch (e) { threw = e; }
