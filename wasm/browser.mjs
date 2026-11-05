@@ -289,16 +289,26 @@ export class JSQL {
   _findRawById(table, id) {
     const pk = this._pkOf(table);
     if (pk) {
+      // 显式拒绝负 id：自增主键场景下会落到 jsql_find(filter) 或 u64 参数，统一语义（issue #35）。
+      const nid = Number(id);
+      if (Number.isFinite(nid) && nid < 0) throw new Error('id must be a non-negative number');
       const filter = {};
       filter[pk] = this._coercePkId(table, id);
       const r = safeJsonParse(jsql_find(table, JSON.stringify(filter), 1, 0));
       if (r && r.error) return r;
       return Array.isArray(r) && r.length > 0 ? r[0] : null;
     }
+    // 无主键表：内部行 id 是 1-based 序列号。负值会被 WASM 的 u64 参数静默回绕，
+    // 这里显式拒绝（与 native 端的负 id 校验对齐）。
+    const nid = Number(id);
+    if (Number.isFinite(nid) && nid < 0) throw new Error('id must be a non-negative number');
     return safeJsonParse(jsql_find_by_id(table, BigInt(id)));
   }
 
   _seqIdByPk(table, id) {
+    // 负 id 会被后续 BigInt(seq) -> u64 静默回绕（updateById/removeById 等），显式拒绝（issue #35）。
+    const nid0 = Number(id);
+    if (Number.isFinite(nid0) && nid0 < 0) throw new Error('id must be a non-negative number');
     const pk = this._pkOf(table);
     if (pk) {
       const filter = {};
@@ -444,7 +454,15 @@ export class JSQL {
     await this._flush();
     if (!this._runHooks('beforeFind', [table, { filter, opts }])) return [];
     const filterStr = filter ? JSON.stringify(filter) : '';
-    const { limit = 100, offset = 0 } = opts;
+    // WASM 端 jsql_find 的 limit/offset 是 usize（无符号），负数会经 wasm-bindgen
+    // 静默回绕成巨大值，导致空结果或溢出。在 JS 绑定层先行校验（同 native_client.js）。
+    let { limit = 100, offset = 0 } = opts;
+    limit = Number(limit);
+    offset = Number(offset);
+    if (!Number.isFinite(limit) || limit < 0) throw new Error('limit must be a non-negative number');
+    if (!Number.isFinite(offset) || offset < 0) throw new Error('offset must be a non-negative number');
+    limit = Math.trunc(limit);
+    offset = Math.trunc(offset);
     const r = safeJsonParse(jsql_find(table, filterStr, limit, offset));
     if (r && r.error) throw new Error(r.error);
     this._runHooks('afterFind', [table, { filter, opts }, r]);
