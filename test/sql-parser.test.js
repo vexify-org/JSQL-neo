@@ -256,7 +256,9 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
   /* ================= 边界与错误输入 ================= */
   console.log('\n--- 边界与错误输入应抛出明确错误而非崩溃 ---');
   {
-    const bad = ['SELECT', 'SELECT * FROM', 'SELECT * FROM t WHERE', 'FOO BAR', 'SELECT a FROM t WHERE a'];
+    // #21: WHERE 裸布尔谓词（WHERE a / WHERE 1 / WHERE NULL）现在是合法 SQL，
+    // 不能再当畸形输入。换成真正不完整的 AND（WHERE a AND 缺右操作数）。
+    const bad = ['SELECT', 'SELECT * FROM', 'SELECT * FROM t WHERE', 'FOO BAR', 'SELECT a FROM t WHERE a AND'];
     for (const sql of bad) {
       let threw = null;
       try { parseSQL(sql); } catch (e) { threw = e; }
