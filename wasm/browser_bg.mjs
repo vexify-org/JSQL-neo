@@ -1,3 +1,5 @@
+/* @ts-self-types="./browser.d.ts" */
+
 /**
  * 运行期加列：扩展表结构并为已有行回填默认值。
  * fs_json 为单个 FieldSchema 的 JSON，例如 {"type":"integer","nullable":true,"default":0}
@@ -327,6 +329,33 @@ export function jsql_insert_json(table, json) {
 }
 
 /**
+ * JSON 字符串直接插入（绕过 JS encodeBatch 二进制序列化）
+ * @param {string} table
+ * @param {string} raw_json
+ * @returns {string}
+ */
+export function jsql_insert_raw(table, raw_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(table, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(raw_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.jsql_insert_raw(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred3_0 = r0;
+        deferred3_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * @param {string} table
  * @param {bigint} id
  * @returns {string}
@@ -455,37 +484,47 @@ export function jsql_update_by_ids(table, batch_json) {
         wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
     }
 }
-export function __wbg___wbindgen_string_get_b0ca35b86a603356(arg0, arg1) {
-    const obj = getObject(arg1);
-    const ret = typeof(obj) === 'string' ? obj : undefined;
-    var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-    var len1 = WASM_VECTOR_LEN;
-    getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
-    getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+function __wbg_get_imports() {
+    const import0 = {
+        __proto__: null,
+        __wbg___wbindgen_string_get_b0ca35b86a603356: function(arg0, arg1) {
+            const obj = getObject(arg1);
+            const ret = typeof(obj) === 'string' ? obj : undefined;
+            var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+            var len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        },
+        __wbg___wbindgen_throw_344f42d3211c4765: function(arg0, arg1) {
+            throw new Error(getStringFromWasm0(arg0, arg1));
+        },
+        __wbg_new_cc984128914cfc6f: function(arg0) {
+            const ret = new Date(getObject(arg0));
+            return addHeapObject(ret);
+        },
+        __wbg_now_86c0d4ba3fa605b8: function() {
+            const ret = Date.now();
+            return ret;
+        },
+        __wbg_toISOString_706fbe321055ee58: function(arg0) {
+            const ret = getObject(arg0).toISOString();
+            return addHeapObject(ret);
+        },
+        __wbindgen_cast_0000000000000001: function(arg0) {
+            // Cast intrinsic for `F64 -> Externref`.
+            const ret = arg0;
+            return addHeapObject(ret);
+        },
+        __wbindgen_object_drop_ref: function(arg0) {
+            takeObject(arg0);
+        },
+    };
+    return {
+        __proto__: null,
+        "./jsql_neo_wasm_bg.js": import0,
+    };
 }
-export function __wbg___wbindgen_throw_344f42d3211c4765(arg0, arg1) {
-    throw new Error(getStringFromWasm0(arg0, arg1));
-}
-export function __wbg_new_cc984128914cfc6f(arg0) {
-    const ret = new Date(getObject(arg0));
-    return addHeapObject(ret);
-}
-export function __wbg_now_86c0d4ba3fa605b8() {
-    const ret = Date.now();
-    return ret;
-}
-export function __wbg_toISOString_706fbe321055ee58(arg0) {
-    const ret = getObject(arg0).toISOString();
-    return addHeapObject(ret);
-}
-export function __wbindgen_cast_0000000000000001(arg0) {
-    // Cast intrinsic for `F64 -> Externref`.
-    const ret = arg0;
-    return addHeapObject(ret);
-}
-export function __wbindgen_object_drop_ref(arg0) {
-    takeObject(arg0);
-}
+
 function addHeapObject(obj) {
     if (heap_next === heap.length) heap.push(heap.length + 1);
     const idx = heap_next;
@@ -611,81 +650,95 @@ if (!('encodeInto' in cachedTextEncoder)) {
 
 let WASM_VECTOR_LEN = 0;
 
-
-let wasm;
-export function __wbg_set_wasm(val) {
-    wasm = val;
+let wasmModule, wasmInstance, wasm;
+function __wbg_finalize_init(instance, module) {
+    wasmInstance = instance;
+    wasm = instance.exports;
+    wasmModule = module;
+    cachedDataViewMemory0 = null;
+    cachedUint8ArrayMemory0 = null;
+    return wasm;
 }
 
-// ============================================================
-// WASM 初始化（原构建产物缺失这一段，导致 browser.mjs 无法加载：
-// 它 `import init from './browser_bg.mjs'`，但本文件没有 default export）
-// ============================================================
+async function __wbg_load(module, imports) {
+    if (typeof Response === 'function' && module instanceof Response) {
+        if (typeof WebAssembly.instantiateStreaming === 'function') {
+            try {
+                return await WebAssembly.instantiateStreaming(module, imports);
+            } catch (e) {
+                const validResponse = module.ok && expectedResponseType(module.type);
 
-function __wbg_get_imports() {
-    const import0 = {
-        __proto__: null,
-        __wbg___wbindgen_string_get_b0ca35b86a603356: function(arg0, arg1) {
-            const obj = getObject(arg1);
-            const ret = typeof(obj) === 'string' ? obj : undefined;
-            var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-            var len1 = WASM_VECTOR_LEN;
-            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
-            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
-        },
-        __wbg___wbindgen_throw_344f42d3211c4765: function(arg0, arg1) {
-            throw new Error(getStringFromWasm0(arg0, arg1));
-        },
-        __wbg_new_cc984128914cfc6f: function(arg0) {
-            const ret = new Date(getObject(arg0));
-            return addHeapObject(ret);
-        },
-        __wbg_now_86c0d4ba3fa605b8: function() {
-            const ret = Date.now();
-            return ret;
-        },
-        __wbg_toISOString_706fbe321055ee58: function(arg0) {
-            const ret = getObject(arg0).toISOString();
-            return addHeapObject(ret);
-        },
-        __wbindgen_cast_0000000000000001: function(arg0) {
-            // Cast intrinsic for `F64 -> Externref`.
-            const ret = arg0;
-            return addHeapObject(ret);
-        },
-        __wbindgen_object_drop_ref: function(arg0) {
-            takeObject(arg0);
-        },
-    };
-    return { './jsql_neo_wasm_bg.js': import0 };
-}
+                if (validResponse && module.headers.get('Content-Type') !== 'application/wasm') {
+                    console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
 
-/**
- * 初始化 WASM 模块（default export，供 browser.mjs 的 `await init()` 调用）。
- * @param {string|URL|Request|Response|ArrayBuffer|WebAssembly.Module} [input]
- *        默认加载同目录的 jsql_neo_wasm_bg.wasm
- */
-async function __wbg_init(input) {
-    if (wasm !== undefined) return wasm;
-    const imports = __wbg_get_imports();
-    const path = input === undefined
-        ? new URL('./jsql_neo_wasm_bg.wasm', import.meta.url)
-        : input;
+                } else { throw e; }
+            }
+        }
 
-    let instance;
-    if (path instanceof WebAssembly.Module) {
-        instance = (await WebAssembly.instantiate(path, imports)).instance;
-    } else if (typeof Response !== 'undefined' && path instanceof Response) {
-        instance = (await WebAssembly.instantiate(await path.arrayBuffer(), imports)).instance;
-    } else if (path instanceof ArrayBuffer || ArrayBuffer.isView(path)) {
-        instance = (await WebAssembly.instantiate(path, imports)).instance;
+        const bytes = await module.arrayBuffer();
+        return await WebAssembly.instantiate(bytes, imports);
     } else {
-        // 用 instantiate 而非 instantiateStreaming：某些 CDN 不返回 application/wasm MIME
-        const bytes = await (await fetch(path)).arrayBuffer();
-        instance = (await WebAssembly.instantiate(bytes, imports)).instance;
+        const instance = await WebAssembly.instantiate(module, imports);
+
+        if (instance instanceof WebAssembly.Instance) {
+            return { instance, module };
+        } else {
+            return instance;
+        }
     }
-    __wbg_set_wasm(instance.exports);
-    return instance.exports;
+
+    function expectedResponseType(type) {
+        switch (type) {
+            case 'basic': case 'cors': case 'default': return true;
+        }
+        return false;
+    }
 }
 
-export default __wbg_init;
+function initSync(module) {
+    if (wasm !== undefined) return wasm;
+
+
+    if (module !== undefined) {
+        if (Object.getPrototypeOf(module) === Object.prototype) {
+            ({module} = module)
+        } else {
+            console.warn('using deprecated parameters for `initSync()`; pass a single object instead')
+        }
+    }
+
+    const imports = __wbg_get_imports();
+    if (!(module instanceof WebAssembly.Module)) {
+        module = new WebAssembly.Module(module);
+    }
+    const instance = new WebAssembly.Instance(module, imports);
+    return __wbg_finalize_init(instance, module);
+}
+
+async function __wbg_init(module_or_path) {
+    if (wasm !== undefined) return wasm;
+
+
+    if (module_or_path !== undefined) {
+        if (Object.getPrototypeOf(module_or_path) === Object.prototype) {
+            ({module_or_path} = module_or_path)
+        } else {
+            console.warn('using deprecated parameters for the initialization function; pass a single object instead')
+        }
+    }
+
+    if (module_or_path === undefined) {
+        module_or_path = new URL('jsql_neo_wasm_bg.wasm', import.meta.url);
+    }
+    const imports = __wbg_get_imports();
+
+    if (typeof module_or_path === 'string' || (typeof Request === 'function' && module_or_path instanceof Request) || (typeof URL === 'function' && module_or_path instanceof URL)) {
+        module_or_path = fetch(module_or_path);
+    }
+
+    const { instance, module } = await __wbg_load(await module_or_path, imports);
+
+    return __wbg_finalize_init(instance, module);
+}
+
+export { initSync, __wbg_init as default };
