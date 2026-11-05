@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 const path = require('path');
 const fs = require('fs');
-const yaggs = require('@vexify-org/yaggs');
+// @vexify-org/yaggs 是可选依赖：缺失时（离线安装/私有源不可达/lockfile 漂移）
+// 用内置 shim 兜底，保证 --help/--version 及核心命令仍能启动（#24）。
+let yaggs;
+try { yaggs = require('@vexify-org/yaggs'); }
+catch (e) { yaggs = null; }
 const { ModuleManager } = require('../lib/mod');
 const Database = require('../lib/database');
 const migrate = require('../lib/migrate');
@@ -29,7 +33,10 @@ const manager = new ModuleManager();
 
 const RAW_ARGV = process.argv.slice(2);
 
-const cli = yaggs({ pkg: require('../package.json') })
+const _pkg = require('../package.json');
+const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
+  pkg: _pkg,
+})
   .usage('jsql <command> [options]')
   .option('help', { alias: ['h'], type: 'boolean', description: 'Show help' })
   .command('mod', 'Module management', (sub) => {
