@@ -16,31 +16,27 @@ const BP = path.join(ROOT, 'bin', BIN_NAME);
 // Native N-API module (native/jsql-neo-native.node)
 const NATIVE_PATH = path.join(ROOT, 'native', 'jsql-neo-native.node');
 
-// GitHub 加速代理前缀；加速站的用法是把原始 URL 直接拼在后面：
+// GitHub 下载前缀。加速站用法是把原始 URL 直接拼在后面：
 //   https://<host>/https://github.com/owner/repo/releases/download/vX.Y.Z/asset
 // 鉴权走 `Authorization: Bearer <token>` 请求头（Worker 从该头读取，不读 ?token=）。
-// 前缀可用 JSQL_GHPROXY 覆盖（逗号分隔多个，按序回退；'' 表示直连兜底）；
-// token 可用 JSQL_GHPROXY_TOKEN 覆盖。
-// 加速站候选（按优先级）：自建站优先，公共站回退，最后直连兜底。
-const DEFAULT_PROXIES = [
-  'https://gh-proxyjsql-neoworkerapi.vexify.de5.net/',
-  'https://gh-proxy.com/',
-];
-// 内置 token：让所有安装者都自动走自建加速站，无需配置环境变量。
-// 加速站自身已限制只能代理 /releases/download/ 等文件下载路径，故该值公开无风险。
-const DEFAULT_GHPROXY_TOKEN =
-  'NkUbD165V_1iPvEeGRcAfNEv4cqv5WRLn1NfjgBzIMpo9gq5CBH10Rl5ZPmt7RGCh3kyaZU4Nc6pLhHHbvzc9w';
+//
+// 安全加固（#25）：
+//   1) 不再内置任何默认加速代理 —— 默认直连 github.com；要加速必须显式设 JSQL_GHPROXY。
+//   2) 不再内置硬编码 token —— 只在显式设置 JSQL_GHPROXY_TOKEN 时才发送鉴权头。
+// 前缀可用 JSQL_GHPROXY 覆盖（逗号分隔多个，按序回退；'' 表示直连）；
+// token 仅从环境变量 JSQL_GHPROXY_TOKEN 读取。
+const DEFAULT_PROXIES = [];
 const GHPROXY = process.env.JSQL_GHPROXY !== undefined
   ? process.env.JSQL_GHPROXY
-  : DEFAULT_PROXIES[0];
-const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || DEFAULT_GHPROXY_TOKEN;
+  : '';  // 默认直连 github.com
+const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || '';
 const TAG = `v${pkg.version}`;
 
 // 原生模块体积上限（防代理/镜像返回超大文件打爆磁盘/内存）
 const MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 const CHECKSUM_ASSET = 'SHA256SUMS';
 
-/** 加速站鉴权头 */
+/** 加速站鉴权头：仅在显式配置了 token 且走代理时才携带（不发送任何内置 token） */
 function proxyHeaders() {
   return GHPROXY_TOKEN ? { Authorization: 'Bearer ' + GHPROXY_TOKEN } : undefined;
 }
@@ -340,8 +336,17 @@ async function downloadAndVerify() {
   return false;
 }
 
+// 原生模块下载默认关闭（#25 安全加固）：只有在 CI 或显式设置 JSQL_NATIVE_DOWNLOAD=1
+// 时才从 GitHub Release 下载预编译二进制；普通 npm install 直接走源码编译或 WASM/JS 回退。
+function nativeDownloadEnabled() {
+  if (process.env.JSQL_NATIVE_DOWNLOAD === '1') return true;
+  // CI 构建需要发布平台二进制，视为显式 opt-in
+  if (process.env.CI === 'true' || process.env.CI === '1') return true;
+  return false;
+}
+
 async function ensureNativeNode() {
-  // 已存在且能加载 → 直接用；否则删掉并从 gh-proxy.com 下载，找不到才回退源码编译
+  // 已存在且能加载 → 直接用；否则按 opt-in 决定是否下载；找不到就回退源码编译
   if (tryLoadNative()) {
     console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
     return;
@@ -353,7 +358,14 @@ async function ensureNativeNode() {
     );
     return;
   }
-  if (await downloadAndVerify()) return;
+  if (nativeDownloadEnabled()) {
+    if (await downloadAndVerify()) return;
+  } else {
+    console.log(
+      '[jsql-neo] native binary download is opt-in (set JSQL_NATIVE_DOWNLOAD=1 or run in CI to fetch ' +
+      'a prebuilt binary); trying to build from source instead.'
+    );
+  }
   buildNativeFromSource();
 }
 
