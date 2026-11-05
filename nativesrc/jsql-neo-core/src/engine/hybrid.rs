@@ -348,11 +348,22 @@ impl Engine for HybridEngine {
     fn add_column(&mut self, table: &str, name: &str, fs: FieldSchema) -> Result<(), String> {
         // 先更新内存表结构（含已有行回填），再同步持久化元数据中的 schema。
         self.mem.borrow_mut().add_column(table, name, fs.clone())?;
-        if let Some(tm) = self.meta.borrow_mut().get_mut(table) {
-            if !tm.schema.iter().any(|(n, _)| n == name) {
-                tm.schema.push((name.to_string(), fs));
+        let dirty = {
+            if let Some(tm) = self.meta.borrow_mut().get_mut(table) {
+                if !tm.schema.iter().any(|(n, _)| n == name) {
+                    tm.schema.push((name.to_string(), fs));
+                }
+                true
+            } else {
+                false
             }
+        };
+        // save_meta 内部会再次 borrow meta，必须在上面的 borrow_mut 作用域结束
+        // 后再调用，否则 disk 模式下 RefCell 双重借用 panic（issue #22 附带修复）。
+        if self.store_dir.is_some() {
             self.save_meta();
+        }
+        if dirty {
             self.mark_dirty(table);
         }
         Ok(())

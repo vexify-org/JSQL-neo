@@ -277,10 +277,21 @@ impl Table {
         self.schema.insert(name.to_string(), fs.clone());
         self.field_order.push(name.to_string());
         self.field_index.insert(name.to_string(), pos);
-        for i in 0..self.rows.len() {
-            let start = self.rows[i].values_start + self.rows[i].num_values;
-            self.values.insert(start, fill.clone());
-            self.rows[i].num_values += 1;
+        // Fix (issue #22): Vec::insert 原地右移后续元素但未同步更新后续行
+        // values_start，导致 >1 行表添加列后数据损坏。重建 values 并重算
+        // 每个 values_start，避免静默数据损坏。
+        let mut new_values = Vec::with_capacity(self.values.len() + self.rows.len());
+        let mut new_starts = Vec::with_capacity(self.rows.len());
+        for rs in &self.rows {
+            let vals = self.get_row_values(rs);
+            new_starts.push(new_values.len());
+            new_values.extend_from_slice(vals);
+            new_values.push(fill.clone());
+        }
+        self.values = new_values;
+        for (i, rs) in self.rows.iter_mut().enumerate() {
+            rs.values_start = new_starts[i];
+            rs.num_values += 1;
         }
         true
     }
@@ -1066,5 +1077,54 @@ fn cmp_field_values(a: Option<&FieldValue>, b: Option<&FieldValue>) -> std::cmp:
         (Some(_), None) => std::cmp::Ordering::Greater,
         (None, Some(_)) => std::cmp::Ordering::Less,
         (None, None) => std::cmp::Ordering::Equal,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{FieldSchema, FieldType};
+
+    fn fs(ft: FieldType, nullable: bool, default: Option<serde_json::Value>) -> FieldSchema {
+        FieldSchema {
+            field_type: ft,
+            primary_key: false,
+            auto_increment: false,
+            nullable,
+            unique: false,
+            length: None,
+            default,
+        }
+    }
+
+    #[test]
+    fn add_column_multi_row_no_corruption() {
+        let mut t = Table::new("t".into(), &[
+            ("id".into(),   fs(FieldType::Integer, false, None)),
+            ("name".into(), fs(FieldType::String,  false, None)),
+        ]);
+        t.add_rows(vec![
+            HashMap::from([("id".to_string(), serde_json::json!(1)), ("name".to_string(), serde_json::json!("a"))]),
+            HashMap::from([("id".to_string(), serde_json::json!(2)), ("name".to_string(), serde_json::json!("b"))]),
+        ]).unwrap();
+
+        assert!(t.add_column("age", &fs(FieldType::Integer, true, Some(serde_json::json!(0)))));
+
+        // 修复前：行 1 因 values_start 未更新而损坏
+        let row0 = t.get_row_values(&t.rows[0]);
+        let row1 = t.get_row_values(&t.rows[1]);
+        assert_eq!(row0, &[FieldValue::Int(1), FieldValue::String("a".into()), FieldValue::Int(0)]);
+        assert_eq!(row1, &[FieldValue::Int(2), FieldValue::String("b".into()), FieldValue::Int(0)]);
+    }
+
+    #[test]
+    fn add_column_single_row_ok() {
+        let mut t = Table::new("t".into(), &[
+            ("id".into(), fs(FieldType::Integer, false, None)),
+        ]);
+        t.add_rows(vec![HashMap::from([("id".to_string(), serde_json::json!(7))])]).unwrap();
+        assert!(t.add_column("x", &fs(FieldType::Integer, true, Some(serde_json::json!(0)))));
+        let row = t.get_row_values(&t.rows[0]);
+        assert_eq!(row, &[FieldValue::Int(7), FieldValue::Int(0)]);
     }
 }

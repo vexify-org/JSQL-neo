@@ -4,6 +4,14 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.21] — 2026-11-05
+
+### Fixed
+
+- **Native 引擎 `add_column` 多行表数据损坏（issue #22）**：`Table::add_column` 用 `Vec::insert` 原地插入导致后续行 `values_start` 未同步，>1 行表添加列后首行之后所有行被静默损坏。现重建 `values` 并重算每个 `values_start`，数据不再损坏。
+- **Native 引擎 disk 模式 `ALTER TABLE ... ADD COLUMN` 崩溃**：`HybridEngine::add_column` 在 `meta.borrow_mut()` 存活时调用 `save_meta()`（内部再次 `borrow`），RefCell 双重借用 panic。现将 `save_meta` / `mark_dirty` 移出借用作用域。
+- 新增 `test/native-add-column.test.js`（12 项：纯 JS / Native memory / Native disk 三引擎数据完整性）。
+
 ## [6.5.13] — 2026-10-29
 
 ### Fixed
