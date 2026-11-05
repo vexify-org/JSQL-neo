@@ -25,11 +25,12 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm install
 
-      # 仓库里提交的 native/jsql-neo-native.node 是平台相关的（且可能是别的平台构建的），
-      # 不能跨平台使用。缓存命中时上面的 npm install 会被跳过、postinstall 不执行，
-      # 于是测试会去加载那个不匹配的二进制而失败。这里无条件拉取本平台的原生模块。
+      # 供应链安全（issue #25）：postinstall 默认不再自动下载预编译二进制（opt-in）。
+      # CI 需要原生模块来跑 native 测试，因此这里显式开启自动下载，拉取本平台模块。
       - name: 准备原生模块（按平台拉取）
         run: node postinstall.js
+        env:
+          JSQL_AUTO_DOWNLOAD_NATIVE: '1'
 
       - name: 跑测试
         run: npm test
