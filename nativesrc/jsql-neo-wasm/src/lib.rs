@@ -142,6 +142,7 @@ fn insert_buf_parse(eng: &mut MemoryEngine, table: &str, data: &[u8]) -> Result<
     t.values.reserve(t.field_order.len() * row_count);
     let now = js_sys::Date::now() as u64;
     let start_ri = t.rows.len();
+    let mut ids = Vec::with_capacity(row_count);
 
     for ri in 0..row_count {
         let auto_id = start_id + ri as u64;
@@ -234,13 +235,21 @@ fn insert_buf_parse(eng: &mut MemoryEngine, table: &str, data: &[u8]) -> Result<
             }
         }
 
+        // #36：显式主键落在保留自增区间内，会与另一行的自动 id 冲突；
+        // 必须像 add_rows 一样报重复主键错，而不是覆盖 pk_index 遮蔽原行。
+        if t.pk_index.contains_key(&id) {
+            let pk = t.pk_field.clone().unwrap_or_else(|| "id".to_string());
+            return Err(format!("ER_DUP_ENTRY: Duplicate entry '{}' for key '{}'", id, pk));
+        }
+
         t.pk_index.insert(id, start_ri + ri);
         let vs = t.values.len();
         t.values.extend(values);
         t.rows.push(RowStore { id, values_start: vs, num_values: t.field_order.len(), created_at: now, updated_at: now });
+        ids.push(id);
     }
 
-    Ok((start_id..start_id + row_count as u64).collect())
+    Ok(ids)
 }
 
 #[wasm_bindgen]
