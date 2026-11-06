@@ -140,7 +140,7 @@ fn insert_buf_parse(eng: &mut MemoryEngine, table: &str, data: &[u8]) -> Result<
     t.values.reserve(t.field_order.len() * row_count);
     let now = js_sys::Date::now() as u64;
     let start_ri = t.rows.len();
-
+    // #36：记录实际分配给每一行的 id（而非假定 next_id 递增）
     let mut assigned_ids = Vec::with_capacity(row_count);
     for ri in 0..row_count {
         let mut id: u64 = 0;
@@ -249,6 +249,13 @@ fn insert_buf_parse(eng: &mut MemoryEngine, table: &str, data: &[u8]) -> Result<
             if pi < values.len() {
                 values[pi] = FieldValue::Int(id as i64);
             }
+        }
+
+        // #36：显式主键落在保留自增区间内，会与另一行的自动 id 冲突；
+        // 必须像 add_rows 一样报重复主键错，而不是覆盖 pk_index 遮蔽原行。
+        if t.pk_index.contains_key(&id) {
+            let pk = t.pk_field.clone().unwrap_or_else(|| "id".to_string());
+            return Err(format!("ER_DUP_ENTRY: Duplicate entry '{}' for key '{}'", id, pk));
         }
 
         t.pk_index.insert(id, start_ri + ri);
