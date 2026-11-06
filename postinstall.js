@@ -16,20 +16,26 @@ const BP = path.join(ROOT, 'bin', BIN_NAME);
 // Native N-API module (native/jsql-neo-native.node)
 const NATIVE_PATH = path.join(ROOT, 'native', 'jsql-neo-native.node');
 
-// GitHub 下载前缀。加速站用法是把原始 URL 直接拼在后面：
+// GitHub 加速代理前缀（可选）。加速站的用法是把原始 URL 直接拼在后面：
 //   https://<host>/https://github.com/owner/repo/releases/download/vX.Y.Z/asset
 // 鉴权走 `Authorization: Bearer <token>` 请求头（Worker 从该头读取，不读 ?token=）。
+// 前缀必须显式设置 JSQL_GHPROXY（逗号分隔多个，按序回退；'' 表示直连）；
+// token 只能从环境变量 JSQL_GHPROXY_TOKEN 读取，代码内不再内置任何 token。
 //
-// 安全加固（#25）：
-//   1) 不再内置任何默认加速代理 —— 默认直连 github.com；要加速必须显式设 JSQL_GHPROXY。
-//   2) 不再内置硬编码 token —— 只在显式设置 JSQL_GHPROXY_TOKEN 时才发送鉴权头。
-// 前缀可用 JSQL_GHPROXY 覆盖（逗号分隔多个，按序回退；'' 表示直连）；
-// token 仅从环境变量 JSQL_GHPROXY_TOKEN 读取。
+// 供应链安全（issue #25）：默认不配置任何第三方加速站，直连官方 github.com；
+// 只有用户显式设置 JSQL_GHPROXY 时才走代理。已移除内置 de5.net 加速站与硬编码
+// token，避免安装路径信任第三方端点 / token 泄露带来的投毒风险。
 const DEFAULT_PROXIES = [];
 const GHPROXY = process.env.JSQL_GHPROXY !== undefined
   ? process.env.JSQL_GHPROXY
-  : '';  // 默认直连 github.com
+  : '';
 const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || '';
+// 原生二进制自动下载默认关闭（opt-in）：防止每次 npm install 都从网络拉取并
+// require() 一个预编译二进制（issue #25 供应链风险）。显式设置
+// JSQL_AUTO_DOWNLOAD_NATIVE=1（或 JSQL_NATIVE_DOWNLOAD=1）才下载；
+// 否则只用本地已有模块，或回退源码编译。
+const AUTO_DOWNLOAD_NATIVE = process.env.JSQL_AUTO_DOWNLOAD_NATIVE === '1'
+  || process.env.JSQL_NATIVE_DOWNLOAD === '1';
 const TAG = `v${pkg.version}`;
 
 // 原生模块体积上限（防代理/镜像返回超大文件打爆磁盘/内存）
@@ -339,6 +345,7 @@ async function downloadAndVerify() {
 // 原生模块下载默认关闭（#25 安全加固）：只有在 CI 或显式设置 JSQL_NATIVE_DOWNLOAD=1
 // 时才从 GitHub Release 下载预编译二进制；普通 npm install 直接走源码编译或 WASM/JS 回退。
 function nativeDownloadEnabled() {
+  if (AUTO_DOWNLOAD_NATIVE) return true;
   if (process.env.JSQL_NATIVE_DOWNLOAD === '1') return true;
   // CI 构建需要发布平台二进制，视为显式 opt-in
   if (process.env.CI === 'true' || process.env.CI === '1') return true;
@@ -346,7 +353,7 @@ function nativeDownloadEnabled() {
 }
 
 async function ensureNativeNode() {
-  // 已存在且能加载 → 直接用；否则按 opt-in 决定是否下载；找不到就回退源码编译
+  // 已存在且能加载 → 直接用；否则默认不再自动下载（opt-in），只回退源码编译。
   if (tryLoadNative()) {
     console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
     return;
@@ -361,9 +368,9 @@ async function ensureNativeNode() {
   if (nativeDownloadEnabled()) {
     if (await downloadAndVerify()) return;
   } else {
-    console.log(
-      '[jsql-neo] native binary download is opt-in (set JSQL_NATIVE_DOWNLOAD=1 or run in CI to fetch ' +
-      'a prebuilt binary); trying to build from source instead.'
+    console.warn(
+      '[jsql-neo] native module not present; auto-download is OFF (opt-in, default).\n' +
+      '[jsql-neo] set JSQL_AUTO_DOWNLOAD_NATIVE=1 to fetch the prebuilt binary, or run: npm run build:native'
     );
   }
   buildNativeFromSource();
@@ -404,4 +411,9 @@ async function main() {
   ensureServerBinary();
 }
 
-main();
+// 仅当直接执行时才运行（build:native / 测试可 require 本文件复用构建逻辑）
+if (require.main === module) {
+  main();
+}
+
+module.exports = { buildNativeFromSource, downloadAndVerify, ensureNativeNode };
