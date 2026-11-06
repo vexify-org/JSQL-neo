@@ -4,6 +4,27 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.22] — 2026-11-06
+
+### Fixed
+
+- **BETWEEN 数值边界退化成字典序比较（issue #39）**：`BETWEEN '9' AND '100'` 此前按字符串比较，`'9' > '100'` 导致结果为空。现在当列/边界可用数值解析时按数值比较（支持负号、小数、科学计数法），纯文本列仍保持字典序。
+- **表级 FOREIGN KEY 约束未实现（issue #40）**：`CONSTRAINT ... FOREIGN KEY (col) REFERENCES t(col) [ON DELETE CASCADE|SET NULL|RESTRICT]` 此前被静默忽略 / 直接报解析错误。现已解析、建表时注册并在 INSERT/UPDATE/DELETE 时强制执行；列内联 `REFERENCES` 同样生效；引用的表/列不存在、复合外键等不支持场景改为显式报错而非静默丢弃。
+- **裸布尔谓词（issue #21）**：`WHERE flag` / `HAVING flag` / `ON flag` 支持不带比较运算的布尔列与 `TRUE`/`FALSE` 常量。
+- **XQL 逻辑与聚合（issue #23、#27、#28、#29、#30）**：`= / != / BETWEEN` 实现 NULL 三值逻辑；修正非字面量列表的 `NOT IN`；emitter 临时参数名加命名空间避免重名；SELECT 投影支持聚合函数；非法数字字面量显式报错（不再静默变 NaN）。
+- **CLI 引导（issue #24）**：缺少 `@vexify-org/yaggs` 时优雅启动而非崩溃。
+- **供应链加固（issue #25）**：原生库下载改为显式 opt-in（`JSQL_NATIVE_DOWNLOAD=1`），移除内置 ghproxy 与硬编码 token，仓库不再提交 `.node` 产物。
+- **MySQL 类型强转（issue #26）**：数字与字符串比较走 MySQL 宽松数值转换（`'5' = 5`、`'a' = 0`、`'' = 0`、`'09' = 9`），不再退化成字典序。
+- **服务端协议（issue #31、#32、#33）**：MySQL 协议 `_route()` 字符串掩码判断反转，正确保留字面量与注释中的 `db.table` 引用；binary result set 中 `MYSQL_TYPE_LONG` 固定 4 字节以避免行布局错位；PostgreSQL `CommandComplete` 恢复 `INSERT 0 <n>` 的 OID 段。
+- **TUI 多字节输入（issue #34）**：输入光标按 UTF-8 字节推进并处理代理对，中文/emoji 不再乱码或吞字符。
+- **limit/offset/id 负值（issue #35）**：Native/WASM/JS 绑定层拒绝负数，避免转 `usize/u64` 时的回绕。
+- **主键与自增范围冲突（issue #36）**：显式指定主键不再被自增范围覆盖（WASM `insert_buf_parse` 跟踪实际分配 id）。
+- **查询缓存被调用方污染（issue #37）**：缓存命中返回副本，调用方修改结果不再破坏后续查询。
+
+### Notes
+
+- issue #38（BigInt 序列化）本次未包含，将在后续版本单独处理。
+
 ## [6.5.21] — 2026-11-05
 
 ### Fixed
