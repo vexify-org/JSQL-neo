@@ -4,6 +4,18 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.24] — 2026-11-06
+
+### Fixed
+
+- **Rust/WASM/Native 绑定层 int64 精度丢失（issue #38 遗留）**：WASM 与 Native 引擎此前把 `int64` 当 `f64` 编解码，`lib/wasm_client.js` 路径插入 BigInt 会抛 JSON 序列化错误，`> 2^53` 的十进制字符串也会截断。现已与 JS 引擎（6.5.23）行为一致：
+  - **核心类型**：新增 `FieldType::BigInt` 与 `FieldValue::UInt(u64)`；integer/bigint 列按列类型精确解析，拒绝小数、布尔与越界值（`1292`）。
+  - **BigInt 传输**：识别 `lib/bigint_json.js` 的 `{"__jsql_bigint__":"..."}` 标记；插入、更新、过滤、主键查询均精确保留。
+  - **精确回读**：`> 2^53` 的整数与行 id 以十进制字符串输出，避免 `JSON.parse` 丢精度；JS 绑定层按 schema 还原为 BigInt。
+  - **持久化**：`.jsql` / JSON / dir 模式导出与重新导入保持 int64 精确往返。
+  - **绑定客户端**：`lib/wasm_client.js`、`lib/native_client.js` 与浏览器入口统一使用 BigInt 安全序列化；Native 二进制路径支持 BigInt 编码。
+  - 重新生成 `wasm/jsql_neo_wasm_bg.wasm`；`test/issue-38.test.js` 扩展至 43 项，新增 wasm/native 绑定层往返、过滤、更新与错误码用例。
+
 ## [6.5.23] — 2026-11-06
 
 ### Fixed
