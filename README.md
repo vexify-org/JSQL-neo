@@ -227,5 +227,6 @@ Apache-2.0 License — contributions welcome!
 - **Issues:** [Open an issue](https://github.com/vexify-org/JSQL-neo/issues)
 - **PRs:** Fork → branch → PR — thank you!
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Dev container:** [jsql-neo/devbox](https://github.com/jsql-neo/devbox) — reproducible dev environment (Docker/devcontainer)
 - **Code of Conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 - **Security:** [SECURITY.md](SECURITY.md) — please report vulnerabilities privately

@@ -30,6 +30,8 @@ npm test
 
 `npm install` runs `postinstall.js`, which downloads a verified native binary for your platform or builds it from source when Cargo is available. If the native module is unavailable, the WASM/JS engine is used automatically.
 
+No local toolchain? Use the reproducible dev container: [jsql-neo/devbox](https://github.com/jsql-neo/devbox) (Docker/devcontainer, auto-clones this repo into `/workspace/jsql-neo`).
+
 Run the broader suite before opening a pull request:
 
 ```bash
