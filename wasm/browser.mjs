@@ -22,6 +22,89 @@ function safeJsonParse(str) {
   try { return JSON.parse(str); } catch { return str; }
 }
 
+// BigInt 安全序列化（Issue #38）：与 lib/bigint_json.js 的标记格式保持一致。
+const BIGINT_MARKER = '__jsql_bigint__';
+function bigintReplacer(_key, value) {
+  return typeof value === 'bigint' ? { [BIGINT_MARKER]: value.toString() } : value;
+}
+function bigintReviver(_key, value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const keys = Object.keys(value);
+    if (keys.length === 1 && keys[0] === BIGINT_MARKER && typeof value[BIGINT_MARKER] === 'string') {
+      try { return BigInt(value[BIGINT_MARKER]); } catch { return value; }
+    }
+  }
+  return value;
+}
+function bigintStringify(value) { return JSON.stringify(value, bigintReplacer); }
+function bigintParse(text) { return JSON.parse(text, bigintReviver); }
+
+const INT64_MIN = -9223372036854775808n;
+const INT64_MAX = 9223372036854775807n;
+const SAFE_INT_MIN = BigInt(Number.MIN_SAFE_INTEGER);
+const SAFE_INT_MAX = BigInt(Number.MAX_SAFE_INTEGER);
+const DECIMAL_INT_RE = /^[+-]?\d+$/;
+
+function isIntegerType(t) {
+  return t === 'integer' || t === 'int' || t === 'bigint';
+}
+
+function integerError(type, v) {
+  const e = new Error(`Truncated incorrect ${type} value: '${v}'`);
+  e.code = 1292;
+  return e;
+}
+
+function normalizeInteger(v, type) {
+  let b;
+  if (typeof v === 'bigint') b = v;
+  else {
+    try { b = BigInt(String(v).trim()); } catch { throw integerError(type, v); }
+  }
+  if (b < INT64_MIN || b > INT64_MAX) throw integerError(type, b.toString());
+  return (b >= SAFE_INT_MIN && b <= SAFE_INT_MAX) ? Number(b) : b;
+}
+
+function restoreInteger(v) {
+  if (typeof v === 'bigint') return v;
+  if (typeof v === 'string' && DECIMAL_INT_RE.test(v)) {
+    const b = BigInt(v);
+    return (b >= SAFE_INT_MIN && b <= SAFE_INT_MAX) ? Number(b) : b;
+  }
+  if (typeof v === 'number' && Number.isInteger(v) && !Number.isSafeInteger(v)) return BigInt(v);
+  return v;
+}
+
+function normalizeIntegerInput(v, type) {
+  if (typeof v === 'bigint') return normalizeInteger(v, type);
+  if (typeof v === 'number') {
+    if (!Number.isInteger(v) || !Number.isSafeInteger(v)) throw integerError(type, v);
+    return v;
+  }
+  if (typeof v === 'string' && DECIMAL_INT_RE.test(v.trim())) return normalizeInteger(v.trim(), type);
+  throw integerError(type, v);
+}
+
+function normalizeRowForRust(table, schema, row) {
+  const out = {};
+  for (const [k, v] of Object.entries(row)) {
+    const def = schema[k];
+    let t = null;
+    if (typeof def === 'string') t = def.toLowerCase();
+    else if (def && typeof def === 'object' && def.type) t = String(def.type).toLowerCase();
+    if (v !== null && v !== undefined && ['json', 'array', 'object'].includes(t) && typeof v !== 'string') {
+      out[k] = bigintStringify(v);
+    } else if (v !== null && v !== undefined && isIntegerType(t)) {
+      out[k] = normalizeIntegerInput(v, t);
+    } else if (v instanceof Date) {
+      out[k] = v.toISOString();
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 const NATIVE_TYPE_MAP = {
   text: 'string',
   varchar: 'string',
@@ -36,7 +119,7 @@ const NATIVE_TYPE_MAP = {
   array: 'string',
   object: 'string',
   bool: 'boolean',
-  bigint: 'string',
+  bigint: 'bigint',
   int: 'integer',
 };
 
@@ -127,9 +210,9 @@ function restoreRow(row, schema) {
     if (typeof colDef === 'string') t = colDef.toLowerCase();
     else if (colDef && typeof colDef === 'object' && colDef.type) t = String(colDef.type).toLowerCase();
     if (['json', 'array', 'object'].includes(t) && typeof value === 'string') {
-      try { out[field] = JSON.parse(value); } catch (e) { out[field] = value; }
-    } else if ((t === 'integer' || t === 'int' || t === 'bigint') && typeof value === 'string' && /^-?\d+$/.test(value)) {
-      out[field] = Number(value);
+      try { out[field] = bigintParse(value); } catch (e) { out[field] = value; }
+    } else if (isIntegerType(t)) {
+      out[field] = restoreInteger(value);
     } else if ((t === 'float' || t === 'double' || t === 'number') && typeof value === 'string' && !Number.isNaN(Number(value))) {
       out[field] = Number(value);
     } else {
@@ -282,7 +365,9 @@ export class JSQL {
     let t = null;
     if (typeof def === 'string') t = def.toLowerCase();
     else if (def && typeof def === 'object' && def.type) t = String(def.type).toLowerCase();
-    if (['integer', 'int', 'bigint'].includes(t)) return Number(id);
+    if (isIntegerType(t)) {
+      try { return normalizeIntegerInput(id, t); } catch { return id; }
+    }
     return id;
   }
 
@@ -294,7 +379,7 @@ export class JSQL {
       if (Number.isFinite(nid) && nid < 0) throw new Error('id must be a non-negative number');
       const filter = {};
       filter[pk] = this._coercePkId(table, id);
-      const r = safeJsonParse(jsql_find(table, JSON.stringify(filter), 1, 0));
+      const r = safeJsonParse(jsql_find(table, bigintStringify(filter), 1, 0));
       if (r && r.error) return r;
       return Array.isArray(r) && r.length > 0 ? r[0] : null;
     }
@@ -313,7 +398,7 @@ export class JSQL {
     if (pk) {
       const filter = {};
       filter[pk] = this._coercePkId(table, id);
-      const r = safeJsonParse(jsql_find(table, JSON.stringify(filter), 1, 0));
+      const r = safeJsonParse(jsql_find(table, bigintStringify(filter), 1, 0));
       if (Array.isArray(r) && r.length > 0) return r[0].id;
       return null;
     }
@@ -323,25 +408,9 @@ export class JSQL {
   async _insertBatch(table, rows) {
     const schema = this._schemas[table];
     if (schema) {
-      rows = rows.map(row => {
-        const out = {};
-        for (const [k, v] of Object.entries(row)) {
-          const def = schema[k];
-          let t = null;
-          if (typeof def === 'string') t = def.toLowerCase();
-          else if (def && typeof def === 'object' && def.type) t = String(def.type).toLowerCase();
-          if (v !== null && v !== undefined && ['json', 'array', 'object'].includes(t) && typeof v !== 'string') {
-            out[k] = JSON.stringify(v);
-          } else if (v instanceof Date) {
-            out[k] = v.toISOString();
-          } else {
-            out[k] = v;
-          }
-        }
-        return out;
-      });
+      rows = rows.map(row => normalizeRowForRust(table, schema, row));
     }
-    const r = safeJsonParse(jsql_insert_json(table, JSON.stringify(rows)));
+    const r = safeJsonParse(jsql_insert_json(table, bigintStringify(rows)));
     if (r && r.error) throw new Error(r.error);
     if (r && Array.isArray(r) && !this._pkAutoIncrement(table)) {
       const pk = this._pkOf(table);
@@ -453,7 +522,7 @@ export class JSQL {
   async find(table, filter, opts = {}) {
     await this._flush();
     if (!this._runHooks('beforeFind', [table, { filter, opts }])) return [];
-    const filterStr = filter ? JSON.stringify(filter) : '';
+    const filterStr = filter ? bigintStringify(filter) : '';
     // WASM 端 jsql_find 的 limit/offset 是 usize（无符号），负数会经 wasm-bindgen
     // 静默回绕成巨大值，导致空结果或溢出。在 JS 绑定层先行校验（同 native_client.js）。
     let { limit = 100, offset = 0 } = opts;
@@ -481,14 +550,15 @@ export class JSQL {
   }
 
   async updateByIds(table, entries) {
+    const schema = this._schemas[table];
     const pairs = [];
     for (const [id, data] of entries) {
       const seq = this._seqIdByPk(table, id);
-      if (seq !== null) pairs.push([seq, data]);
+      if (seq !== null) pairs.push([seq, schema ? normalizeRowForRust(table, schema, data) : data]);
     }
     if (!this._runHooks('beforeUpdate', [table, pairs])) return;
     await this._flush();
-    const r = safeJsonParse(jsql_update_by_ids(table, JSON.stringify(pairs)));
+    const r = safeJsonParse(jsql_update_by_ids(table, bigintStringify(pairs)));
     if (r && r.error) throw new Error(r.error);
     this._emit('update', { table, entries: pairs, result: r });
     this._runHooks('afterUpdate', [table, pairs, r]);
@@ -531,7 +601,9 @@ export class JSQL {
     await this._flush();
     const seq = this._seqIdByPk(table, id);
     if (seq === null) return null;
-    const r = safeJsonParse(jsql_update_by_id(table, BigInt(seq), JSON.stringify(data)));
+    const schema = this._schemas[table];
+    const payload = schema ? normalizeRowForRust(table, schema, data) : data;
+    const r = safeJsonParse(jsql_update_by_id(table, BigInt(seq), bigintStringify(payload)));
     if (r && r.ok === false) throw new Error(r.error || 'update failed');
     this._emit('update', { table, id, data });
     this._runHooks('afterUpdate', [table, id, data, r]);

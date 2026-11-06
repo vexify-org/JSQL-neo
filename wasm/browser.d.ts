@@ -1,6 +1,12 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * 运行期加列：扩展表结构并为已有行回填默认值。
+ * fs_json 为单个 FieldSchema 的 JSON，例如 {"type":"integer","nullable":true,"default":0}
+ */
+export function jsql_add_column(table: string, name: string, fs_json: string): string;
+
 export function jsql_begin_tx(): string;
 
 export function jsql_commit_tx(tx_id: string): string;
@@ -25,6 +31,11 @@ export function jsql_insert_buf_count(table: string, data: Uint8Array): string;
 
 export function jsql_insert_json(table: string, json: string): string;
 
+/**
+ * JSON 字符串直接插入（绕过 JS encodeBatch 二进制序列化）
+ */
+export function jsql_insert_raw(table: string, raw_json: string): string;
+
 export function jsql_remove_by_id(table: string, id: bigint): string;
 
 export function jsql_remove_by_ids(table: string, ids_json: string): string;
@@ -41,29 +52,30 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly jsql_begin_tx: () => [number, number];
-    readonly jsql_commit_tx: (a: number, b: number) => [number, number];
-    readonly jsql_count: (a: number, b: number) => [number, number];
-    readonly jsql_create_table: (a: number, b: number, c: number, d: number) => [number, number];
-    readonly jsql_drop_table: (a: number, b: number) => [number, number];
-    readonly jsql_find: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
-    readonly jsql_find_by_id: (a: number, b: number, c: bigint) => [number, number];
-    readonly jsql_find_by_ids: (a: number, b: number, c: number, d: number) => [number, number];
-    readonly jsql_insert: (a: number, b: number, c: number, d: number) => [number, number];
-    readonly jsql_insert_buf: (a: number, b: number, c: number, d: number) => [number, number];
-    readonly jsql_insert_buf_count: (a: number, b: number, c: number, d: number) => [number, number];
-    readonly jsql_insert_json: (a: number, b: number, c: number, d: number) => [number, number];
-    readonly jsql_remove_by_id: (a: number, b: number, c: bigint) => [number, number];
-    readonly jsql_remove_by_ids: (a: number, b: number, c: number, d: number) => [number, number];
-    readonly jsql_rollback_tx: (a: number, b: number) => [number, number];
-    readonly jsql_update_by_id: (a: number, b: number, c: bigint, d: number, e: number) => [number, number];
-    readonly jsql_update_by_ids: (a: number, b: number, c: number, d: number) => [number, number];
+    readonly jsql_add_column: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly jsql_begin_tx: (a: number) => void;
+    readonly jsql_commit_tx: (a: number, b: number, c: number) => void;
+    readonly jsql_count: (a: number, b: number, c: number) => void;
+    readonly jsql_create_table: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly jsql_drop_table: (a: number, b: number, c: number) => void;
+    readonly jsql_find: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly jsql_find_by_id: (a: number, b: number, c: number, d: bigint) => void;
+    readonly jsql_find_by_ids: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly jsql_insert: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly jsql_insert_buf: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly jsql_insert_buf_count: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly jsql_insert_json: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly jsql_insert_raw: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly jsql_remove_by_id: (a: number, b: number, c: number, d: bigint) => void;
+    readonly jsql_remove_by_ids: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly jsql_rollback_tx: (a: number, b: number, c: number) => void;
+    readonly jsql_update_by_id: (a: number, b: number, c: number, d: bigint, e: number, f: number) => void;
+    readonly jsql_update_by_ids: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly jsql_reset: () => void;
-    readonly __wbindgen_malloc: (a: number, b: number) => number;
-    readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
-    readonly __wbindgen_externrefs: WebAssembly.Table;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
-    readonly __wbindgen_start: () => void;
+    readonly __wbindgen_export: (a: number, b: number) => number;
+    readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
+    readonly __wbindgen_export3: (a: number, b: number, c: number) => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
