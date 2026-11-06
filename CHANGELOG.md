@@ -4,6 +4,22 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.23] — 2026-11-06
+
+### Fixed
+
+- **超过 2^53 的 64 位整数精度丢失（issue #38）**：`integer` / `int` / `bigint` 列此前用 `Number(v)` 归一，`> 2^53-1` 的值（number 或十进制字符串）会被静默截断成 53 位浮点；SQL 路径又因字面量解析成 BigInt 而报 1292，两条路径行为不一致且都丢精度。现已支持 BigInt：
+  - **列归一**：BigInt 输入精确接受（int64 范围内）；十进制字符串精确解析，安全范围内仍存成 `number`（兼容旧行为）；超出安全范围的 `number` 与超出 int64 范围的值明确报 `1292 ER_TRUNCATED_WRONG_VALUE`，不再静默入库。
+  - **SQL 路径**：`INSERT` / `UPDATE` / `WHERE` 中的大整数字面量（含十六进制字面量）精确保存与比较；BigInt 参数绑定可用；`SELECT` 回读保留原始位数。
+  - **持久化**：新增 `lib/bigint_json.js`，用单键标记对象（`__jsql_bigint__`）实现 BigInt 安全的 JSON 往返，修复 WAL / 事务快照 / `.jsql` 文件 / 备份恢复 / `stats()` 等路径因 `JSON.stringify` 遇 BigInt 直接抛错而整条失败的问题。
+  - **二进制格式**：`jsql_format` 新增 `I64` 的 BigInt 编码，读回时安全范围内还原成 `number`，超范围返回 BigInt。
+  - **算术**：BigInt 与整数 `number` 混合的 `+ - *` 走 BigInt 精确计算（`bigintExactArith`），避免 `TypeError` 与精度丢失。
+  - 新增 `test/issue-38.test.js`（33 项）覆盖 API / SQL / 持久化 / 事务 / 错误码一致性。
+
+### Notes
+
+- 合并 `fix/i38` 时保留 6.5.22 全部修复：`mysqlNum()`（MySQL 字符串→数字强转）与 `bigintExactArith()` 并存；`test` / `test:all` 取测试集并集（含 #38、#39、#40、g4）。
+
 ## [6.5.22] — 2026-11-06
 
 ### Fixed
@@ -23,7 +39,7 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Notes
 
-- issue #38（BigInt 序列化）本次未包含，将在后续版本单独处理。
+- issue #38（BigInt 序列化）本次未包含，已在 [6.5.23] 中修复。
 
 ## [6.5.21] — 2026-11-05
 
