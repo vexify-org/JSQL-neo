@@ -109,7 +109,7 @@ impl Engine for MemoryEngine {
 
     fn update_by_id(&mut self, table: &str, id: u64, data: HashMap<String, serde_json::Value>) -> Result<bool, String> {
         let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
-        Ok(t.update_row(id, data))
+        t.update_row(id, data)
     }
 
     fn remove_by_id(&mut self, table: &str, id: u64) -> Result<bool, String> {
@@ -124,7 +124,7 @@ impl Engine for MemoryEngine {
 
     fn update_by_ids(&mut self, table: &str, batch: Vec<(u64, HashMap<String, serde_json::Value>)>) -> Result<usize, String> {
         let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
-        Ok(t.update_rows(batch))
+        t.update_rows(batch)
     }
 
     fn update_by_filter(&mut self, table: &str, filter: &Option<HashMap<String, serde_json::Value>>,
@@ -147,7 +147,7 @@ impl Engine for MemoryEngine {
         };
         let count = ids.len();
         for id in &ids {
-            t.update_row_ref(*id, &data);
+            t.update_row_ref(*id, &data)?;
         }
         Ok(count)
     }

@@ -82,6 +82,8 @@ pub struct FieldSchema {
 #[serde(rename_all = "lowercase")]
 pub enum FieldType {
     Integer,
+    /// 64 位有符号整数（与 Integer 共用 i64 存储，语义上对应 SQL BIGINT）
+    BigInt,
     Float,
     String,
     Boolean,

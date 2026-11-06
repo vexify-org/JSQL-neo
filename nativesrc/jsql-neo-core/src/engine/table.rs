@@ -10,8 +10,57 @@ pub enum FieldValue {
     Null,
     Bool(bool),
     Int(i64),
+    /// 只用于能放进 u64 但超出 i64 的值（Issue #38）；列存储仍以 i64 为主。
+    UInt(u64),
     Float(f64),
     String(String),
+}
+
+/// BigInt 在 JSON 中无法直接表示，JS 层（lib/bigint_json.js）用
+/// `{"__jsql_bigint__":"<十进制>"}` 无损传递；Rust 绑定层识别并还原。
+const BIGINT_MARKER: &str = "__jsql_bigint__";
+
+/// JS 能精确表示的整数上界（Number.MAX_SAFE_INTEGER）。
+const JS_SAFE_INT_MAX: i64 = 9_007_199_254_740_991;
+
+fn is_js_safe_i64(n: i64) -> bool {
+    (-JS_SAFE_INT_MAX..=JS_SAFE_INT_MAX).contains(&n)
+}
+
+fn marker_i128(jv: &serde_json::Value) -> Option<i128> {
+    if let serde_json::Value::Object(map) = jv {
+        if map.len() == 1 {
+            if let Some(serde_json::Value::String(s)) = map.get(BIGINT_MARKER) {
+                return s.parse::<i128>().ok();
+            }
+        }
+    }
+    None
+}
+
+/// 把 JSON 数字 / BigInt 标记 / 十进制字符串解析成 i128，供过滤比较使用。
+fn json_as_i128(jv: &serde_json::Value) -> Option<i128> {
+    match jv {
+        serde_json::Value::Number(n) => n
+            .as_i64()
+            .map(|v| v as i128)
+            .or_else(|| n.as_u64().map(|v| v as i128)),
+        serde_json::Value::String(s) => s.trim().parse::<i128>().ok(),
+        other => marker_i128(other),
+    }
+}
+
+/// 严格十进制整数解析（不接受空串 / 小数 / 科学计数法）。
+fn parse_decimal_i128(s: &str) -> Option<i128> {
+    let t = s.trim();
+    if t.is_empty() || t.len() > 40 {
+        return None;
+    }
+    let digits = t.strip_prefix(['+', '-']).unwrap_or(t);
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    t.parse::<i128>().ok()
 }
 
 impl serde::Serialize for FieldValue {
@@ -19,7 +68,21 @@ impl serde::Serialize for FieldValue {
         match self {
             FieldValue::Null => s.serialize_unit(),
             FieldValue::Bool(b) => s.serialize_bool(*b),
-            FieldValue::Int(n) => s.serialize_i64(*n),
+            FieldValue::Int(n) => {
+                // 超出 JS 安全范围时以十进制字符串输出，避免 JSON.parse 丢精度。
+                if is_js_safe_i64(*n) {
+                    s.serialize_i64(*n)
+                } else {
+                    s.serialize_str(&n.to_string())
+                }
+            }
+            FieldValue::UInt(n) => {
+                if (*n as i64) <= JS_SAFE_INT_MAX && *n <= JS_SAFE_INT_MAX as u64 {
+                    s.serialize_u64(*n)
+                } else {
+                    s.serialize_str(&n.to_string())
+                }
+            }
             FieldValue::Float(f) => s.serialize_f64(*f),
             FieldValue::String(st) => s.serialize_str(st),
         }
@@ -33,11 +96,58 @@ impl FieldValue {
             serde_json::Value::Bool(b) => FieldValue::Bool(b),
             serde_json::Value::Number(n) => {
                 n.as_i64().map(FieldValue::Int)
+                    .or_else(|| n.as_u64().map(FieldValue::UInt))
                     .or_else(|| n.as_f64().map(FieldValue::Float))
                     .unwrap_or(FieldValue::Null)
             }
             serde_json::Value::String(s) => FieldValue::String(s),
+            ref v if marker_i128(v).is_some() => {
+                let b = marker_i128(v).unwrap();
+                if let Ok(i) = i64::try_from(b) {
+                    FieldValue::Int(i)
+                } else if let Ok(u) = u64::try_from(b) {
+                    FieldValue::UInt(u)
+                } else {
+                    FieldValue::Null
+                }
+            }
             _ => FieldValue::Null,
+        }
+    }
+
+    /// 按列类型解析（Issue #38）：
+    /// - integer / bigint 列接受 BigInt 标记、JSON 整数、十进制字符串；
+    /// - 拒绝小数 / 布尔 / 越界值（与 lib/table.js 的 1292 语义一致）。
+    pub fn from_json_typed(ft: &crate::types::FieldType, jv: serde_json::Value) -> Result<Self, String> {
+        use crate::types::FieldType;
+        match ft {
+            FieldType::Integer | FieldType::BigInt => {
+                let (b, raw) = match &jv {
+                    serde_json::Value::Null => return Ok(FieldValue::Null),
+                    serde_json::Value::Number(n) => {
+                        if let Some(i) = n.as_i64() {
+                            (i as i128, n.to_string())
+                        } else if let Some(u) = n.as_u64() {
+                            (u as i128, n.to_string())
+                        } else {
+                            return Err(truncated_int_error(&n.to_string()));
+                        }
+                    }
+                    serde_json::Value::String(s) => match parse_decimal_i128(s) {
+                        Some(v) => (v, s.clone()),
+                        None => return Err(truncated_int_error(s)),
+                    },
+                    other => match marker_i128(other) {
+                        Some(v) => (v, v.to_string()),
+                        None => return Err(truncated_int_error(&other.to_string())),
+                    },
+                };
+                if b < i64::MIN as i128 || b > i64::MAX as i128 {
+                    return Err(truncated_int_error(&raw));
+                }
+                Ok(FieldValue::Int(b as i64))
+            }
+            _ => Ok(FieldValue::from_json(jv)),
         }
     }
 
@@ -45,7 +155,20 @@ impl FieldValue {
         match self {
             FieldValue::Null => serde_json::Value::Null,
             FieldValue::Bool(b) => serde_json::Value::Bool(*b),
-            FieldValue::Int(n) => serde_json::Value::Number((*n).into()),
+            FieldValue::Int(n) => {
+                if is_js_safe_i64(*n) {
+                    serde_json::Value::Number((*n).into())
+                } else {
+                    serde_json::Value::String(n.to_string())
+                }
+            }
+            FieldValue::UInt(n) => {
+                if *n <= JS_SAFE_INT_MAX as u64 {
+                    serde_json::Value::Number((*n).into())
+                } else {
+                    serde_json::Value::String(n.to_string())
+                }
+            }
             FieldValue::Float(f) => serde_json::Number::from_f64(*f)
                 .map(serde_json::Value::Number)
                 .unwrap_or(serde_json::Value::Null),
@@ -59,7 +182,18 @@ impl FieldValue {
             FieldValue::Bool(true) => out.push_str("true"),
             FieldValue::Bool(false) => out.push_str("false"),
             FieldValue::Int(n) => {
-                out.push_str(itoa::Buffer::new().format(*n));
+                if is_js_safe_i64(*n) {
+                    out.push_str(itoa::Buffer::new().format(*n));
+                } else {
+                    write_json_string(out, &n.to_string());
+                }
+            }
+            FieldValue::UInt(n) => {
+                if *n <= JS_SAFE_INT_MAX as u64 {
+                    out.push_str(itoa::Buffer::new().format(*n));
+                } else {
+                    write_json_string(out, &n.to_string());
+                }
             }
             FieldValue::Float(f) => {
                 out.push_str(ryu::Buffer::new().format_finite(*f));
@@ -74,12 +208,20 @@ impl FieldValue {
         match (self, jv) {
             (FieldValue::Null, serde_json::Value::Null) => true,
             (FieldValue::Bool(a), serde_json::Value::Bool(b)) => a == b,
-            (FieldValue::Int(a), serde_json::Value::Number(n)) => n.as_i64() == Some(*a),
+            (FieldValue::Int(a), _) => json_as_i128(jv).map_or(false, |b| *a as i128 == b),
+            (FieldValue::UInt(a), _) => json_as_i128(jv).map_or(false, |b| *a as i128 == b),
             (FieldValue::Float(a), serde_json::Value::Number(n)) => n.as_f64() == Some(*a),
             (FieldValue::String(a), serde_json::Value::String(b)) => a == b,
             _ => false,
         }
     }
+}
+
+fn truncated_int_error(raw: &str) -> String {
+    format!(
+        "ER_TRUNCATED_WRONG_VALUE: Truncated incorrect INTEGER value: '{}'",
+        raw
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -109,10 +251,27 @@ pub struct Table {
 
 pub fn default_value(ft: &FieldType) -> FieldValue {
     match ft {
-        FieldType::Integer => FieldValue::Int(0),
+        FieldType::Integer | FieldType::BigInt => FieldValue::Int(0),
         FieldType::Float => FieldValue::Float(0.0),
         FieldType::String => FieldValue::String(String::new()),
         FieldType::Boolean => FieldValue::Bool(false),
+    }
+}
+
+/// 自动/显式主键的 u64 值序列化：超出 JS 安全范围时输出十进制字符串。
+fn write_u64_json(out: &mut String, n: u64) {
+    if n <= JS_SAFE_INT_MAX as u64 {
+        out.push_str(itoa::Buffer::new().format(n));
+    } else {
+        write_json_string(out, &n.to_string());
+    }
+}
+
+fn u64_field(n: u64) -> FieldValue {
+    if n <= i64::MAX as u64 {
+        FieldValue::Int(n as i64)
+    } else {
+        FieldValue::UInt(n)
     }
 }
 
@@ -270,7 +429,8 @@ impl Table {
             return false;
         }
         let fill = match &fs.default {
-            Some(dv) => FieldValue::from_json(dv.clone()),
+            Some(dv) => FieldValue::from_json_typed(&fs.field_type, dv.clone())
+                .unwrap_or(FieldValue::Null),
             None => if !fs.nullable { default_value(&fs.field_type) } else { FieldValue::Null },
         };
         let pos = self.field_order.len();
@@ -329,9 +489,9 @@ impl Table {
                         fields.insert(pk_key.clone(), serde_json::Value::Number(auto_id.into()));
                     }
                     Some(v) => {
-                        if let Some(n) = v.as_i64() {
-                            if n > 0 {
-                                id = n as u64;
+                        if let Some(b) = json_as_i128(v) {
+                            if b > 0 && b <= i64::MAX as i128 {
+                                id = b as u64;
                                 self.next_id = self.next_id.max(id + 1);
                             }
                         }
@@ -347,33 +507,52 @@ impl Table {
                 return Err(self.dup_pk_error(id));
             }
 
-            let values_start = self.values.len();
+            let mut row_vals = Vec::with_capacity(self.field_order.len());
             if fields.len() < self.schema.len() {
                 for name in &self.field_order {
                     if let Some(v) = fields.remove(name) {
-                        self.values.push(FieldValue::from_json(v));
+                        let fv = match self.schema.get(name) {
+                            Some(fs) => FieldValue::from_json_typed(&fs.field_type, v)?,
+                            None => FieldValue::from_json(v),
+                        };
+                        row_vals.push(fv);
                         continue;
                     }
                     match self.schema.get(name).and_then(|fs| fs.default.clone()) {
-                        Some(dv) => self.values.push(FieldValue::from_json(dv)),
+                        Some(dv) => {
+                            let fv = match self.schema.get(name) {
+                                Some(fs) => FieldValue::from_json_typed(&fs.field_type, dv)?,
+                                None => FieldValue::from_json(dv),
+                            };
+                            row_vals.push(fv);
+                        }
                         None => {
                             if let Some(fs) = self.schema.get(name) {
                                 if !fs.nullable {
-                                    self.values.push(default_value(&fs.field_type));
+                                    row_vals.push(default_value(&fs.field_type));
                                 } else {
-                                    self.values.push(FieldValue::Null);
+                                    row_vals.push(FieldValue::Null);
                                 }
                             } else {
-                                self.values.push(FieldValue::Null);
+                                row_vals.push(FieldValue::Null);
                             }
                         }
                     }
                 }
             } else {
                 for name in &self.field_order {
-                    self.values.push(fields.remove(name).map(FieldValue::from_json).unwrap_or(FieldValue::Null));
+                    let fv = match fields.remove(name) {
+                        Some(v) => match self.schema.get(name) {
+                            Some(fs) => FieldValue::from_json_typed(&fs.field_type, v)?,
+                            None => FieldValue::from_json(v),
+                        },
+                        None => FieldValue::Null,
+                    };
+                    row_vals.push(fv);
                 }
             }
+            let values_start = self.values.len();
+            self.values.extend(row_vals);
 
             let idx = self.rows.len();
             self.pk_index.insert(id, idx);
@@ -419,7 +598,7 @@ impl Table {
                 if let Some(pi) = pk_idx {
                     if pi < row_vals.len() {
                         match row_vals[pi] {
-                            FieldValue::Null => row_vals[pi] = FieldValue::Int(auto_id as i64),
+                            FieldValue::Null => row_vals[pi] = u64_field(auto_id),
                             FieldValue::Int(e) if e > 0 => {
                                 id = e as u64;
                                 self.next_id = self.next_id.max(id + 1);
@@ -474,7 +653,7 @@ impl Table {
                 }
                 if let Some(ref pk_key) = pk_auto_key {
                     if self.field_order[i] == *pk_key {
-                        self.values.push(FieldValue::Int(id as i64));
+                        self.values.push(u64_field(id));
                         continue;
                     }
                 }
@@ -496,7 +675,7 @@ impl Table {
             if let Some(pi) = pk_idx {
                 if let Some(v) = self.values.get_mut(values_start + pi) {
                     if *v == FieldValue::Null {
-                        *v = FieldValue::Int(id as i64);
+                        *v = u64_field(id);
                     }
                 }
             }
@@ -569,7 +748,7 @@ impl Table {
         let vals = self.get_row_values(rs);
         let mut out = String::with_capacity(64);
         out.push('[');
-        out.push_str(itoa::Buffer::new().format(rs.id));
+        write_u64_json(&mut out, rs.id);
         for v in vals {
             out.push(',');
             v.write_json(&mut out);
@@ -591,7 +770,7 @@ impl Table {
     pub fn write_row_json_into(&self, rs: &RowStore, out: &mut String, tc: &mut TimeCache) {
         let vals = self.get_row_values(rs);
         out.push_str(r#"{"id":"#);
-        out.push_str(itoa::Buffer::new().format(rs.id));
+        write_u64_json(out, rs.id);
         out.push_str(r#","fields":{"#);
         for (i, name) in self.field_order.iter().enumerate() {
             if i > 0 { out.push(','); }
@@ -609,36 +788,44 @@ impl Table {
         out.push_str(r#""}"#);
     }
 
-    pub fn update_row(&mut self, id: u64, data: HashMap<String, serde_json::Value>) -> bool {
+    pub fn update_row(&mut self, id: u64, data: HashMap<String, serde_json::Value>) -> Result<bool, String> {
         self.update_row_ref(id, &data)
     }
 
     /// 借用版本：批量按 filter 更新时复用同一份 data，避免每行都克隆整个 HashMap。
-    pub fn update_row_ref(&mut self, id: u64, data: &HashMap<String, serde_json::Value>) -> bool {
+    pub fn update_row_ref(&mut self, id: u64, data: &HashMap<String, serde_json::Value>) -> Result<bool, String> {
         let idx = match self.pk_index.get(&id) {
             Some(i) => *i,
-            None => return false,
+            None => return Ok(false),
         };
         // Use raw index access to update values without borrow conflicts
         if idx < self.rows.len() {
             let row = &mut self.rows[idx];
             let nv = row.num_values;
             let s = row.values_start;
+            let mut staged: Vec<(usize, FieldValue)> = Vec::new();
             for (k, v) in data {
                 if let Some(&pos) = self.field_index.get(k) {
                     if pos < nv {
-                        self.values[s + pos] = FieldValue::from_json(v.clone());
+                        let fv = match self.schema.get(k) {
+                            Some(fs) => FieldValue::from_json_typed(&fs.field_type, v.clone())?,
+                            None => FieldValue::from_json(v.clone()),
+                        };
+                        staged.push((s + pos, fv));
                     }
                 }
             }
+            for (pos, fv) in staged {
+                self.values[pos] = fv;
+            }
             self.rows[idx].updated_at = now_millis();
-            true
+            Ok(true)
         } else {
-            false
+            Ok(false)
         }
     }
 
-    pub fn update_rows(&mut self, batch: Vec<(u64, HashMap<String, serde_json::Value>)>) -> usize {
+    pub fn update_rows(&mut self, batch: Vec<(u64, HashMap<String, serde_json::Value>)>) -> Result<usize, String> {
         let mut count = 0;
         let now = now_millis();
         for (id, data) in batch {
@@ -647,19 +834,27 @@ impl Table {
                     let row = &mut self.rows[idx];
                     let nv = row.num_values;
                     let s = row.values_start;
-                    for (k, v) in data {
-                        if let Some(&pos) = self.field_index.get(&k) {
+                    let mut staged: Vec<(usize, FieldValue)> = Vec::new();
+                    for (k, v) in &data {
+                        if let Some(&pos) = self.field_index.get(k) {
                             if pos < nv {
-                                self.values[s + pos] = FieldValue::from_json(v);
+                                let fv = match self.schema.get(k) {
+                                    Some(fs) => FieldValue::from_json_typed(&fs.field_type, v.clone())?,
+                                    None => FieldValue::from_json(v.clone()),
+                                };
+                                staged.push((s + pos, fv));
                             }
                         }
+                    }
+                    for (pos, fv) in staged {
+                        self.values[pos] = fv;
                     }
                     self.rows[idx].updated_at = now;
                     count += 1;
                 }
             }
         }
-        count
+        Ok(count)
     }
 
     pub fn remove_row(&mut self, id: u64) -> bool {
@@ -767,20 +962,26 @@ impl Table {
             if self.pk_index.contains_key(&id) {
                 return Err(self.dup_pk_error(id));
             }
-            let values_start = self.values.len();
+            let mut row_vals = Vec::with_capacity(self.field_order.len());
             for name in &self.field_order {
                 if let Some(jv) = fields.get(name) {
-                    self.values.push(FieldValue::from_json(jv.clone()));
+                    let fv = match self.schema.get(name) {
+                        Some(fs) => FieldValue::from_json_typed(&fs.field_type, jv.clone())?,
+                        None => FieldValue::from_json(jv.clone()),
+                    };
+                    row_vals.push(fv);
                 } else if let Some(ref pk_key) = pk_auto_key {
                     if *pk_key == *name {
-                        self.values.push(FieldValue::Int(id as i64));
+                        row_vals.push(u64_field(id));
                     } else {
-                        self.values.push(FieldValue::Null);
+                        row_vals.push(FieldValue::Null);
                     }
                 } else {
-                    self.values.push(FieldValue::Null);
+                    row_vals.push(FieldValue::Null);
                 }
             }
+            let values_start = self.values.len();
+            self.values.extend(row_vals);
             let idx = self.rows.len();
             self.pk_index.insert(id, idx);
             self.rows.push(RowStore { id, values_start, num_values: self.field_order.len(), created_at, updated_at });
@@ -1000,6 +1201,7 @@ fn field_value_to_string(v: &FieldValue) -> std::borrow::Cow<'_, str> {
         FieldValue::Null => Cow::Borrowed("null"),
         FieldValue::Bool(b) => Cow::Owned(b.to_string()),
         FieldValue::Int(n) => Cow::Owned(n.to_string()),
+        FieldValue::UInt(n) => Cow::Owned(n.to_string()),
         FieldValue::Float(f) => Cow::Owned(f.to_string()),
         FieldValue::String(s) => Cow::Borrowed(s),
     }
@@ -1052,14 +1254,23 @@ fn match_cond(fv: Option<&FieldValue>, cond: &Cond) -> bool {
 
 /// 存储值与 JSON 目标值比较；类型不可比或含 null/NaN 时返回 None（视为不匹配，
 /// 对齐 JS 里 `value !== null && value > expected` 的写法）。
+fn cmp_numeric_to_json(a: i128, jv: &serde_json::Value) -> Option<std::cmp::Ordering> {
+    use serde_json::Value as J;
+    if let Some(b) = json_as_i128(jv) {
+        return Some(a.cmp(&b));
+    }
+    match jv {
+        J::Number(n) => n.as_f64().and_then(|b| (a as f64).partial_cmp(&b)),
+        _ => None,
+    }
+}
+
 fn cmp_to_json(fv: &FieldValue, jv: &serde_json::Value) -> Option<std::cmp::Ordering> {
     use serde_json::Value as J;
     match (fv, jv) {
         (FieldValue::Null, _) | (_, J::Null) => None,
-        (FieldValue::Int(a), J::Number(n)) => match n.as_i64() {
-            Some(b) => Some(a.cmp(&b)),
-            None => n.as_f64().and_then(|b| (*a as f64).partial_cmp(&b)),
-        },
+        (FieldValue::Int(a), _) => cmp_numeric_to_json(*a as i128, jv),
+        (FieldValue::UInt(a), _) => cmp_numeric_to_json(*a as i128, jv),
         (FieldValue::Float(a), J::Number(n)) => n.as_f64().and_then(|b| a.partial_cmp(&b)),
         (FieldValue::Bool(a), J::Bool(b)) => Some(a.cmp(b)),
         (FieldValue::String(a), J::String(b)) => Some(a.as_str().cmp(b.as_str())),
@@ -1067,9 +1278,19 @@ fn cmp_to_json(fv: &FieldValue, jv: &serde_json::Value) -> Option<std::cmp::Orde
     }
 }
 
+fn numeric_field_i128(v: &FieldValue) -> Option<i128> {
+    match v {
+        FieldValue::Int(n) => Some(*n as i128),
+        FieldValue::UInt(n) => Some(*n as i128),
+        _ => None,
+    }
+}
+
 fn cmp_field_values(a: Option<&FieldValue>, b: Option<&FieldValue>) -> std::cmp::Ordering {
     match (a, b) {
-        (Some(FieldValue::Int(na)), Some(FieldValue::Int(nb))) => na.cmp(nb),
+        (Some(va), Some(vb)) if numeric_field_i128(va).is_some() && numeric_field_i128(vb).is_some() => {
+            numeric_field_i128(va).unwrap().cmp(&numeric_field_i128(vb).unwrap())
+        }
         (Some(FieldValue::Float(na)), Some(FieldValue::Float(nb))) => na.partial_cmp(nb).unwrap_or(std::cmp::Ordering::Equal),
         (Some(FieldValue::String(sa)), Some(FieldValue::String(sb))) => sa.cmp(sb),
         (Some(FieldValue::Bool(ba)), Some(FieldValue::Bool(bb))) => ba.cmp(bb),

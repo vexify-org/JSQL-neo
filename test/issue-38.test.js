@@ -263,6 +263,61 @@ async function testNoRegression() {
     })());
 }
 
+/* ---------- Rust 绑定层（wasm/native）与 JS 引擎一致 ---------- */
+async function testRustBindings() {
+    async function roundTrip(label, Client, opts) {
+        let db;
+        try {
+            db = new Client(opts);
+            await db.start();
+        } catch (e) {
+            console.log(`[SKIP] #38 ${label} binding unavailable:`, e && e.message);
+            return;
+        }
+        try {
+            await db.createTable('big', {
+                id: { type: 'integer', primaryKey: true, autoIncrement: true },
+                v: { type: 'bigint' }
+            });
+            await db.insert('big', { v: 9223372036854775807n });
+            await db.insert('big', { v: -9223372036854775808n });
+            await db.insert('big', { v: '9007199254740993' });
+
+            const rows = await db.find('big', {});
+            ok(`#38 ${label} insert BigInt/string roundtrip`,
+                rows.length === 3 && rows[0].v === 9223372036854775807n &&
+                rows[1].v === -9223372036854775808n && rows[2].v === 9007199254740993n, rows);
+
+            const hit = await db.find('big', { v: 9223372036854775807n });
+            ok(`#38 ${label} filter by BigInt`, hit.length === 1 && hit[0].v === 9223372036854775807n, hit);
+
+            const hitStr = await db.find('big', { v: '9007199254740993' });
+            ok(`#38 ${label} filter by large integer string`,
+                hitStr.length === 1 && hitStr[0].v === 9007199254740993n, hitStr);
+
+            await db.updateById('big', rows[0].id, { v: 9007199254740993n });
+            const updated = await db.findById('big', rows[0].id);
+            ok(`#38 ${label} update by BigInt`, updated && updated.v === 9007199254740993n, updated);
+
+            let err = null;
+            try { await db.insert('big', { v: 9223372036854775808n }); } catch (e) { err = e; }
+            ok(`#38 ${label} beyond int64 throws 1292`, err && codeOf(err) === 1292, err && err.message);
+        } finally {
+            try { await db.stop(); } catch (_) { }
+        }
+    }
+
+    const { JSQL: WasmClient } = require(path.join(ROOT, 'lib', 'wasm_client'));
+    await roundTrip('wasm', WasmClient, { modules: false });
+
+    const native = require(path.join(ROOT, 'lib', 'native_client'));
+    if (native._nativeAvailable) {
+        await roundTrip('native', native.JSQL, { modules: false, path: null });
+    } else {
+        console.log('[SKIP] #38 native binding unavailable (stub mode)');
+    }
+}
+
 (async () => {
     try {
         await testApi();
@@ -270,6 +325,7 @@ async function testNoRegression() {
         await testPersistence();
         await testBigIntJsonPaths();
         await testNoRegression();
+        await testRustBindings();
     } catch (e) {
         failed++;
         console.log('[FAIL] unexpected exception:', e && e.stack || e);
