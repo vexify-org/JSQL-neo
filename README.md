@@ -20,8 +20,8 @@
 
 ![JSQL-NEO terminal demo](doc/demo.gif)
 
-A real `jsql tui` session: joins, NULL semantics, exact 64-bit integers, and
-savepoint rollback.
+A real `jsql tui` session (v6.5.24): 64-bit integer precision, joins, NULL semantics,
+and savepoint rollback — all in one in-memory engine, rendered on a dark background.
 
 [MP4 version](doc/demo.mp4) · [asciinema recording](doc/demo.cast)
 
