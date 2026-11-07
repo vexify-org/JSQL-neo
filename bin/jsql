@@ -13,7 +13,7 @@ const { nag, setStarred, readConfig } = require('../lib/star-nag');
 
 // star 提示：任何异常都不该挡住命令本身
 // version / --version 只回版本号、star 本身就是干这件事的 —— 这些不提示，其余全部提示
-const NO_NAG_ARGS = new Set(['version', '--version', '-v', 'star']);
+const NO_NAG_ARGS = new Set(['version', '--version', '-v', 'star', 'update', 'uninstall', 'remove']);
 if (!process.env.JSQL_NO_STAR_NAG && !NO_NAG_ARGS.has(process.argv[2])) {
   try { nag(); } catch (e) { /* 提示失败与命令无关 */ }
 }
@@ -34,6 +34,122 @@ const manager = new ModuleManager();
 const RAW_ARGV = process.argv.slice(2);
 
 const _pkg = require('../package.json');
+
+// ── update / uninstall 命令的实现 ─────────────────────────────
+
+function updateOptions(sub) {
+  sub.option('check', { type: 'boolean', description: 'Only check for a newer version' });
+  sub.option('force', { type: 'boolean', description: 'Reinstall even if already up to date' });
+  sub.option('dry-run', { type: 'boolean', description: 'Print the install command without running it' });
+  sub.option('json', { type: 'boolean', description: 'Output as JSON' });
+}
+
+async function updateHandler(argv) {
+  const updater = require('../lib/updater');
+  try {
+    const result = await updater.runUpdate({
+      checkOnly: argv.check === true,
+      force: argv.force === true,
+      dryRun: argv['dry-run'] === true,
+    });
+    if (argv.json) console.log(JSON.stringify(result, null, 2));
+    else console.log(updater.formatResult(result));
+    if (!result.ok) process.exitCode = 1;
+  } catch (e) {
+    console.error(`Error: ${e.message}`);
+    process.exitCode = 1;
+  }
+}
+
+function uninstallOptions(sub) {
+  sub.option('yes', { alias: ['y'], type: 'boolean', description: 'Skip the confirmation prompt' });
+  sub.option('keep-data', { type: 'boolean', description: 'Keep user data (plugins/config/cache)' });
+  sub.option('global', { type: 'boolean', description: 'Only uninstall the global npm package' });
+  sub.option('all', { type: 'boolean', description: 'Remove user data and the global npm package' });
+  sub.option('dry-run', { type: 'boolean', description: 'Show what would be removed' });
+  sub.option('json', { type: 'boolean', description: 'Output as JSON' });
+}
+
+async function uninstallHandler(argv) {
+  const un = require('../lib/uninstaller');
+  const fail = (e) => { console.error(`Error: ${e.message}`); process.exitCode = 1; };
+  try {
+    const yes = argv.yes === true || argv.y === true;
+    const dryRun = argv['dry-run'] === true;
+    const doGlobal = argv.global === true || argv.all === true;
+    const keepData = argv['keep-data'] === true || (argv.global === true && argv.all !== true);
+    const doData = !keepData;
+
+    if (!doData && !doGlobal) {
+      console.log('Nothing to do (data kept, global package not requested).');
+      return;
+    }
+
+    const targets = doData ? un.inspectTargets() : [];
+    const existing = targets.filter((t) => t.exists);
+    const globalInstalled = doGlobal ? un.isGloballyInstalled() : false;
+
+    if (!dryRun) {
+      if (doData && existing.length === 0 && !doGlobal) {
+        console.log('No jsql user data found. Nothing to remove.');
+        return;
+      }
+      if (!yes) {
+        if (!process.stdin.isTTY) {
+          console.error('Refusing to delete user data without confirmation. Re-run with --yes (or --dry-run to preview).');
+          process.exitCode = 1;
+          return;
+        }
+        if (doData && existing.length) {
+          console.log('The following user data will be removed:');
+          for (const t of existing) console.log(`  - ${t.path}  (${t.label})`);
+        }
+        if (doGlobal) console.log('Will also run: npm uninstall -g ' + un.PKG_NAME);
+        const ok = await un.confirm('Proceed? [y/N] ');
+        if (!ok) {
+          console.log('Aborted. No changes were made.');
+          return;
+        }
+      }
+    }
+
+    const dataResult = doData ? un.removeData({ dryRun }) : { removed: [], skipped: [], failed: [] };
+    let globalResult = null;
+    if (doGlobal) {
+      if (dryRun) globalResult = { ok: true, dryRun: true, command: `npm uninstall -g ${un.PKG_NAME}`, error: null };
+      else if (!globalInstalled) globalResult = { ok: true, skipped: true, command: `npm uninstall -g ${un.PKG_NAME}`, error: null };
+      else globalResult = un.uninstallGlobal(false);
+    }
+
+    if (argv.json) {
+      console.log(JSON.stringify({ data: dataResult, global: globalResult, dryRun }, null, 2));
+    } else {
+      const verb = dryRun ? 'Would remove' : 'Removed';
+      if (dataResult.removed.length) {
+        console.log(`${verb} ${dataResult.removed.length} path(s):`);
+        for (const p of dataResult.removed) console.log(`  - ${p}`);
+      } else if (doData) {
+        console.log('No jsql user data to remove.');
+      }
+      for (const f of dataResult.failed) console.error(`Failed to remove ${f.path}: ${f.error}`);
+      if (doGlobal) {
+        if (globalResult.dryRun) console.log(`Would run: ${globalResult.command}`);
+        else if (globalResult.skipped) console.log('Global jsql-neo package is not installed; skipped npm uninstall.');
+        else if (globalResult.ok) console.log('Uninstalled global package (npm uninstall -g jsql-neo).');
+        else console.error(`Global uninstall failed: ${globalResult.error}`);
+      }
+      if (!doGlobal) {
+        console.log('To remove the package itself, run: npm uninstall -g jsql-neo');
+      }
+    }
+    if (dataResult.failed.length || (globalResult && !globalResult.ok && !globalResult.skipped)) {
+      process.exitCode = 1;
+    }
+  } catch (e) {
+    fail(e);
+  }
+}
+
 const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
   pkg: _pkg,
 })
@@ -412,6 +528,9 @@ const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
       fail(e);
     }
   })
+  .command('update', 'Update jsql-neo to the latest version', updateOptions, updateHandler)
+  .command('uninstall', 'Remove jsql user data and/or the global package', uninstallOptions, uninstallHandler)
+  .command('remove', 'Alias of uninstall', uninstallOptions, uninstallHandler)
   .command('version', 'Show version', null, () => {
     console.log(require('../package.json').version);
   })

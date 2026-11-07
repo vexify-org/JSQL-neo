@@ -30,13 +30,28 @@ const GHPROXY = process.env.JSQL_GHPROXY !== undefined
   ? process.env.JSQL_GHPROXY
   : '';
 const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || '';
-// 原生二进制自动下载默认关闭（opt-in）：防止每次 npm install 都从网络拉取并
-// require() 一个预编译二进制（issue #25 供应链风险）。显式设置
-// JSQL_AUTO_DOWNLOAD_NATIVE=1（或 JSQL_NATIVE_DOWNLOAD=1）才下载；
-// 否则只用本地已有模块，或回退源码编译。
-const AUTO_DOWNLOAD_NATIVE = process.env.JSQL_AUTO_DOWNLOAD_NATIVE === '1'
-  || process.env.JSQL_NATIVE_DOWNLOAD === '1';
-const TAG = `v${pkg.version}`;
+
+// ── 原生二进制获取策略 ────────────────────────────────────────────────
+// v6.5.25 起默认【强制从远端拉取最新版】：安装时总是从 GitHub Release 重新
+// 下载与当前包版本匹配的原生模块，校验 SHA256 后覆盖本地同名文件（旧缓存、
+// 手工编译产物都不会被直接信任）。下载失败时保留本地可用模块，最后才回退
+// 源码编译 —— 即「远端优先 / 强制覆盖 / 失败降级」。
+//
+// 环境变量：
+//   JSQL_NO_NATIVE_DOWNLOAD=1        完全关闭下载（旧 opt-in 行为，local → 源码编译）
+//   JSQL_NATIVE_DOWNLOAD=0           同上（=0 语义）
+//   JSQL_AUTO_DOWNLOAD_NATIVE=0      同上（=0 语义）
+//   JSQL_NATIVE_FORCE_REFRESH=0      仍下载，但本地模块可用时跳过（旧「缓存优先」）
+//   JSQL_NATIVE_TAG=vX.Y.Z|latest    指定远端 tag；默认 v<package.version>
+//   JSQL_AUTO_DOWNLOAD_NATIVE=1 / JSQL_NATIVE_DOWNLOAD=1  仍然兼容（显式开）
+//
+// 供应链安全（issue #25）：不内置任何加速站/token，代理仍需显式 JSQL_GHPROXY，
+// 且下载必须通过 SHA256SUMS 校验（除非用户显式 JSQL_ALLOW_UNVERIFIED_NATIVE=1）。
+const DOWNLOAD_DISABLED = process.env.JSQL_NO_NATIVE_DOWNLOAD === '1'
+  || process.env.JSQL_NATIVE_DOWNLOAD === '0'
+  || process.env.JSQL_AUTO_DOWNLOAD_NATIVE === '0';
+const FORCE_REFRESH = process.env.JSQL_NATIVE_FORCE_REFRESH !== '0';
+const TAG = process.env.JSQL_NATIVE_TAG || `v${pkg.version}`;
 
 // 原生模块体积上限（防代理/镜像返回超大文件打爆磁盘/内存）
 const MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
@@ -76,6 +91,52 @@ function sameOrigin(a, b) {
   try { return new URL(a).origin === new URL(b).origin; } catch (_) { return false; }
 }
 
+/**
+ * 解析 JSQL_NATIVE_TAG=latest：跟随 GitHub `/releases/latest` 的 302 跳转，
+ * 从 Location 里取出真实 tag（vX.Y.Z）。失败返回 null —— 调用方回退到当前版本 tag。
+ */
+function resolveLatestTag() {
+  return new Promise((resolve) => {
+    const url = `https://github.com/${REPO}/releases/latest`;
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    let req;
+    try {
+      req = https.get(url, { headers: { 'User-Agent': 'jsql-neo-postinstall' } }, (res) => {
+        const loc = res.headers.location || '';
+        res.resume();
+        const m = String(loc).match(/\/releases\/tag\/([^/?#]+)/);
+        done(m ? decodeURIComponent(m[1]) : null);
+      });
+    } catch (_) {
+      done(null);
+      return;
+    }
+    req.on('error', () => done(null));
+    req.setTimeout(8000, () => { try { req.destroy(); } catch (_) {} done(null); });
+  });
+}
+
+/**
+ * 取得本次要拉取的 release tag。
+ * 默认 = v<package.version>（二进制必须与包版本匹配，避免 ABI/API 错配）；
+ * 只有用户显式 JSQL_NATIVE_TAG=latest 时才去解析最新 release。
+ */
+async function releaseTag() {
+  if (TAG.toLowerCase() !== 'latest') return TAG;
+  const resolved = await resolveLatestTag();
+  if (resolved) {
+    console.log(`[jsql-neo] JSQL_NATIVE_TAG=latest resolved to ${resolved}`);
+    return resolved;
+  }
+  console.warn(`[jsql-neo] cannot resolve latest release tag; using v${pkg.version}`);
+  return `v${pkg.version}`;
+}
+
+function withUserAgent(headers) {
+  return Object.assign({ 'User-Agent': 'jsql-neo-postinstall' }, headers || {});
+}
+
 function safeRedirect(next) {
   return /^https?:/i.test(String(next || ''));
 }
@@ -87,7 +148,7 @@ function download(url, dest, headers, redirects = 0) {
       return;
     }
     const mod = url.startsWith('https:') ? https : http;
-    const req = mod.get(url, { headers: headers || {} }, (res) => {
+    const req = mod.get(url, { headers: withUserAgent(headers) }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         const next = new URL(res.headers.location, url).toString();
@@ -137,6 +198,10 @@ function download(url, dest, headers, redirects = 0) {
       });
     });
     req.on('error', reject);
+    req.setTimeout(60000, () => {
+      try { req.destroy(); } catch (_) { /* ignore */ }
+      reject(new Error(`download timed out after 60s: ${url}`));
+    });
   });
 }
 
@@ -147,7 +212,7 @@ function fetchText(url, headers, redirects = 0) {
       return;
     }
     const mod = url.startsWith('https:') ? https : http;
-    const req = mod.get(url, { headers: headers || {} }, (res) => {
+    const req = mod.get(url, { headers: withUserAgent(headers) }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         const next = new URL(res.headers.location, url).toString();
@@ -178,6 +243,10 @@ function fetchText(url, headers, redirects = 0) {
       res.on('error', reject);
     });
     req.on('error', reject);
+    req.setTimeout(20000, () => {
+      try { req.destroy(); } catch (_) { /* ignore */ }
+      reject(new Error(`request timed out after 20s: ${url}`));
+    });
   });
 }
 
@@ -213,7 +282,7 @@ function expectedHashFromManifest(text, asset) {
  *   2) 从 GitHub Release 的 SHA256SUMS 资产下载并解析
  * 拿不到就返回 null —— 调用方会拒绝加载未校验的二进制（fail closed）。
  */
-async function fetchExpectedHash(asset) {
+async function fetchExpectedHash(asset, tag) {
   const explicit = process.env.JSQL_NATIVE_SHA256;
   if (explicit) {
     if (!/^[a-fA-F0-9]{64}$/.test(explicit.trim())) {
@@ -221,7 +290,7 @@ async function fetchExpectedHash(asset) {
     }
     return explicit.trim().toLowerCase();
   }
-  const raw = `https://github.com/${REPO}/releases/download/${TAG}/${CHECKSUM_ASSET}`;
+  const raw = `https://github.com/${REPO}/releases/download/${tag}/${CHECKSUM_ASSET}`;
   for (const cand of proxyCandidates(raw)) {
     try {
       const text = await fetchText(cand.url, cand.viaProxy ? proxyHeaders() : undefined);
@@ -271,7 +340,43 @@ function tryLoadNative() {
   }
 }
 
-async function downloadAndVerify() {
+/**
+ * 把已经校验过的临时文件安装到 NATIVE_PATH：
+ * 先备份现有模块（若存在），再原子替换。返回备份路径供失败回滚。
+ */
+function installDownloadedModule(tmp) {
+  fs.mkdirSync(path.dirname(NATIVE_PATH), { recursive: true });
+  const backup = `${NATIVE_PATH}.previous`;
+  let hadBackup = false;
+  if (fs.existsSync(NATIVE_PATH)) {
+    try {
+      fs.copyFileSync(NATIVE_PATH, backup);
+      hadBackup = true;
+    } catch (_) { /* 备份失败不阻塞覆盖，但会失去回滚能力 */ }
+  }
+  try {
+    fs.renameSync(tmp, NATIVE_PATH);
+  } catch (e) {
+    // Windows 上 rename 覆盖已存在文件会 EEXIST/EPERM
+    if (e.code === 'EEXIST' || e.code === 'EPERM' || e.code === 'EACCES') {
+      try { fs.unlinkSync(NATIVE_PATH); } catch (_) { /* ignore */ }
+      fs.renameSync(tmp, NATIVE_PATH);
+    } else {
+      throw e;
+    }
+  }
+  fs.chmodSync(NATIVE_PATH, 0o755);
+  return { backup: hadBackup ? backup : null };
+}
+
+/**
+ * 强制从远端拉取原生模块（默认路径）。
+ * 关键点：不因本地已有同名文件而跳过 —— 每次都重新下载、校验、覆盖安装。
+ *
+ * @param {{ tag?: string }} [opts]
+ * @returns {Promise<boolean>} 是否成功安装并加载
+ */
+async function downloadAndVerify(opts = {}) {
   if (!supportsNativeNapi()) {
     console.warn(
       `[jsql-neo] Node ${process.versions.node} provides N-API ${nativeNapiVersion() || 'unknown'}, ` +
@@ -279,13 +384,14 @@ async function downloadAndVerify() {
     );
     return false;
   }
+  const tag = opts.tag || await releaseTag();
   const libc = detectLibc();
   const asset = process.env.JSQL_NATIVE_ASSET || `jsql-neo-native.${nativeTargetSuffix(process.platform, process.arch, libc)}.node`;
-  const raw = `https://github.com/${REPO}/releases/download/${TAG}/${asset}`;
+  const raw = `https://github.com/${REPO}/releases/download/${tag}/${asset}`;
 
   let expected = null;
   try {
-    expected = await fetchExpectedHash(asset);
+    expected = await fetchExpectedHash(asset, tag);
   } catch (e) {
     console.warn('[jsql-neo] failed to resolve native checksum:', e.message);
   }
@@ -294,13 +400,13 @@ async function downloadAndVerify() {
   if (!expected && !allowUnverified) {
     if (libc === 'musl') {
       console.warn(
-        `[jsql-neo] musl libc detected but this release has no native asset for ${asset}; ` +
+        `[jsql-neo] musl libc detected but release ${tag} has no native asset for ${asset}; ` +
         'falling back to the WASM/JS engine. Set JSQL_NATIVE_ASSET to a compatible musl build if available.'
       );
     } else {
       // fail closed：拿不到 SHA256SUMS 就不下载，绝不 require 未经校验的二进制
       console.warn(
-        '[jsql-neo] no SHA256SUMS available for this release; refusing to download an unverified native module.\n' +
+        `[jsql-neo] no SHA256SUMS available for release ${tag}; refusing to download an unverified native module.\n` +
         '[jsql-neo] set JSQL_NATIVE_SHA256=<64-hex> to pin a checksum, or JSQL_ALLOW_UNVERIFIED_NATIVE=1 to override (unsafe).'
       );
     }
@@ -312,7 +418,7 @@ async function downloadAndVerify() {
 
   // 依次尝试：环境变量指定的代理 → 内置加速站 → 直连
   for (const cand of proxyCandidates(raw)) {
-    console.log(`[jsql-neo] downloading native module: ${cand.url}`);
+    console.log(`[jsql-neo] fetching native module (${tag}): ${cand.url}`);
     const tmp = `${NATIVE_PATH}.${process.pid}.download`;
     try {
       // 加速站鉴权走 Authorization 头，直连时不带
@@ -325,12 +431,22 @@ async function downloadAndVerify() {
         }
         console.log('[jsql-neo] checksum verified:', actual);
       }
-      fs.mkdirSync(path.dirname(NATIVE_PATH), { recursive: true });
-      fs.renameSync(tmp, NATIVE_PATH);
-      fs.chmodSync(NATIVE_PATH, 0o755);
+
+      // 强制覆盖：即便本地已有同名文件也替换（旧模块先备份，加载失败可回滚）
+      const installed = installDownloadedModule(tmp);
       if (tryLoadNative()) {
-        console.log('[jsql-neo] native module downloaded: native/jsql-neo-native.node');
+        if (installed.backup) {
+          try { fs.unlinkSync(installed.backup); } catch (_) { /* ignore */ }
+        }
+        console.log(`[jsql-neo] native module updated: native/jsql-neo-native.node (${tag})`);
         return true;
+      }
+      // 新模块无法加载 → 回滚到之前的可用模块
+      if (installed.backup) {
+        try {
+          fs.renameSync(installed.backup, NATIVE_PATH);
+          console.warn('[jsql-neo] rolled back to the previous native module.');
+        } catch (_) { /* ignore */ }
       }
       console.warn('[jsql-neo] downloaded module cannot be loaded; trying next source.');
     } catch (e) {
@@ -342,22 +458,13 @@ async function downloadAndVerify() {
   return false;
 }
 
-// 原生模块下载默认关闭（#25 安全加固）：只有在 CI 或显式设置 JSQL_NATIVE_DOWNLOAD=1
-// 时才从 GitHub Release 下载预编译二进制；普通 npm install 直接走源码编译或 WASM/JS 回退。
-function nativeDownloadEnabled() {
-  if (AUTO_DOWNLOAD_NATIVE) return true;
-  if (process.env.JSQL_NATIVE_DOWNLOAD === '1') return true;
-  // CI 构建需要发布平台二进制，视为显式 opt-in
-  if (process.env.CI === 'true' || process.env.CI === '1') return true;
-  return false;
-}
-
+/**
+ * 确保原生模块可用。
+ *
+ * 默认行为（v6.5.25+）：总是从远端 release 强制拉取并覆盖本地模块；
+ * 失败时按「本地已有模块 → 源码编译 → WASM/JS」逐级降级，绝不让安装失败。
+ */
 async function ensureNativeNode() {
-  // 已存在且能加载 → 直接用；否则默认不再自动下载（opt-in），只回退源码编译。
-  if (tryLoadNative()) {
-    console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
-    return;
-  }
   if (!supportsNativeNapi()) {
     console.warn(
       `[jsql-neo] Node ${process.versions.node} provides N-API ${nativeNapiVersion() || 'unknown'}, ` +
@@ -365,14 +472,35 @@ async function ensureNativeNode() {
     );
     return;
   }
-  if (nativeDownloadEnabled()) {
-    if (await downloadAndVerify()) return;
-  } else {
-    console.warn(
-      '[jsql-neo] native module not present; auto-download is OFF (opt-in, default).\n' +
-      '[jsql-neo] set JSQL_AUTO_DOWNLOAD_NATIVE=1 to fetch the prebuilt binary, or run: npm run build:native'
-    );
+
+  if (DOWNLOAD_DISABLED) {
+    console.warn('[jsql-neo] native download disabled by env (JSQL_NO_NATIVE_DOWNLOAD=1 / JSQL_NATIVE_DOWNLOAD=0); using local module or source build.');
+    if (tryLoadNative()) {
+      console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
+      return;
+    }
+    buildNativeFromSource();
+    return;
   }
+
+  const localReady = tryLoadNative();
+  if (localReady && !FORCE_REFRESH) {
+    console.log('[jsql-neo] native module ready (JSQL_NATIVE_FORCE_REFRESH=0, remote refresh skipped): native/jsql-neo-native.node');
+    return;
+  }
+
+  console.log(localReady
+    ? '[jsql-neo] local native module found; forcing refresh from remote release (set JSQL_NATIVE_FORCE_REFRESH=0 to keep the local copy)'
+    : '[jsql-neo] fetching native module from remote release...');
+
+  if (await downloadAndVerify()) return;
+
+  // 拉取失败：本地可用就继续用本地 —— 网络问题不该把已经能跑的安装搞坏
+  if (tryLoadNative()) {
+    console.warn('[jsql-neo] remote refresh failed; keeping the existing local native module.');
+    return;
+  }
+  console.warn('[jsql-neo] could not fetch a verified native module; falling back to source build / WASM.');
   buildNativeFromSource();
 }
 
@@ -416,4 +544,11 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { buildNativeFromSource, downloadAndVerify, ensureNativeNode };
+module.exports = {
+  buildNativeFromSource,
+  downloadAndVerify,
+  ensureNativeNode,
+  releaseTag,
+  resolveLatestTag,
+  installDownloadedModule,
+};

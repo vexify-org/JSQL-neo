@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.5.24** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.5.25** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -20,7 +20,7 @@
 
 ![JSQL-NEO terminal demo](doc/demo.gif)
 
-A real `jsql tui` session (v6.5.24): 64-bit integer precision, joins, NULL semantics,
+A real `jsql tui` session (v6.5.25): 64-bit integer precision, joins, NULL semantics,
 and savepoint rollback — all in one in-memory engine, rendered on a dark background.
 
 [MP4 version](doc/demo.mp4) · [asciinema recording](doc/demo.cast)
