@@ -4,6 +4,52 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.26] — 2026-11-07
+
+### Fixed
+
+- **`result.raw` 对计算/聚合列全部返回错值（issue #43）**：
+  纯聚合时为 `undefined`，无 FROM 表达式 / 标量子查询时为
+  `[{"_virtual":true}]`，GROUP BY 时是**投影前的源行**且泄露内部 `_group`，
+  CASE / 算术等计算列则整列缺失。`result.rows` 一直是对的。
+
+  **原设计的证据**在 `lib/prepared.js` 的 `get()`：raw 缺失时它会用
+  `columns + rows[0]` 现场拼出等价对象 —— 也就是 `columns` / `rows` / `raw`
+  本该是同一份结果的三种表示，raw 是两者的 zip。此前各执行分支塞「投影前
+  源行」是实现走样（从 `de08300` 就在）。
+
+  修在 `buildResultEnvelope`（executeSQL 统一出口）一处重建，**不动 8 个
+  返回点**；同时天然保证 `raw.length === rows.length`（mysql_server 的
+  `foundRows` 依赖它）。`SELECT *` 仍是完整行，`prepare().get()` 与 `raw[0]`
+  一致。
+
+### 测试
+
+- 此前 README/doc 没有任何 raw 说明、测试里没有任何 `.raw` 断言 ——
+  零覆盖才是它坏这么久没被发现的根因。新增 `test/result-raw.test.js`（23 项），
+  每例同时验内容 / 与 rows 等长 / 键集合恰好等于 columns，并断言不泄露
+  `_group`。已加进 `npm test` 与 `test:all` 第 2 位。
+- `npm test` exit=0（0 FAIL）。`test:all` 仍 exit=1，但 0 FAIL —— 唯一是
+  `test/coverage.js` 的 `TRUNCATE users` 被安全策略拦（对照实验：临时把
+  `lib/sql.js` 还原到 HEAD 后同样 FATAL，与本版改动无关）。
+
+### 已知问题（本版未修）
+
+- `postinstall` 在 Windows 上 EPERM fallback 吞掉 `unlinkSync` 失败，
+  有旧 `.node` 时「force-fetch latest native」会静默失效（下载+校验成功但装不上）。
+- `test/coverage.js` 的 `TRUNCATE` 与当前安全策略脱节。
+
+## [6.5.25] — 2026-11-07
+
+> 补记：这一版发布时未单独写入 CHANGELOG（最新章节停在 6.5.24）。
+
+- `postinstall` 改为强制从远端 release 刷新 native（默认 tag = `v${pkg.version}`，
+  带 SHA256SUMS 校验），另加 CLI `update` / `uninstall`。
+- 版本 bump 到 6.5.25 后曾出现顺序死锁：release 由 tag 触发生成，而
+  postinstall 按 `v6.5.25` 去找那个还不存在的 release → 拒绝下载 → 留着旧
+  `.node` → issue-38 的 BigInt 用例失败。推 `v6.5.25` tag 后 CI 生成了 release
+  （7 个 assets 含 SHA256SUMS）、npm 发布 6.5.25，死锁解开。
+
 ## [6.5.24] — 2026-11-06
 
 ### Fixed
