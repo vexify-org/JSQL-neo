@@ -4,6 +4,64 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.28] — 2026-11-08
+
+> 6.5.27 的 tag 已推但 npm 发布未落地（registry 停在 6.5.26），本版把
+> 6.5.27 之后的全部改动一并带上去。同时补齐此前漏关的 issue。
+
+### Fixed
+
+- **6.5.27 漏 bump 两处版本串**：README 横幅与 index.js 头注释停在 6.5.26。
+- **postinstall Windows EPERM 静默失效**：`installDownloadedModule` 的 fallback
+  把 `unlinkSync(旧 .node)` 失败吞掉，第二次 rename 必然再失败 —— 下载成功、
+  SHA256 校验通过却留着旧二进制。改为「rename 挪走 → 装新的 → 失败还原」，
+  两条路都不通就抛真实原因。
+- **降级警告轻描淡写**：改为三行明确 WARNING + 指路 `--status`。
+- **`test/coverage.js` 的 TRUNCATE FATAL**：`findDestructiveSQL` 有意把 TRUNCATE
+  判为破坏性，测试没声明 `{ safety: false }`；补声明，断言与全局策略都不变。
+
+### Added
+
+- `jsql native status` / `refresh` / `verify`（`--json` 结构化输出）。
+  `verify` 重算 .node 的 SHA256 与安装记录比对，能发现 status 看不到的
+  文件替换/损坏（OK / MISMATCH / CORRUPT / MISSING / UNVERIFIED / UNREADABLE）。
+- `JSQL_NATIVE_PATH` 环境变量与 `native/.installed.json` 安装元数据。
+- README `## Query results`：写清 columns / rows / raw 是同一份结果的三种表示；
+  `index.d.ts` 把 `raw?: unknown[]` 精确为 `Array<Record<string, unknown>>`。
+
+### Performance
+
+- **结果 BigInt 收尾从通用深递归改成紧凑循环**。此前每个 SQL 结果的 rows
+  （10 万个数组）+ raw（10 万个对象）逐个进 `seen` Set，20 万次 `Set.add`，
+  `--prof` 显示 GC 占 32.9%、`SetPrototypeAdd` + `finalizeBigInts` 合计 ~23% JS ticks。
+  同机 A/B（10 万行，各 5 次均值）：
+  `SELECT id` 67.4→42.2ms (1.60x)、`SELECT *` 91.0→65.4ms (1.39x)、
+  heapUsed 148.7→126.2MB。**小结果集基本持平**，那里 finalize 不是瓶颈。
+
+### 测试
+
+- 新增 `test/result-raw.test.js`(23) / `test/native-install.test.js`(7) /
+  `test/native-cli.test.js`(12) / `test/finalize-bigint.test.js`(9)，均进
+  `npm test` 与 `test:all`。
+- `npm test` 与 `test:all` 均 exit=0，0 FAIL，0 FATAL。
+
+### Issue 收尾
+
+- #45 / #46 / #47 / #48：PR #49 已合并、对应回归测试全绿（3/9/3/4），
+  但合并时只带关了 #44，这四个漏关。本版随 commit 一并关闭。
+- #42：核实为**不复现** —— 裸布尔谓词已由 `c5c8a93` 随 6.5.22 修复，
+  当前 main 上五条用例全部通过，issue 系旧版本误报。
+
+## [6.5.27] — 2026-11-08
+
+> 补记：这一版发布时未单独写入 CHANGELOG。
+
+- PR #49：修复 #44（索引等值查找忽略类型强制转换）、#45（MongoDB $avg
+  把 NULL 当 0 算进分母）、#46（index.d.ts 声明了未导出的函数）、
+  #47（MongoDB $sort 的 NULL 恒排末尾）、#48（mysql_compat 把 FLOAT/DOUBLE
+  报成 LONGLONG）。
+- 新增 `test/issue-44~48.test.js`（11/3/9/3/4 项）。
+
 ## [6.5.26] — 2026-11-07
 
 ### Fixed
