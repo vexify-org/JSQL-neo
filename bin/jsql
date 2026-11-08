@@ -531,9 +531,25 @@ const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
   .command('update', 'Update jsql-neo to the latest version', updateOptions, updateHandler)
   .command('uninstall', 'Remove jsql user data and/or the global package', uninstallOptions, uninstallHandler)
   .command('remove', 'Alias of uninstall', uninstallOptions, uninstallHandler)
-  .command('native', 'Inspect or refresh the Rust native addon', null, async (argv) => {
+  .command('native', 'Inspect or refresh the Rust native addon', (sub) => {
+    sub.option('json', { type: 'boolean', description: 'Machine-readable output (verify only)' });
+  }, async (argv) => {
     const action = argv._[0] || 'status';
     const pi = require('../postinstall.js');
+    if (action === 'verify') {
+      // 内容级：重算 .node 的 SHA256 与安装记录比对，status 只看 tag 发现不了替换/损坏
+      const r = pi.verifyNative();
+      if (argv.json) {
+        console.log(JSON.stringify(r, null, 2));
+      } else {
+        console.log(`[jsql-neo] VERIFY : ${r.state}`);
+        console.log(`[jsql-neo] tag    : ${r.installedTag || 'unknown'}  (expect ${r.expectedTag})`);
+        console.log(`[jsql-neo] sha256 : ${r.actualSha256 || 'n/a'}`);
+        if (r.state !== 'OK') console.log('[jsql-neo] refresh with: jsql native refresh');
+      }
+      process.exitCode = r.state === 'OK' ? 0 : 1;
+      return;
+    }
     if (action === 'status') {
       // 0 = 当前 .node 与包版本匹配；1 = 错配 / 未记录（可直接当 CI 门禁）
       process.exitCode = pi.nativeStatus();
@@ -544,7 +560,7 @@ const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
       process.exitCode = pi.nativeStatus();
       return;
     }
-    console.error(`Unknown native action: ${action}. Usage: jsql native <status|refresh>`);
+    console.error(`Unknown native action: ${action}. Usage: jsql native <status|refresh|verify>`);
     process.exitCode = 1;
   })
   .command('version', 'Show version', null, () => {

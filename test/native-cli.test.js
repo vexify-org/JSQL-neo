@@ -26,7 +26,7 @@ function ok(name, cond, got) {
   if (cond) { pass++; console.log('[OK]   ' + name); }
   else { fail++; console.log('[FAIL] ' + name + ' -> ' + JSON.stringify(got)); }
 }
-function run(action) {
+function run(action, extra) {
   const env = Object.assign({}, process.env, {
     JSQL_NO_STAR_NAG: '1',
     JSQL_MR_PATH: path.join(TMP, 'jsqlmr'),
@@ -34,6 +34,7 @@ function run(action) {
   });
   const args = [path.join(ROOT, 'bin', 'jsql'), 'native'];
   if (action) args.push(action);
+  if (extra) args.push(...extra);
   return spawnSync(process.execPath, args, { encoding: 'utf8', env, timeout: 30000 });
 }
 function writeMeta(tag) {
@@ -67,6 +68,48 @@ try {
   r = run('bogus');
   ok('未知 action 报 Usage 且 exit=1',
     r.status === 1 && /Unknown native action/.test((r.stdout || '') + (r.stderr || '')),
+    { code: r.status, out: r.stdout, err: r.stderr });
+
+  // --- verify：内容级校验（status 只看 tag，发现不了文件被替换/损坏）---
+  const crypto = require('crypto');
+  const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+  fs.writeFileSync(NATIVE, 'AAA');
+  fs.writeFileSync(META, JSON.stringify({ tag: `v${version}`, sha256: sha('AAA') }));
+  r = run('verify');
+  ok('verify 校验和一致 → OK 且 exit=0',
+    r.status === 0 && /VERIFY\s*:\s*OK/.test(r.stdout || ''),
+    { code: r.status, out: r.stdout, err: r.stderr });
+
+  fs.writeFileSync(NATIVE, 'BBB');   // 元数据不动，只换文件
+  r = run('verify');
+  ok('verify 文件被替换 → CORRUPT 且 exit=1',
+    r.status === 1 && /CORRUPT/.test(r.stdout || ''),
+    { code: r.status, out: r.stdout, err: r.stderr });
+
+  r = run('verify', ['--json']);
+  let j = null;
+  try { j = JSON.parse(r.stdout); } catch (_) {}
+  ok('verify --json 输出结构化结果',
+    !!j && j.state === 'CORRUPT' && j.actualSha256 === sha('BBB') && j.present === true,
+    { code: r.status, out: r.stdout });
+
+  fs.writeFileSync(NATIVE, 'AAA');
+  fs.writeFileSync(META, JSON.stringify({ tag: 'v0.0.1', sha256: sha('AAA') }));
+  r = run('verify');
+  ok('verify 内容对但 tag 错配 → MISMATCH 且 exit=1',
+    r.status === 1 && /MISMATCH/.test(r.stdout || ''),
+    { code: r.status, out: r.stdout, err: r.stderr });
+
+  fs.unlinkSync(META);
+  r = run('verify');
+  ok('verify 无安装元数据 → UNVERIFIED 且 exit=1',
+    r.status === 1 && /UNVERIFIED/.test(r.stdout || ''),
+    { code: r.status, out: r.stdout, err: r.stderr });
+
+  fs.unlinkSync(NATIVE);
+  r = run('verify');
+  ok('verify native 文件缺失 → MISSING 且 exit=1',
+    r.status === 1 && /MISSING/.test(r.stdout || ''),
     { code: r.status, out: r.stdout, err: r.stderr });
 
   ok('没有污染用户级配置',

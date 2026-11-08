@@ -591,6 +591,45 @@ function nativeStatus() {
   return match ? 0 : 1;
 }
 
+/**
+ * 内容级校验。
+ *
+ * nativeStatus 只读 .installed.json 里记录的 tag —— 如果 .node 文件被替换、
+ * 损坏，或被人换成了别的版本但元数据没动，status 依然会报 OK。这里直接
+ * 重算当前文件的 SHA256 与安装时记录的比对，回答「磁盘上这个文件是不是
+ * 当初装进来的那个」。
+ *
+ * 返回结构化对象，便于 CLI 输出 JSON 给 CI 消费。
+ */
+function verifyNative() {
+  const expected = `v${pkg.version}`;
+  const meta = readInstalledMeta();
+  const exists = fs.existsSync(NATIVE_PATH);
+  const r = {
+    packageVersion: pkg.version,
+    expectedTag: expected,
+    installedTag: meta ? meta.tag : null,
+    present: exists,
+    size: exists ? fs.statSync(NATIVE_PATH).size : 0,
+    expectedSha256: meta ? (meta.sha256 || null) : null,
+    actualSha256: null,
+    state: 'UNVERIFIED',
+  };
+  if (!exists) { r.state = 'MISSING'; return r; }
+  try {
+    r.actualSha256 = sha256File(NATIVE_PATH);
+  } catch (e) {
+    r.state = 'UNREADABLE';
+    r.error = e.message;
+    return r;
+  }
+  if (!r.expectedSha256) return r;                       // 老安装没有校验和
+  if (r.actualSha256 !== r.expectedSha256) { r.state = 'CORRUPT'; return r; }
+  if (r.installedTag !== expected) { r.state = 'MISMATCH'; return r; }
+  r.state = 'OK';
+  return r;
+}
+
 function ensureServerBinary() {
   if (fs.existsSync(BP)) {
     fs.chmodSync(BP, 0o755);
@@ -640,5 +679,6 @@ module.exports = {
   resolveLatestTag,
   installDownloadedModule,
   nativeStatus,
+  verifyNative,
   readInstalledMeta,
 };

@@ -187,9 +187,14 @@ includes computed, aggregate and scalar-subquery columns. It is **not** the
 pre-projection source row. For SELECT results `raw.length === rows.length`
 always holds; non-SELECT statements may omit `raw`.
 
-To check which native addon this installation is actually using, run
-`jsql native status` (`0` = matches the package version, `1` = mismatch or
-unverified). `jsql native refresh` re-fetches a verified addon.
+To check which native addon this installation is actually using:
+
+- `jsql native status` — tag/version match (`0` = OK, `1` = mismatch or unverified)
+- `jsql native verify` — re-hashes the `.node` on disk against the checksum recorded
+  at install time, so a swapped or corrupted binary is caught too. `--json` prints
+  a structured result for CI. States: `OK` / `MISMATCH` / `CORRUPT` / `MISSING` /
+  `UNVERIFIED` / `UNREADABLE`.
+- `jsql native refresh` — re-fetches a checksum-verified addon
 
 ## ✨ XQL 集成
 
