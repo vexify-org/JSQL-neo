@@ -171,6 +171,26 @@ await db.start();
 
 ---
 
+## Query results
+
+`db.query()` / `executeSQL()` return **one result in three shapes**:
+
+```js
+const r = await db.query('SELECT city, COUNT(*) AS c FROM users GROUP BY city');
+r.columns   // ['city', 'c']
+r.rows      // [['LA', 1], ['NY', 2]]
+r.raw       // [{ city: 'LA', c: 1 }, { city: 'NY', c: 2 }]
+```
+
+`raw` is the object form of `rows`: its keys are exactly `columns`, and that
+includes computed, aggregate and scalar-subquery columns. It is **not** the
+pre-projection source row. For SELECT results `raw.length === rows.length`
+always holds; non-SELECT statements may omit `raw`.
+
+To check which native addon this installation is actually using, run
+`jsql native status` (`0` = matches the package version, `1` = mismatch or
+unverified). `jsql native refresh` re-fetches a verified addon.
+
 ## ✨ XQL 集成
 
 用 [XQL](https://github.com/vexify-org/XQL) 查询 JSQL 表：把 SQL 直接接到文档上，

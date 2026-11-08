@@ -272,9 +272,16 @@ declare namespace JSQLNeo {
     ok: boolean;
     type: string;
     table?: string | null;
+    /** 投影列名；rows[i][j] 与 columns[j] 一一对应。 */
     columns?: string[];
+    /** 投影后的二维数组形式。 */
     rows?: unknown[][];
-    raw?: unknown[];
+    /**
+     * 与 rows 指向**同一份结果**的对象形式：raw[i] 的键恰好是 columns，
+     * 值取自 rows[i]。聚合 / 计算列 / 标量子查询都包含在内（issue #43）。
+     * 非 SELECT 语句可能没有此字段。
+     */
+    raw?: Array<Record<string, unknown>>;
     affectedRows?: number;
     insertId?: number | null;
     ids?: unknown[];

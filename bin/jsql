@@ -531,6 +531,22 @@ const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
   .command('update', 'Update jsql-neo to the latest version', updateOptions, updateHandler)
   .command('uninstall', 'Remove jsql user data and/or the global package', uninstallOptions, uninstallHandler)
   .command('remove', 'Alias of uninstall', uninstallOptions, uninstallHandler)
+  .command('native', 'Inspect or refresh the Rust native addon', null, async (argv) => {
+    const action = argv._[0] || 'status';
+    const pi = require('../postinstall.js');
+    if (action === 'status') {
+      // 0 = 当前 .node 与包版本匹配；1 = 错配 / 未记录（可直接当 CI 门禁）
+      process.exitCode = pi.nativeStatus();
+      return;
+    }
+    if (action === 'refresh') {
+      await pi.ensureNativeNode();
+      process.exitCode = pi.nativeStatus();
+      return;
+    }
+    console.error(`Unknown native action: ${action}. Usage: jsql native <status|refresh>`);
+    process.exitCode = 1;
+  })
   .command('version', 'Show version', null, () => {
     console.log(require('../package.json').version);
   })
