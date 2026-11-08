@@ -153,6 +153,10 @@ module.exports = {
     SQL: sql,
     executeSQL: sql.executeSQL,
     parseSQL: sql.parseSQL,
+    // Issue #46：index.d.ts 早就声明了这三个顶层导出，index.js 却一直没给
+    applyParams: sql.applyParams,
+    escapeValue: sql.escapeValue,
+    escapeId: sql.escapeId,
     // AST 访问与改写（5.5.0+）
     AST: sql.AST,
     walk: sql.walk,
