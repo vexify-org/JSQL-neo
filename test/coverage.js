@@ -166,7 +166,9 @@ function tmp(name) {
     ok('sql rollback', (await db.count('users')) === 1);
     await executeSQL(db, 'START TRANSACTION');
     await executeSQL(db, "INSERT INTO users (name, age) VALUES ('X', 1)");
-    await executeSQL(db, 'TRUNCATE TABLE users');
+    // TRUNCATE 被 findDestructiveSQL 判为破坏性语句，默认 safety 会拦。
+    // 这里就是要验证该功能，显式声明而不是放宽全局策略；断言保持不变。
+    await executeSQL(db, 'TRUNCATE TABLE users', { safety: false });
     ok('sql truncate', (await db.count('users')) === 0);
     const sqlApi = require(path.join(ROOT, 'lib/sql'));
     const parsed = sqlApi.parseSQL('SELECT * FROM t WHERE id = 5');

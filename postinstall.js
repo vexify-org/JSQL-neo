@@ -14,7 +14,11 @@ const BIN_NAME = process.platform === 'win32' ? 'jsql-neo-server.exe' : 'jsql-ne
 const BP = path.join(ROOT, 'bin', BIN_NAME);
 
 // Native N-API module (native/jsql-neo-native.node)
-const NATIVE_PATH = path.join(ROOT, 'native', 'jsql-neo-native.node');
+// 允许测试/自定义安装把 native 放到别处（JSQL_NATIVE_PATH 为绝对路径）。
+// 默认仍是包内 native/ 目录；META_PATH 会跟着 dirname 一起走。
+const NATIVE_PATH = process.env.JSQL_NATIVE_PATH
+  ? path.resolve(process.env.JSQL_NATIVE_PATH)
+  : path.join(ROOT, 'native', 'jsql-neo-native.node');
 
 // GitHub 加速代理前缀（可选）。加速站的用法是把原始 URL 直接拼在后面：
 //   https://<host>/https://github.com/owner/repo/releases/download/vX.Y.Z/asset
@@ -357,10 +361,36 @@ function installDownloadedModule(tmp) {
   try {
     fs.renameSync(tmp, NATIVE_PATH);
   } catch (e) {
-    // Windows 上 rename 覆盖已存在文件会 EEXIST/EPERM
+    // Windows 上 rename 覆盖已存在文件会 EEXIST/EPERM。
+    //
+    // 旧实现在这里 unlinkSync(旧文件) 并把失败 catch(_) 吞掉，然后第二次
+    // rename 必然再失败 —— 结果是「下载成功 + 校验通过」却静默留着旧二进制，
+    // 上层只看到一句轻描淡写的 "keeping the existing local native module"。
+    // .node 是 DLL，被加载过后 unlink 常常 EPERM，但把它 rename 挪开是可行的
+    // （实测 mv 能成功而 unlink 不能），所以改为「挪走 → 装新的」。
     if (e.code === 'EEXIST' || e.code === 'EPERM' || e.code === 'EACCES') {
-      try { fs.unlinkSync(NATIVE_PATH); } catch (_) { /* ignore */ }
-      fs.renameSync(tmp, NATIVE_PATH);
+      const parked = `${NATIVE_PATH}.${process.pid}.old`;
+      try {
+        fs.renameSync(NATIVE_PATH, parked);
+      } catch (moveErr) {
+        try { fs.unlinkSync(NATIVE_PATH); }
+        catch (unlinkErr) {
+          // 两条路都不通就把真实原因抛出去，绝不再静默降级
+          throw new Error(
+            `cannot replace ${NATIVE_PATH}: rename=${e.code}, move=${moveErr.code}, unlink=${unlinkErr.code}`
+          );
+        }
+      }
+      try {
+        fs.renameSync(tmp, NATIVE_PATH);
+      } catch (installErr) {
+        // 装不回去必须把旧文件还原，别让本机变成「完全没有 native」
+        if (fs.existsSync(parked)) {
+          try { fs.renameSync(parked, NATIVE_PATH); } catch (_) { /* 外层还有 backup 兜底 */ }
+        }
+        throw installErr;
+      }
+      try { if (fs.existsSync(parked)) fs.unlinkSync(parked); } catch (_) { /* 清理失败不影响安装 */ }
     } else {
       throw e;
     }
@@ -438,6 +468,7 @@ async function downloadAndVerify(opts = {}) {
         if (installed.backup) {
           try { fs.unlinkSync(installed.backup); } catch (_) { /* ignore */ }
         }
+        writeInstalledMeta(tag, sha256File(NATIVE_PATH));
         console.log(`[jsql-neo] native module updated: native/jsql-neo-native.node (${tag})`);
         return true;
       }
@@ -497,11 +528,67 @@ async function ensureNativeNode() {
 
   // 拉取失败：本地可用就继续用本地 —— 网络问题不该把已经能跑的安装搞坏
   if (tryLoadNative()) {
-    console.warn('[jsql-neo] remote refresh failed; keeping the existing local native module.');
+    console.warn('[jsql-neo] WARNING: remote refresh FAILED — keeping the EXISTING native module.');
+    console.warn('[jsql-neo] It may NOT match this package version, which can silently break native features.');
+    console.warn('[jsql-neo] Run "node postinstall.js --status" to check for a version mismatch.');
     return;
   }
   console.warn('[jsql-neo] could not fetch a verified native module; falling back to source build / WASM.');
   buildNativeFromSource();
+}
+
+/**
+ * native 安装状态自检。
+ *
+ * 背景：postinstall 之前在 Windows 上会「下载成功、校验通过、装不上」，
+ * 却只留一句 keeping the existing local native module —— 用户无从察觉
+ * 自己其实还在用旧二进制（issue-38 的 bigint 用例就是这么一直挂的）。
+ *
+ * 现在每次成功安装都落一份 .installed.json，`node postinstall.js --status`
+ * 能直接回答「当前 .node 是不是这个包版本该用的那个」，也可当 CI 门禁。
+ */
+const META_PATH = path.join(path.dirname(NATIVE_PATH), '.installed.json');
+
+function writeInstalledMeta(tag, sha256) {
+  try {
+    fs.writeFileSync(META_PATH, JSON.stringify({
+      tag,
+      sha256: sha256 || null,
+      packageVersion: pkg.version,
+      installedAt: new Date().toISOString(),
+      platform: process.platform,
+      arch: process.arch,
+    }, null, 2) + '\n');
+  } catch (_) { /* 元数据写不了不该让安装失败 */ }
+}
+
+function readInstalledMeta() {
+  try { return JSON.parse(fs.readFileSync(META_PATH, 'utf8')); }
+  catch (_) { return null; }
+}
+
+/** 返回 0 = 匹配，1 = 不匹配 / 未记录（可直接用于 CI 门禁）。 */
+function nativeStatus() {
+  const expected = `v${pkg.version}`;
+  const meta = readInstalledMeta();
+  const exists = fs.existsSync(NATIVE_PATH);
+  const size = exists ? fs.statSync(NATIVE_PATH).size : 0;
+  const out = [
+    `[jsql-neo] package version : ${pkg.version}  (expected native tag ${expected})`,
+    `[jsql-neo] native module   : ${exists ? `present (${size} bytes)` : 'MISSING'}`,
+  ];
+  if (meta) {
+    out.push(`[jsql-neo] installed tag   : ${meta.tag}  (${meta.installedAt})`);
+    out.push(`[jsql-neo] installed sha256: ${meta.sha256 || 'n/a'}`);
+  } else {
+    out.push('[jsql-neo] installed tag   : UNKNOWN (no .installed.json — installed by an older build)');
+  }
+  const match = !!meta && meta.tag === expected && exists;
+  const state = match ? 'OK' : (meta && meta.tag !== expected) ? 'MISMATCH' : 'UNVERIFIED';
+  out.push(`[jsql-neo] STATUS          : ${state}`);
+  if (!match) out.push('[jsql-neo] refresh with: node postinstall.js   (or npm rebuild jsql-neo)');
+  console.log(out.join('\n'));
+  return match ? 0 : 1;
 }
 
 function ensureServerBinary() {
@@ -541,7 +628,8 @@ async function main() {
 
 // 仅当直接执行时才运行（build:native / 测试可 require 本文件复用构建逻辑）
 if (require.main === module) {
-  main();
+  if (process.argv.includes('--status')) process.exitCode = nativeStatus();
+  else main();
 }
 
 module.exports = {
@@ -551,4 +639,6 @@ module.exports = {
   releaseTag,
   resolveLatestTag,
   installDownloadedModule,
+  nativeStatus,
+  readInstalledMeta,
 };

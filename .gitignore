@@ -15,6 +15,7 @@ nativesrc/**/*.node
 # 平台相关的原生模块：由 postinstall 按当前平台从 release 拉取，不入库
 # （提交它会导致非构建机平台 checkout 后加载失败）
 native/*.node
+native/.installed.json
 **/target/
 bin/jsql-neo-server
 *.o
