@@ -4,6 +4,39 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.31] — 2026-11-10
+
+### Fixed（issue #63~#68，均先在 6.5.30 上复现再动手）
+
+- **#63 `POSITION(substr IN str)` 解析错误**：`IN` 是关键字，通用函数参数
+  循环会把它当 IN 表达式并抛 `Expected ( but got ...`。在 `parseOperand`
+  里单独归一成 `LOCATE(substr, str)` —— 命中 2、未命中 0，与 LOCATE 等价。
+- **#64 日期类型接受 NaN / Infinity**：`validateDate` / `validateDateTime`
+  的 number 分支缺有效性校验，Invalid Date 被格式化成 `"NaN-NaN-NaN"` 静默
+  落库。加 `Number.isFinite` + `Date.getTime` 校验，与 string 分支一致抛
+  `Incorrect date value`；合法时间戳不受影响。
+- **#65 数值域错误返回 NaN 而非 NULL**：`SQRT` / `POWER` 直接返回
+  `Math.sqrt` / `Math.pow` 的 NaN，而 `LOG(-5)` / `ACOS(2)` 已正确返回 NULL
+  —— 同模块内不一致。新增 `finiteOrNull()` 统一拦截非有限数；连
+  `SQRT(-1) + 5` 的 NaN 污染也一并消失。
+  **同时修正 `test/extra-coverage.test.js` 里「SQRT 负数返回 NaN」这条过时
+  断言** —— 它把 bug 钉成了预期，现改为断言 NULL（MySQL 语义）。
+- **#66 Redis MGET 缺失键**：`_send` 数组分支把 `null` 序列化成
+  `$4\r\nnull\r\n`；改为对 `null` / `undefined` 发 RESP nil bulk `$-1\r\n`。
+- **#67 Redis ZSCORE / ZINCRBY 分数类型**：分数走 integer reply，`10.5` 变成
+  非法的 `:10.5`。两个 handler 改为返回 `String(score)`（整数分数也用 bulk，
+  与真实 Redis 一致），`_send` 的 number 分支再加一道非整数兜底。
+- **#68 XQL ORDER BY 排序列不在投影里被静默忽略**：compiler 先投影再排序，
+  排序键函数读 `row.age` 时该属性已被删掉，比较器恒返回 0。把 ORDER BY
+  代码生成块移到投影之前。
+
+### 测试
+
+- 新增 `test/issue-63-68.test.js`（30 项），Redis 部分用 mock socket 直接调
+  `RedisServer._handle()` 验 RESP 字节，不占端口。已进 `npm test` / `test:all`。
+- `npm test` 与 `test:all` 均 exit=0，0 FAIL，0 FATAL。
+- 六个 issue 已随上一发提交（含 `Closes #63..#68`）关闭，OPEN issues = 0。
+
 ## [6.5.30] — 2026-11-10
 
 ### Fixed
