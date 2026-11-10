@@ -41,6 +41,39 @@ try {
   const left = big.search(5);
   ok('#53 批量删除后剩余行完整', JSON.stringify(left) === JSON.stringify(Array.from({ length: 20 }, (_, i) => i + 20)), left);
   ok('#53 批量删除后 size 按 distinct keys 计（1）', big.size === 1, big.size);
+
+  // 多叶子场景：40 个 key × 5 行，order=4 会分裂成多层；逐行删除全部应都返回 true
+  const multi = new BTree(4);
+  for (let k = 0; k < 40; k++) for (let r = 0; r < 5; r++) multi.insert(k, k * 100 + r);
+  ok('#53 多叶子：size 按 distinct keys 计', multi.size === 40, multi.size);
+  let allTrue = true;
+  let rowsRemoved = 0;
+  for (let k = 0; k < 40; k++) {
+    for (let r = 0; r < 5; r++) {
+      if (multi.remove(k, k * 100 + r) !== true) allTrue = false;
+      rowsRemoved++;
+      const expect = 4 - r;   // 删到第 r 行后剩下的行数
+      const leftN = multi.search(k).length;
+      if (leftN !== expect) { allTrue = false; console.log('[FAIL] 残留行数不对', k, r, leftN, expect); }
+    }
+  }
+  ok('#53 多叶子：删除全部行都返回 true 且无残留', allTrue && rowsRemoved === 200, { allTrue, rowsRemoved });
+  ok('#53 多叶子：全部删完后 size 归零', multi.size === 0, multi.size);
+
+  // 删除不存在的行不能改动已有行；重复删除同一行第二次应返回 false
+  const noop = new BTree(4);
+  noop.insert(3, 30);
+  noop.insert(3, 31);
+  ok('#53 删不存在的 rowIndex 返回 false 且 no-op', noop.remove(3, 99) === false && noop.size === 1);
+  ok('#53 同一行重复删除第二次返回 false', noop.remove(3, 30) === true && noop.remove(3, 30) === false);
+  ok('#53 重复删除后剩余行不变', JSON.stringify(noop.search(3)) === JSON.stringify([31]), noop.search(3));
+
+  // unique 索引：重复插入被忽略，删除仍应返回 true
+  const uni = new BTree(64, true);
+  uni.insert(5, 1);
+  uni.insert(5, 2);   // unique：忽略
+  ok('#53 unique：重复插入不增加 size', uni.size === 1, uni.size);
+  ok('#53 unique：删除返回 true 且 size 归零', uni.remove(5, 1) === true && uni.size === 0, uni.size);
 } catch (e) {
   fail++;
   console.log('[FAIL] unexpected exception:', (e && e.stack) || e);

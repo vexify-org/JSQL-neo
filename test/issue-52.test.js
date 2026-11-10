@@ -57,6 +57,28 @@ const j = (rows) => JSON.stringify(rows, (k, v) => (typeof v === 'bigint' ? v.to
   r = await q('SELECT CASE WHEN COUNT(*)>2 THEN 1 ELSE 0 END AS f FROM t HAVING CASE WHEN COUNT(*)>2 THEN 1 ELSE 0 END = 1');
   ok('#52 HAVING 里的 CASE 聚合', j(r.rows) === j([[1]]), r.rows);
 
+  // 聚合藏在函数参数里再进 CASE（#52 扩展）
+  r = await q('SELECT CASE WHEN ROUND(AVG(v),0) > 2 THEN COUNT(*) ELSE 0 END FROM t');
+  ok('#52 函数包裹的聚合在 CASE 条件里', j(r.rows) === j([[4]]), r.rows);
+
+  r = await q('SELECT CASE WHEN SUM(v)/COUNT(*) > 2 THEN 1 ELSE 0 END FROM t');
+  ok('#52 CASE 条件里的聚合算术表达式', j(r.rows) === j([[1]]), r.rows);
+
+  r = await q('SELECT CASE WHEN SUM(v)/COUNT(*) > 3 THEN 1 ELSE 0 END FROM t');
+  ok('#52 聚合算术表达式条件为假', j(r.rows) === j([[0]]), r.rows);
+
+  // GROUP BY 路径：表达式 + SUM 条件
+  r = await q('SELECT g, CASE WHEN SUM(v)>3 THEN 1 ELSE 0 END AS f FROM t GROUP BY g ORDER BY g');
+  ok('#52 分组路径 CASE+SUM（排序后）', j(r.rows) === j([['a', 0], ['b', 1]]), r.rows);
+
+  // 多个分支同时含聚合
+  r = await q('SELECT CASE WHEN COUNT(*)>10 THEN COUNT(*) WHEN COUNT(*)>=4 THEN MIN(v) ELSE 0 END FROM t');
+  ok('#52 多分支聚合 CASE', j(r.rows) === j([[1]]), r.rows);
+
+  // 不含聚合的 CASE 仍然逐行求值，不能被误当成聚合列
+  r = await q('SELECT CASE WHEN v>2 THEN 1 ELSE 0 END AS f FROM t ORDER BY id');
+  ok('#52 无聚合 CASE 仍逐行', j(r.rows) === j([[0], [0], [1], [1]]), r.rows);
+
   console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILURES'} — ${pass} passed, ${fail} failed\n`);
   if (fail > 0) process.exit(1);
 })();
