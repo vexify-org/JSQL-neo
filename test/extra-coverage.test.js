@@ -561,10 +561,13 @@ test('数学函数：ABS / CEIL / FLOOR / ROUND / POWER / SQRT', async () => {
   assert.strictEqual(await one(q, 'SELECT SQRT(16)'), 4);
 });
 
-test('SQRT 负数返回 NaN', async () => {
+// #65：此前断言 SQRT(-1) 返回 NaN，等于把 bug 钉成了预期。
+// MySQL 语义下数学定义域外的输入应返回 NULL；NaN 会污染后续算术/聚合，
+// 且 JSON.stringify(NaN) === 'null' 会在序列化时把问题藏起来。
+test('SQRT 负数返回 NULL', async () => {
   const { q } = makeDb();
   const v = await one(q, 'SELECT SQRT(-1)');
-  assert.ok(Number.isNaN(v));
+  assert.strictEqual(v, null);
 });
 
 test('REPLACE 函数', async () => {
