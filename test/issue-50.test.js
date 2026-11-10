@@ -75,6 +75,35 @@ function localStr(utcMs) {
     validateDateType('2024-01-15T10:30:00Z', 'datetime', 'dt'));
   ok('#50 validateDateType 非法日期仍报错',
     (() => { try { validateDateType('2024-13-45T10:30:00Z', 'datetime', 'dt'); return false; } catch (e) { return true; } })());
+
+  // 8) 更多等价写法：小写 z、紧凑偏移 ±HHMM、非整点时区、跨年、带空格的偏移
+  const isoCases = [
+    '2024-01-15T10:30:00z',
+    '2024-01-15T10:30:00-0500',
+    '2024-01-15T10:30:00+0530',
+    '2024-12-31T23:59:59Z',
+    '2024-02-29T00:00:00+09:00',
+    '2024-01-15 10:30:00+08:00',
+  ];
+  await q('CREATE TABLE tz (id INTEGER PRIMARY KEY, dt DATETIME)');
+  for (let i = 0; i < isoCases.length; i++) {
+    const s = isoCases[i];
+    await q(`INSERT INTO tz (id, dt) VALUES (${i + 1}, '${s}')`);
+    const got = (await q(`SELECT dt FROM tz WHERE id = ${i + 1}`)).rows[0][0];
+    const want = localStr(Date.parse(s));
+    ok(`#50 等价写法 ${s} 换算正确`, got === want, { got, want });
+  }
+
+  // 9) DATETIME 存储的是「瞬间」：跨日/跨年的 UTC 换算会改变日期部分
+  await q('CREATE TABLE crossyear (id INTEGER PRIMARY KEY, dt DATETIME)');
+  await q("INSERT INTO crossyear VALUES (1, '2024-01-01T00:30:00+09:00')");
+  r = await q('SELECT dt FROM crossyear WHERE id = 1');
+  // UTC+8 下应为 2023-12-31 23:30:00（跨回上一年）
+  const expectCross = localStr(Date.parse('2024-01-01T00:30:00+09:00'));
+  ok('#50 时区换算可跨年', r.rows[0][0] === expectCross, { got: r.rows[0][0], want: expectCross });
+  if (new Date().getTimezoneOffset() === -480) {
+    ok('#50 UTC+8 跨年具体值', r.rows[0][0] === '2023-12-31 23:30:00', r.rows[0][0]);
+  }
 })();
 
 setTimeout(() => {

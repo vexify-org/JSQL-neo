@@ -51,6 +51,26 @@ const norm = (rows) => rows.map(r => r.map(v => (typeof v === 'bigint' ? Number(
   r = await q('SELECT a, b, COUNT(*) FROM g GROUP BY a, b');
   ok('#51 多列分组未被破坏', r.rows.length === 4, r.rows);
 
+  // 表达式与裸列混排（#51 扩展）：每一项都能独立走表达式解析
+  r = await q('SELECT a%2 AS p, b, COUNT(*) FROM g GROUP BY a%2, b');
+  ok('#51 表达式 + 裸列混合分组', JSON.stringify(norm(r.rows)) === JSON.stringify([[0, 20, 1], [0, 40, 1], [1, 10, 1], [1, 30, 1]]), r.rows);
+
+  r = await q('SELECT b, a%2 AS p FROM g GROUP BY b, a%2');
+  ok('#51 裸列 + 表达式混合分组（表达式在后）', JSON.stringify(norm(r.rows)) === JSON.stringify([[10, 1], [20, 0], [30, 1], [40, 0]]), r.rows);
+
+  r = await q('SELECT a*2+1 AS x, COUNT(*) FROM g GROUP BY a*2+1');
+  ok('#51 多运算符表达式分组', JSON.stringify(norm(r.rows)) === JSON.stringify([[3, 1], [5, 1], [7, 1], [9, 1]]), r.rows);
+
+  // 字符串函数分组：结果真正的分组边界
+  await q('CREATE TABLE s (id INTEGER PRIMARY KEY, name TEXT)');
+  await q("INSERT INTO s VALUES (1,'ab'),(2,'cd'),(3,'ab'),(4,'ef'),(5,'cd')");
+  r = await q('SELECT LOWER(name) AS n, COUNT(*) FROM s GROUP BY LOWER(name)');
+  ok('#51 字符串函数表达式分组', JSON.stringify(norm(r.rows)) === JSON.stringify([['ab', 2], ['cd', 2], ['ef', 1]]), r.rows);
+
+  // ORDER BY 表达式仍然可用（回归保护）
+  r = await q('SELECT a FROM g ORDER BY a%2');
+  ok('#51 ORDER BY 表达式未被破坏', r.rows.length === 4, r.rows);
+
   console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILURES'} — ${pass} passed, ${fail} failed\n`);
   if (fail > 0) process.exit(1);
 })();
