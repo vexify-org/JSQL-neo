@@ -4,6 +4,28 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.30] — 2026-11-10
+
+### Fixed
+
+- **#58 `ast.rewrite()` 无法替换根节点**：根节点 `parent === null` 时替换被
+  `parent && key` 守卫跳过，与 `transform()` 行为不对称。现在根节点替换会
+  通过返回值交回调用方，数组根元素也能按索引回写。（此前版本已落地，本版补测）
+- **#59 WHERE 拒绝裸布尔谓词（#21/#42 回归）**：`WHERE 1` / `WHERE col` /
+  `WHERE flag` 没有比较运算符时不再抛 `Expected comparison operator`，
+  而是按 MySQL truthiness 求值（数字 <> 0、字符串非空、NULL 未知）；
+  HAVING / ON 同样适用。（此前版本已落地，本版补测）
+- **#60 集合运算列数不校验 + 括号化操作数被拒**：
+  `UNION` / `UNION ALL` / `INTERSECT` / `EXCEPT` 两侧列数不同时现在显式抛
+  `The used SELECT statements have a different number of columns`（错误码 1222），
+  不再按左分支静默截断丢列。操作数支持括号化 `(SELECT ...) UNION (SELECT ...)`；
+  括号内的 `ORDER BY` / `LIMIT` / `OFFSET` 仅作用于该操作数，括号外尾部子句
+  作用于整个组合查询。
+
+### Added
+
+- `test/issue-59.test.js`、`test/issue-60.test.js` 回归测试（#58 测试已存在）。
+
 ## [6.5.28] — 2026-11-08
 
 > 6.5.27 的 tag 已推但 npm 发布未落地（registry 停在 6.5.26），本版把
