@@ -4,6 +4,39 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.32] — 2026-11-11
+
+### Fixed
+
+- **#69 字符串算术没有按 MySQL 规律做数值前缀转换**：`'5a' + 1` 得到 `"5a1"`
+  （`'5a' + 0` 甚至还是 `"5a0"`），而 MySQL 的算术上下文里字符串按数值前缀
+  转数字、非数字按 0 —— `'5a' + 1 = 6`、`'5a' + 0 = 5`、`'12abc' + 0 = 12`。
+  算术求值（`+ - * / % DIV`、位运算、单目 `-` / `~`）统一改用已有的
+  `mysqlNum()`，三条重复实现（`arith` / `binary` / `evaluateExpr`）一起改，
+  避免只修一条路径；`'5a' = 5` 这类数值比较本来就对，未受影响。
+  顺带补齐 `!` 逻辑非：tokenizer 的字符集缺 `!`，`SELECT !1` 直接抛
+  `Unexpected character '!'`，现在与 `NOT` 等价（`!=` / `!~` / `!~*` 不受影响）。
+- **#70 CHECK 约束被解析后整段跳过，完全不生效**：列级与表级 `CHECK (...)`
+  都只调 `_skipParens()`，非法数据（如 `INSERT ... (age = -5)`）静默入库。
+  现在把条件解析成 AST（`_parseCheckCondition`），编译成判定函数挂到
+  `def.check`（列级）/ `def.checks`（表级，可跨列），由 `Table` 在
+  INSERT / INSERT 批量 / UPDATE 时统一按整行求值：
+  - MySQL 三值语义：TRUE 或 UNKNOWN（NULL）通过，只有 FALSE 才抛 3819；
+  - 表级条件在列清单解析完后绑定（允许引用后面才定义的列）；
+  - `checkSql` 一并持久化，磁盘模式重开后由 `compileCheckExpr()` 重新编译，
+    不会因 JSON 丢函数而失效；
+  - `CHECK` 语法错误在 `CREATE TABLE` 时直接报错，不静默吞掉；
+  - 补上 `Database.updateById` / `updateByIds` 绕过 `Table` 校验的缺口
+    （SQL `UPDATE` 走的就是这条路，此前 UPDATE 完全不校验 CHECK）。
+
+### 测试
+
+- 新增 `test/issue-69-70.test.js`（52 项）：字符串算术、`!` 逻辑非、
+  列级/表级/具名/多约束/函数/IN 条件的 INSERT、UPDATE、批量插入、
+  语法错误、以及磁盘模式重开后的约束持久化。已进 `npm test`。
+- 全量测试通过；`native.test.js` 在无 native 模块的 stub 环境下
+  「tables restored」失败为改动前既有问题（已用 HEAD 工作树复现），与本次无关。
+
 ## [6.5.31] — 2026-11-10
 
 ### Fixed（issue #63~#68，均先在 6.5.30 上复现再动手）
