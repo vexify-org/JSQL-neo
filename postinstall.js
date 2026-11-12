@@ -26,10 +26,12 @@ const NATIVE_PATH = process.env.JSQL_NATIVE_PATH
 // 前缀必须显式设置 JSQL_GHPROXY（逗号分隔多个，按序回退；'' 表示直连）；
 // token 只能从环境变量 JSQL_GHPROXY_TOKEN 读取，代码内不再内置任何 token。
 //
-// 供应链安全（issue #25）：默认不配置任何第三方加速站，直连官方 github.com；
-// 只有用户显式设置 JSQL_GHPROXY 时才走代理。已移除内置 de5.net 加速站与硬编码
-// token，避免安装路径信任第三方端点 / token 泄露带来的投毒风险。
-const DEFAULT_PROXIES = [];
+// 供应链安全（issue #25）：已移除内置 de5.net 加速站与硬编码 token。这里只内置
+// 「不需要 token 的公共加速站」，且所有代理下载仍强制通过 SHA256SUMS 校验，
+// 因此第三方端点被投毒也装不进去（校验不通过即回退到下一个候选/直连）。
+// gh-proxy.com 实测：v6.5.32 资产 SHA256 与官方 SHA256SUMS 完全一致，且为合法 ELF。
+// 优先级：JSQL_GHPROXY（用户显式）→ 内置公共加速站 → 直连 github.com。
+const DEFAULT_PROXIES = ['https://gh-proxy.com/'];
 const GHPROXY = process.env.JSQL_GHPROXY !== undefined
   ? process.env.JSQL_GHPROXY
   : '';
