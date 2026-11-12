@@ -4,7 +4,7 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
-## [6.5.32] — 2026-11-11
+## [6.5.33] — 2026-11-11
 
 ### Fixed
 
