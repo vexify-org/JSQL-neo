@@ -108,17 +108,19 @@ function ok(name, cond, extra) {
 
   /* ============ BUG 修复: now() 时区 / 监控定时器 / insertMany 归一 & 不污染 ============ */
   {
-    // BUG-1: now() 必须与 validateDate/DateTime 一致使用本地时区（此前用 toISOString=UTC）
+    // BUG-1（6.6.0 语义修订）：now() 与 validateDate/DateTime 必须以同一基准输出。
+    // 引擎已改为 **UTC 稳定基准**（字面量也是 UTC），因此 now() 返回 UTC 墙上时间；
+    // 旧断言要求「本地时区」是 6.5.x 及以前的语义，会把落库值锁死在部署主机时区上。
     const savedTZ = process.env.TZ;
     process.env.TZ = 'Asia/Shanghai';
     try {
       const d = new Date();
       const p2 = n => String(n).padStart(2, '0');
-      const localDate = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
-      const localTime = `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
-      ok('BUG-1 now("date") 本地时区', now('date') === localDate, { got: now('date'), want: localDate });
-      ok('BUG-1 now("time") 本地时区', now('time') === localTime, { got: now('time'), want: localTime });
-      ok('BUG-1 now() 本地时区', now() === `${localDate} ${localTime}`, { got: now(), want: `${localDate} ${localTime}` });
+      const utcDate = `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+      const utcTime = `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}:${p2(d.getUTCSeconds())}`;
+      ok('BUG-1 now("date") UTC 基准', now('date') === utcDate, { got: now('date'), want: utcDate });
+      ok('BUG-1 now("time") UTC 基准', now('time') === utcTime, { got: now('time'), want: utcTime });
+      ok('BUG-1 now() UTC 基准', now() === `${utcDate} ${utcTime}`, { got: now(), want: `${utcDate} ${utcTime}` });
     } finally {
       if (savedTZ === undefined) delete process.env.TZ; else process.env.TZ = savedTZ;
     }
@@ -149,8 +151,8 @@ function ok(name, cond, extra) {
     const stored = tdb.t.find({})[0];
     ok('BUG-8 insertMany 归一年龄为 number', typeof stored.age === 'number' && stored.age === 25, stored.age);
     const p2 = n => String(n).padStart(2, '0');
-    const wantDate = `${srcDate.getFullYear()}-${p2(srcDate.getMonth() + 1)}-${p2(srcDate.getDate())}`;
-    ok('BUG-8 insertMany 归一日期为本地字符串', stored.d === wantDate, { got: stored.d, want: wantDate });
+    const wantDate = `${srcDate.getUTCFullYear()}-${p2(srcDate.getUTCMonth() + 1)}-${p2(srcDate.getUTCDate())}`;
+    ok('BUG-8 insertMany 归一日期为 UTC 字符串', stored.d === wantDate, { got: stored.d, want: wantDate });
 
     // BUG-4: information_schema 过滤条件必须透传 ctx（@@会话变量）
     const idb = new Database(':memory:', { autoSave: false });

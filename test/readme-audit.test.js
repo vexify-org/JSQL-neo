@@ -441,7 +441,7 @@ async function main() {
     }
   }
 
-  console.log('\n--- 6.2.0 回归：JOIN 一对多 / NOW() 用本地时区 ---');
+  console.log('\n--- 6.2.0 回归：JOIN 一对多 / NOW() 用 UTC 基准（6.6.0 起）---');
   {
     let JSQL, db;
     try {
@@ -461,10 +461,10 @@ async function main() {
       ok('JOIN 一对多返回 3 行', j.rows.length === 3, j.rows);
 
       const n = await run('SELECT NOW() AS d');
-      const nowLocal = new Date();
+      const nowUtc = new Date();
       const p = (x) => String(x).padStart(2, '0');
-      const expectYmd = nowLocal.getFullYear() + '-' + p(nowLocal.getMonth() + 1) + '-' + p(nowLocal.getDate());
-      ok('NOW() 返回本地时区日期', String(n.rows[0][0]).slice(0, 10) === expectYmd, n.rows);
+      const expectYmd = nowUtc.getUTCFullYear() + '-' + p(nowUtc.getUTCMonth() + 1) + '-' + p(nowUtc.getUTCDate());
+      ok('NOW() 返回 UTC 日期（与落库基准一致）', String(n.rows[0][0]).slice(0, 10) === expectYmd, n.rows);
       await db.stop();
     }
   }
@@ -496,13 +496,13 @@ async function main() {
       ok('NOT EXISTS 相关子查询',
         JSON.stringify((await run('SELECT id FROM ta WHERE NOT EXISTS (SELECT 1 FROM tb WHERE tb.av = ta.v)')).rows) === '[[2]]');
 
-      // DATE 列序列化：不能用 toISOString（UTC），否则东八区差一天
+      // DATE 序列化基准：6.6.0 起统一 UTC（无时区字面量即 UTC 墙上时间）
       const { validateDateType } = require('../lib/date-types.js');
       ok('DATE 字符串不回退一天', validateDateType('2023-01-01', 'date', 'f') === '2023-01-01');
       ok('DATE 闰年边界（2024-02-29）', validateDateType('2024-02-29', 'date', 'f') === '2024-02-29');
-      ok('DATE 对象按本地时区', validateDateType(new Date(2023, 0, 1), 'date', 'f') === '2023-01-01');
-      ok('DATETIME 对象按本地时区',
-        validateDateType(new Date(2023, 0, 1, 8, 30), 'datetime', 'f') === '2023-01-01 08:30:00');
+      ok('DATE 对象按 UTC', validateDateType(new Date(Date.UTC(2023, 0, 1)), 'date', 'f') === '2023-01-01');
+      ok('DATETIME 对象按 UTC',
+        validateDateType(new Date(Date.UTC(2023, 0, 1, 8, 30)), 'datetime', 'f') === '2023-01-01 08:30:00');
       await db.stop();
     }
   }

@@ -70,7 +70,10 @@ async function t(name, fn) {
     await exec("CREATE TABLE t (id INTEGER PRIMARY KEY, ts TIMESTAMP DEFAULT NOW())");
     await exec("INSERT INTO t (id, ts) VALUES (1, '2020-01-02 03:04:05')");
     const r = await rows('SELECT ts FROM t');
-    return r[0][0] === 1577905445;
+    // 无时区字面量按 UTC 墙上时间解释（6.6.0 起的稳定基准）：
+    // 2020-01-02 03:04:05 UTC == 1577934245。这里用 Date.UTC 计算，
+    // 断言与运行环境时区无关（此前硬编码 1577905445 是 +08:00 下的值，UTC runner 必红）。
+    return r[0][0] === Math.floor(Date.UTC(2020, 0, 2, 3, 4, 5) / 1000);
   });
 
   await t('不支持的函数默认值明确报错（不再说 Incorrect date value）', async ({ mustFail, exec }) => {

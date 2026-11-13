@@ -4,6 +4,42 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [Unreleased] — 6.6.0 (语义变更)
+
+### Breaking
+
+- **日期/时间字面量改为以 UTC 为稳定基准**：不带时区标记的日期字面量
+  （`'2024-01-15'`、`'2024-01-15 10:30:00'`）现在按 **UTC 墙上时间** 解释，
+  不再按运行主机的本地时区解释。同一份 SQL 在任何 `TZ` 下的落库值完全一致
+  （此前 `Asia/Shanghai` 与 `UTC` 机器会差 8 小时，跨主机不可移植 — #75）。
+  - 带 `Z` / `±HH:MM` 的字面量语义不变：先换算成绝对时刻，再以 UTC 墙上时间存储。
+  - 因此 `'2024-01-15T10:30:00Z'` 与 `'2024-01-15 10:30:00'` 落库一致，
+    DATETIME 的 insert → where round-trip 彻底闭合（#75）。
+  - `NOW()` / `CURRENT_TIMESTAMP` / `CURDATE()` / `CURTIME()` 及 `now()` 辅助函数
+    同步返回 UTC 墙上时间，与落库基准一致；`UTC_TIMESTAMP()` 行为不变。
+  - 影响面：与旧版本相比，在非 UTC 主机上 DATETIME/TIMESTAMP 的存储值会变化；
+    旧数据（按本地时区写入）如需迁移，请在原主机按原时区导出为绝对时刻后重灌。
+
+### 修改位置
+
+- `lib/date-types.js`：`toUtcDateString` / `toUtcDateTimeString`（原 `toLocal*`）、
+  `parseToUtcMs`、`validateDate` / `validateDateTime` / `validateTimestamp`、
+  `parseDateString`、`now()`、`formatDate()` 全部改用 UTC 基准。
+- `lib/sql.js`：`parseSqlDate` / `parseUtcWallClock`、`sqlLocalDateTime`、
+  `fmtSqlDate`、`strftime`、`strToDate`、`pgDatePart`、`addMonthsClamped`、`pgAge`、
+  `NOW` / `CURDATE` / `CURTIME`、`EXTRACT`、`DATE_ADD|SUB`、`DATE|TIME|YEAR|MONTH|…`、
+  `DATEDIFF`、`TIMESTAMPDIFF`、`DATE_TRUNC`、`LAST_DAY`、`WEEKDAY`、`DAYOFYEAR`、
+  `DAYNAME`、`MONTHNAME`、`MAKEDATE`、`UNIX_TIMESTAMP`、`FROM_UNIXTIME`、
+  `date ± INTERVAL` 算术路径、`escapeValue(Date)`。
+
+### Fixed
+
+- **测试断言时区无关化**：`test/issue-71-72.test.js` 的硬编码 `1577905445`
+  改为 `Date.UTC(2020,0,2,3,4,5)/1000`（此前是 +08:00 下的值，UTC runner 必红）；
+  `test/issue-73-76.test.js`、`test/issue-50.test.js`、`test/query-opt.test.js`、
+  `test/readme-audit.test.js` 同步新语义，三套核心用例在
+  `Asia/Shanghai` / `UTC` / `America/New_York` 下全绿。
+
 ## [6.5.34] — 2026-11-13
 
 ### Fixed

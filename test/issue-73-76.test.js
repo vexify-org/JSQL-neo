@@ -8,9 +8,10 @@
  * #74: `ORDER BY <越界位置>` 静默忽略（取到 undefined 列 → 键恒为 null）。
  *      现在越界必须报错；合法位置序号行为不变。
  *
- * #75: INSERT 会把 ISO-8601 DATETIME 字面量规范化成本地
- *      'YYYY-MM-DD HH:MM:SS'，但 WHERE 比较路径不做同样规范化，
- *      同一字面量查不回自己插入的行。现在比较侧用同一套规则。
+ * #75: INSERT 会把 ISO-8601 DATETIME 字面量规范化成 'YYYY-MM-DD HH:MM:SS'，
+ *      但 WHERE 比较路径不做同样规范化，同一字面量查不回自己插入的行。
+ *      现在比较侧用同一套规则。6.6.0 起规范化基准是 UTC（无时区 = UTC 墙上时间），
+ *      因此 '...Z' 与无时区写法在 UTC 字面量上完全等价。
  *
  * #76: JOIN 里未加表名前缀的歧义列名（两张表都有 id）被静默解析成右表的值。
  *      现在报 "column reference 'id' is ambiguous"；限定引用与单表查询不受影响。
@@ -48,11 +49,12 @@ async function t(name, fn) {
 }
 
 const pad = (n) => String(n).padStart(2, '0');
-/** 某 UTC 毫秒对应的本地 'YYYY-MM-DD HH:MM:SS'（与 validateDateTime 的落库格式一致） */
-function localOf(ms) {
+/** 某 UTC 毫秒对应的 UTC 'YYYY-MM-DD HH:MM:SS'（与 validateDateTime 的落库格式一致）。
+ *  6.6.0 起引擎以 UTC 为稳定基准，落库值是 UTC 墙上时间，因此用 getUTC*。 */
+function utcOf(ms) {
   const d = new Date(ms);
-  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
-    pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + ' ' +
+    pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());
 }
 
 (async () => {
@@ -142,10 +144,13 @@ function localOf(ms) {
 
   await t('带 Z 的字面量 insert 后能按同一字面量查回', async ({ exec, rows }) => {
     await seedDT(exec);
-    const expected = localOf(Date.UTC(2024, 0, 15, 10, 30, 0));
+    const expected = utcOf(Date.UTC(2024, 0, 15, 10, 30, 0));   // === '2024-01-15 10:30:00'
     const all = await rows('SELECT d FROM dt');
     const hit = await rows("SELECT d FROM dt WHERE d = '2024-01-15T10:30:00Z'");
-    return all[0][0] === expected && JSON.stringify(hit) === JSON.stringify([[expected]]);
+    // Z 与无时区在 UTC 基准下是同一瞬间的同一墙上时间 → 两种写法都查回
+    const hitNoTz = await rows("SELECT d FROM dt WHERE d = '2024-01-15T10:30:00'");
+    return all[0][0] === expected && JSON.stringify(hit) === JSON.stringify([[expected]])
+        && JSON.stringify(hitNoTz) === JSON.stringify([[expected]]);
   });
 
   await t('无时区标记的 T 分隔字面量能往返（insert → where）', async ({ exec, rows }) => {
@@ -159,18 +164,20 @@ function localOf(ms) {
 
   await t('±HH:MM 偏移字面量同样规范化', async ({ exec, rows }) => {
     await exec('CREATE TABLE dt3 (id INTEGER PRIMARY KEY, d DATETIME)');
-    // 2024-01-15T10:30:00+08:00 == 2024-01-15T02:30:00Z
+    // 2024-01-15T10:30:00+08:00 == 2024-01-15T02:30:00Z → 落库 '2024-01-15 02:30:00'（UTC）
     await exec("INSERT INTO dt3 (id, d) VALUES (1, '2024-01-15T10:30:00+08:00')");
-    const stored = localOf(Date.UTC(2024, 0, 15, 2, 30, 0));
+    const stored = utcOf(Date.UTC(2024, 0, 15, 2, 30, 0));
     const hit = await rows("SELECT d FROM dt3 WHERE d = '2024-01-15T10:30:00+08:00'");
     const hitZ = await rows("SELECT d FROM dt3 WHERE d = '2024-01-15T02:30:00Z'");
+    const hitNoTz = await rows("SELECT d FROM dt3 WHERE d = '2024-01-15 02:30:00'");
     return JSON.stringify(hit) === JSON.stringify([[stored]])
-        && JSON.stringify(hitZ) === JSON.stringify([[stored]]);
+        && JSON.stringify(hitZ) === JSON.stringify([[stored]])
+        && JSON.stringify(hitNoTz) === JSON.stringify([[stored]]);
   });
 
   await t('IN 列表里的 ISO 字面量同样生效', async ({ exec, rows }) => {
     await seedDT(exec);
-    const expected = localOf(Date.UTC(2024, 0, 15, 10, 30, 0));
+    const expected = utcOf(Date.UTC(2024, 0, 15, 10, 30, 0));
     const hit = await rows("SELECT d FROM dt WHERE d IN ('2024-01-15T10:30:00Z')");
     const miss = await rows("SELECT d FROM dt WHERE d IN ('2023-01-01T00:00:00Z')");
     return JSON.stringify(hit) === JSON.stringify([[expected]]) && miss.length === 0;
