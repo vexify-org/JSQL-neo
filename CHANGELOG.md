@@ -4,6 +4,43 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
+## [6.5.34] — 2026-11-13
+
+### Fixed
+
+- **#73 `GROUP BY <位置索引>` 被当成常量，所有行塌成一组**：解析器把 `GROUP BY 1`
+  里的数字变成 `{type:'value'}` 常量，分组键恒为一值，`SELECT a, COUNT(*) ... GROUP BY 1`
+  错误地返回 `[[1,3]]` 而不是 `[[1,2],[2,1]]`。现在 `executeSelect` 分组前用新增的
+  `_groupByPosition()` 把 1-based 位置还原成对应的 SELECT 输出表达式（裸列名 / 表达式 /
+  别名），与同引擎里已经能正确工作的 `ORDER BY <位置>` 路径对齐；越界（`GROUP BY 99`）
+  抛 `GROUP BY column index 99 is out of range` 而不是静默改结果集，指向聚合列时抛
+  `refers to an aggregate function`（与 MySQL `Can't group on ...` 一致）。
+- **#74 `ORDER BY <越界位置索引>` 被静默忽略**：`SELECT a FROM t ORDER BY 2`（select 列表
+  只有 1 列）此前 `columns[pos-1]` 为 `undefined`，排序键恒 null，静默返回插入序。现在
+  `executeSelect` 开头用 `_assertOrderByPositions()` 统一校验，覆盖普通排序、GROUP BY
+  排序、UNION 尾部三条路径，越界抛 `ORDER BY column index 2 is out of range`；
+  合法位置序号行为不变。
+- **#75 ISO-8601 DATETIME 字面量插入后无法用同一字面量查回**：INSERT 路径的
+  `validateDateTime` 会把 `2024-01-15T10:30:00Z` 规范化成本地 `2024-01-15 18:30:00`，
+  但 WHERE 比较路径不做同样规范化，字面量带着 `T` / `Z` 原样比较 → 永远不匹配，
+  `SELECT d FROM t WHERE d='2024-01-15T10:30:00Z'` 返回 0 行。现在 SELECT 执行前用新增的
+  `_normalizeDateLiterals()` 把 WHERE 中「与 date/datetime 列比较、带 `T` 分隔符的字符串
+  字面量」交给与 INSERT 完全相同的 `validateDateType` 规范化（覆盖 `=` / `BETWEEN` / `IN`
+  三种形态，含 `Z` 与 `±HH:MM`，改写落在 WHERE AST 上，相关子查询也生效）；
+  纯 `YYYY-MM-DD HH:MM:SS` 字面量与 TEXT 列比较不受影响。
+- **#76 JOIN 中歧义列名被静默解析**：`_prefixRow` 在写入 `表.列` 前缀键之外还额外写入裸列键，
+  JOIN 拼接时右表覆盖左表 → `SELECT id FROM u JOIN o ON o.u_id = u.id` 静默返回 `o.id`，
+  结果依赖未记录的解析顺序。现在用新增的 `_assertNoAmbiguousRefs()` + `_columnOwners()`
+  （有行数据时用 `表.列` 前缀键，空表回退 schema 并用出现序号区分自连接）在
+  `_validateColumnRefs` 早退**之前**检测，未加表名前缀且存在于多张表的列抛
+  `column reference 'id' is ambiguous`；已加前缀的引用、`SELECT *`、单表查询、别名自连接
+  均不受影响，WHERE / GROUP BY / ORDER BY 中的裸歧义列同样报错，不会静默返回空集。
+
+### Added
+
+- `test/issue-73-76.test.js`：4 个 issue 的 23 条回归断言（每个 issue 覆盖正常行为、
+  报错行为、以及不回归的相邻场景），已接入 `npm test`。
+
 ## [6.5.33] — 2026-11-11
 
 ### Fixed
