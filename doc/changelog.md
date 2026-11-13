@@ -1,10 +1,100 @@
 # 变更日志
 
-> 当前版本：**6.5.20**（2026-11-03）
+> 当前版本：**6.6.0**（2026-11-13）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
 
+## 6.6.0 — 2026-11-13 (语义变更)
+
+### Breaking
+- **日期/时间字面量改为以 UTC 为稳定基准**：不带时区标记的日期字面量
+### 修改位置
+- `lib/date-types.js`：`toUtcDateString` / `toUtcDateTimeString`（原 `toLocal*`）、
+### Fixed
+- **测试断言时区无关化**：`test/issue-71-72.test.js` 的硬编码 `1577905445`
+
+## 6.5.34 — 2026-11-13
+
+### Fixed
+- **#73 `GROUP BY <位置索引>` 被当成常量，所有行塌成一组**：解析器把 `GROUP BY 1`
+### Added
+- `test/issue-73-76.test.js`：4 个 issue 的 23 条回归断言（每个 issue 覆盖正常行为、
+
+## 6.5.33 — 2026-11-11
+
+### Fixed
+- **#69 字符串算术没有按 MySQL 规律做数值前缀转换**：`'5a' + 1` 得到 `"5a1"`
+### 测试
+- 新增 `test/issue-69-70.test.js`（52 项）：字符串算术、`!` 逻辑非、
+
+## 6.5.31 — 2026-11-10
+
+### Fixed（issue #63~#68，均先在 6.5.30 上复现再动手）
+- **#63 `POSITION(substr IN str)` 解析错误**：`IN` 是关键字，通用函数参数
+### 测试
+- 新增 `test/issue-63-68.test.js`（30 项），Redis 部分用 mock socket 直接调
+
+## 6.5.30 — 2026-11-10
+
+### Fixed
+- **#58 `ast.rewrite()` 无法替换根节点**：根节点 `parent === null` 时替换被
+### Added
+- `test/issue-59.test.js`、`test/issue-60.test.js` 回归测试（#58 测试已存在）。
+
+## 6.5.28 — 2026-11-08
+
+### Fixed
+- **6.5.27 漏 bump 两处版本串**：README 横幅与 index.js 头注释停在 6.5.26。
+### Added
+- `jsql native status` / `refresh` / `verify`（`--json` 结构化输出）。
+### Performance
+- **结果 BigInt 收尾从通用深递归改成紧凑循环**。此前每个 SQL 结果的 rows
+### 测试
+- 新增 `test/result-raw.test.js`(23) / `test/native-install.test.js`(7) /
+### Issue 收尾
+- #45 / #46 / #47 / #48：PR #49 已合并、对应回归测试全绿（3/9/3/4），
+
+## 6.5.27 — 2026-11-08
+
+
+## 6.5.26 — 2026-11-07
+
+### Fixed
+- **`result.raw` 对计算/聚合列全部返回错值（issue #43）**：
+### 测试
+- 此前 README/doc 没有任何 raw 说明、测试里没有任何 `.raw` 断言 ——
+### 已知问题（本版未修）
+- `postinstall` 在 Windows 上 EPERM fallback 吞掉 `unlinkSync` 失败，
+
+## 6.5.25 — 2026-11-07
+
+
+## 6.5.24 — 2026-11-06
+
+### Fixed
+- **Rust/WASM/Native 绑定层 int64 精度丢失（issue #38 遗留）**：WASM 与 Native 引擎此前把 `int64` 当 `f64` 编解码，`lib/wasm_client.js` 路径插入 BigInt 会抛 JSON 序列化错误，`> 2^53` 的十进制字符串也会截断。现已与 JS 引擎（6.5.23）行为一致：
+
+## 6.5.23 — 2026-11-06
+
+### Fixed
+- **超过 2^53 的 64 位整数精度丢失（issue #38）**：`integer` / `int` / `bigint` 列此前用 `Number(v)` 归一，`> 2^53-1` 的值（number 或十进制字符串）会被静默截断成 53 位浮点；SQL 路径又因字面量解析成 BigInt 而报 1292，两条路径行为不一致且都丢精度。现已支持 BigInt：
+### Notes
+- 合并 `fix/i38` 时保留 6.5.22 全部修复：`mysqlNum()`（MySQL 字符串→数字强转）与 `bigintExactArith()` 并存；`test` / `test:all` 取测试集并集（含 #38、#39、#40、g4）。
+
+## 6.5.22 — 2026-11-06
+
+### Fixed
+- **BETWEEN 数值边界退化成字典序比较（issue #39）**：`BETWEEN '9' AND '100'` 此前按字符串比较，`'9' > '100'` 导致结果为空。现在当列/边界可用数值解析时按数值比较（支持负号、小数、科学计数法），纯文本列仍保持字典序。
+### Notes
+- issue #38（BigInt 序列化）本次未包含，已在 [6.5.23] 中修复。
+
+## 6.5.21 — 2026-11-05
+
+### Fixed
+- **Native 引擎 `add_column` 多行表数据损坏（issue #22）**：`Table::add_column` 用 `Vec::insert` 原地插入导致后续行 `values_start` 未同步，>1 行表添加列后首行之后所有行被静默损坏。现重建 `values` 并重算每个 `values_start`，数据不再损坏。
+
+## [Unreleased]
 ## 6.5.20 — 2026-11-03
 
 ### Fixed
