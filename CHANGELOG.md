@@ -6,6 +6,29 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **#94 数值列上的 `LIKE` 永不匹配**：`likeMatch()` 开头 `if (typeof value !== 'string') return false`，
+  INT / BIGINT / DECIMAL 列与数字字面量直接判负。MySQL 会先把操作数转成字符串
+  （`10 LIKE '1%'` → 1）。同时 `x LIKE NULL` 以前返回 `false`，现在按三值逻辑返回 `NULL`。
+
+- **#96 `CAST(x AS DECIMAL(p,s))` 忽略精度与标度**：`applyCast()` 用
+  `.replace(/\(.*\)$/, '')` 把参数整体抹掉，`CAST(123.456 AS DECIMAL(10,2))` 原值返回。
+  现在解析 `p`/`s` 并按 scale 四舍五入（半远离零）；无参数时按 MySQL 的 `DECIMAL(10,0)`
+  取整；整数位溢出抛 1264 `Out of range value`，不静默截断。
+
+  ```sql
+  SELECT CAST(123.456 AS DECIMAL(10,2));  -- 修复前 123.456，修复后 123.46
+  SELECT CAST(123.456 AS DECIMAL(10,0));  -- 修复前 123.456，修复后 123
+  ```
+
+- **#98 `STRING` 列上的 `MIN`/`MAX` 用数值比较**：`_aggValue()` 用「值能否转成数字」决定
+  比较方式，所以 `'2'`/`'100'`/`'9'` 走数值路径，得到 `MIN='2'`、`MAX='100'`，与同一列
+  `ORDER BY`（字典序）自相矛盾，返回值类型也从字符串变成了 number。现在按值的真实形态
+  判断：字符串列（含 ISO 日期）一律按字符串比较，数值列仍按数值比较。
+
+新增 `test/like-cast-aggregate.test.js`（14 项）。
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
