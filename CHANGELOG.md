@@ -6,6 +6,19 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **#93 PG `Bind` 忽略参数的二进制格式声明**：代码正确算出每个参数的 `fmt`
+  （0=文本 / 1=二进制），但随后**从未使用**，一律 `body.toString('utf8', ...)`。
+  凡是以二进制格式发送参数（`pg` 的 `binary` 模式、pgjdbc、部分 ORM）的客户端，
+  int4/int8/float8/numeric/timestamp 都会被当成乱码字符串写进库。
+
+  现在按 Parse 阶段声明的参数 OID 逐类型解码：`bool / int2 / int4 / int8 / oid /
+  float4 / float8 / numeric / date / timestamp(tz) / uuid / bytea`，未知 OID 回退 utf8。
+  `int8` 超出 2^53 时保留 BigInt 精确值。
+
+新增 `test/pg-binary-params.test.js`（14 项，构造真实 Bind 报文校验解码结果）。
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
