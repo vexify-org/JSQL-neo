@@ -6,6 +6,28 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **#87 SQLite 兼容层 `.raw(true).all()` 把语句执行两次**：`Statement#all()` 先调
+  `_call('all')` 取结果，再在 raw 模式下又调 `_call('raw')`；worker 的 `raw` 动作本身
+  会执行语句，于是同一条 SQL 被跑了两次。SELECT 只是多查一遍，但
+  `db.prepare('INSERT ...').raw(true).all()` 会**真的插入两行**，是数据损坏级问题。
+  现在 raw 模式只调一次 `raw`。
+
+- **#88 NeDB 兼容层 `$regex` 传字符串时匹配所有文档**：`new RegExp(expected.source, ...)`
+  对字符串取 `.source` 得到 `undefined`，等价于空模式 `/(?:)/`。现在字符串按正则源
+  编译（保持大小写不敏感默认），RegExp 仍按原 flags 处理。
+
+  ```js
+  db.find({ name: { $regex: 'a' } });   // 修复前命中全部，修复后只命中含 a 的
+  ```
+
+- **#89 `Cache#lrange` 负向越界 stop 返回 `[]`**：`stop` 转成绝对下标后没有 clamp 到
+  `>= 0`，`lrange(k, 0, -5)` 在长度 1 的列表上算出 `stop = -4`，`start > stop` 直接返回空。
+  Redis 的 `lrangeCommand` 会把 end clamp 到 0，返回首元素。现在与 Redis 一致。
+
+新增 `test/compat-layers.test.js`（15 项，含 sqlite/NedB/Cache 三套回归）。
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
