@@ -6,6 +6,20 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **#92 `applyParams` 混用编号占位符（`?N` / `$N`）与匿名 `?` 时绑定错位、误报参数过多**：
+  以前用一个单调递增的 `idx` 定位匿名占位符，`WHERE b=?2 AND a=?` 会先把 `idx` 抬到 2，
+  后面的匿名 `?` 越界报 `Not enough parameters`；末尾的 `idx !== args.length` 又会对
+  正常调用误报 `Too many parameters`。现在记录「已用过的槽位」，匿名 `?` 取最小的未用槽位，
+  两种书写顺序都能正确绑定，参数过多/不足仍会如实报错。
+
+- **`executeSQL(db, sql, { params })` 静默丢弃参数**：`params` 被列入 `OPTS_KEYS`，
+  所以 `{ params: [...] }` 会被识别为 opts，但收下之后**从未使用**——占位符原样进入
+  解析器，`WHERE a=?` 恒不匹配（无任何报错）。现在 opts 里的 `params` 会正常内联。
+
+新增 `test/apply-params-mixed-placeholders.test.js`（10 项）。
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
