@@ -6,6 +6,25 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`ADDDATE` / `SUBDATE` 的数字（天数）形式被静默忽略**：`lib/sql.js` 的
+  `case 'DATE_ADD'/'ADDDATE'` 只处理 `INTERVAL n UNIT`，第二个参数直接给天数时
+  会 fallthrough 到「原样返回日期」，整个增量被丢掉且不报错。MySQL 里
+  `ADDDATE(expr, days)` 与 `DATE_ADD(expr, INTERVAL days DAY)` 等价。
+
+  ```sql
+  SELECT ADDDATE('2026-01-01', 5);   -- 修复前 '2026-01-01'，修复后 '2026-01-06'
+  SELECT SUBDATE('2026-01-10', 5);   -- 修复前 '2026-01-10'，修复后 '2026-01-05'
+  ```
+
+  非数字天数按 MySQL 返回 `NULL`（用 `numericIfNumeric()` 严格判定，避免
+  `mysqlNum()` 的宽松强转把 `'abc'` 变成「加 0 天」这类新的静默错误）。
+  `DATETIME` 输入仍保留时间部分，跨月/跨年/闰年边界与既有 `INTERVAL` 形式一致。
+
+  新增 `test/adddate-numeric.test.js`（17 项）覆盖加/减、负数、跨月跨年闰年、
+  DATETIME、列值、非法输入，以及 `DATE_ADD`/`DATE_SUB` 的 INTERVAL 形式不回归。
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
