@@ -319,9 +319,23 @@ const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
   })
   .command('star', 'Confirm whether you starred this repo (opens browser once)', (sub) => {
     sub.option('reset', { type: 'boolean', description: 'Forget the saved star state and re-check' });
+    sub.option('token-check', { type: 'boolean', description: 'Check via GitHub API using GITHUB_TOKEN/gh (no browser)' });
   }, async (argv) => {
     const sn = require('../lib/star-nag');
+    const { isOffline } = require('../lib/network-policy');
+    if (isOffline()) {
+      console.log('离线模式（JSQL_OFFLINE=1）：无法确认 star。取消该环境变量后重试。');
+      return;
+    }
     if (argv.reset) sn.setStarred(false);
+    // 显式选择的联网路径：用 token 直接查 GitHub API，不开浏览器。
+    // 启动路径不会走到这里（nag() 已完全本地化）。
+    if (argv['token-check']) {
+      const s = sn.checkStarred();
+      if (s === true) { sn.setStarred(true); console.log('已确认 star ✓（via GitHub API）'); }
+      else console.log('未能确认（无凭据 / 未 star / 网络不通）。去掉 --token-check 可走浏览器授权。');
+      return;
+    }
     const c = sn.readConfig();
     if (c.starred) {
       console.log(`Already confirmed starred 已确认过: ${sn.configPath()}`);

@@ -12,6 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { isOffline, offlineError } = require('../../lib/network-policy');
 
 const REGISTRY_BASE = 'https://registry-beta.vexify.top';
 const PLUGIN_DIR = path.join(os.homedir(), '.jsql', 'plugins');
@@ -94,8 +95,15 @@ function extractJson(text) {
   }
 }
 
+/* NETWORK: 插件 registry 的元数据查询（plugins / search）
+ * Why:     可安装插件的目录只在远端，本地只有「已安装」列表。
+ * Trigger: 仅 `jsql plugin list|search|info` 显式调用。
+ * Offline: JSQL_OFFLINE=1 → 抛 JSQL_OFFLINE 错误，不发起 fetch。
+ * Scope:   https://registry-beta.vexify.top/?action=...（只读）。
+ */
 /** 发起 registry API 请求，返回解析后的 JSON */
 async function apiRequest(action, params = {}) {
+  if (isOffline()) throw offlineError('jsql plugin', '插件目录在远端 registry');
   const url = new URL(REGISTRY_BASE);
   url.searchParams.set('action', action);
   for (const [k, v] of Object.entries(params)) {
@@ -151,7 +159,12 @@ async function getPluginInfo(name) {
  * 带重试的 fetch（P1 修复：install 网络间歇性失败 30-40%）
  * 3 次重试 + 指数退避（500ms, 1s, 2s）
  */
+/* NETWORK: 下载插件压缩包（同 apiRequest 的 NETWORK 标注）
+ * Why:     包体只在远端；Trigger: 仅 `jsql plugin install <name>`；
+ * Offline: JSQL_OFFLINE=1 → 抛 JSQL_OFFLINE 错误；
+ * Scope:   registry-beta.vexify.top 的 download action。 */
 async function fetchWithRetry(url, retries = 3, baseDelay = 500) {
+  if (isOffline()) throw offlineError('jsql plugin install', '插件包需要下载');
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url.toString());

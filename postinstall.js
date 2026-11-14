@@ -5,10 +5,20 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const { detectLibc, nativeTargetSuffix, nativeNapiVersion, supportsNativeNapi, MIN_NAPI_VERSION } = require('./lib/native_target');
+const { isOffline } = require('./lib/network-policy');
 
 const ROOT = __dirname;
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
+/* NETWORK: 安装期拉取预编译的 native .node 二进制
+ * Why:     Rust 编译产物不在 npm tarball 里；不下载就只能本地 cargo 编译
+ *          （要求用户装 Rust toolchain），或直接降级到 WASM/JS 引擎。
+ * Trigger: 仅 `npm install` 触发的 postinstall，或手动 `node postinstall.js`。
+ *          运行时 / CLI 启动绝不会走到这里。
+ * Offline: JSQL_OFFLINE=1 或 JSQL_NO_NATIVE_DOWNLOAD=1 → 完全跳过下载；
+ *          有本地 .node 就用，没有则走源码编译 / WASM 降级。
+ * Scope:   GitHub releases 的固定 tag 资源 + SHA256SUMS（强制校验）。
+ */
 // Server CLI binary (bin/jsql-neo-server)
 const BIN_NAME = process.platform === 'win32' ? 'jsql-neo-server.exe' : 'jsql-neo-server';
 const BP = path.join(ROOT, 'bin', BIN_NAME);
@@ -53,7 +63,8 @@ const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || '';
 //
 // 供应链安全（issue #25）：不内置任何加速站/token，代理仍需显式 JSQL_GHPROXY，
 // 且下载必须通过 SHA256SUMS 校验（除非用户显式 JSQL_ALLOW_UNVERIFIED_NATIVE=1）。
-const DOWNLOAD_DISABLED = process.env.JSQL_NO_NATIVE_DOWNLOAD === '1'
+const DOWNLOAD_DISABLED = isOffline()
+  || process.env.JSQL_NO_NATIVE_DOWNLOAD === '1'
   || process.env.JSQL_NATIVE_DOWNLOAD === '0'
   || process.env.JSQL_AUTO_DOWNLOAD_NATIVE === '0';
 const FORCE_REFRESH = process.env.JSQL_NATIVE_FORCE_REFRESH !== '0';
@@ -101,7 +112,12 @@ function sameOrigin(a, b) {
  * 解析 JSQL_NATIVE_TAG=latest：跟随 GitHub `/releases/latest` 的 302 跳转，
  * 从 Location 里取出真实 tag（vX.Y.Z）。失败返回 null —— 调用方回退到当前版本 tag。
  */
+/* NETWORK: 解析 JSQL_NATIVE_TAG=latest（GET GitHub /releases/latest 的 302）
+ * Why:     "latest" 指向哪个 tag 只有远端知道。
+ * Trigger: 仅用户显式设置 JSQL_NATIVE_TAG=latest 时；默认用 v<pkg.version> 不发请求。
+ * Offline: JSQL_OFFLINE=1 → 返回 null，调用方回退到当前版本 tag。 */
 function resolveLatestTag() {
+  if (isOffline()) return Promise.resolve(null);
   return new Promise((resolve) => {
     const url = `https://github.com/${REPO}/releases/latest`;
     let settled = false;

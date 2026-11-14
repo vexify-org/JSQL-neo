@@ -223,6 +223,26 @@ db.xqlIndex('users', 'score', 'range');
 
 ---
 
+## Network access
+
+The **CLI startup path makes no network requests at all** — queries, scripts and
+`jsql serve` are entirely local. External access is confined to commands you
+invoke explicitly, and every such site carries a `NETWORK:` comment in the
+source stating why it cannot be done locally:
+
+| Command / timing | Target | Why it needs the network | How to disable |
+| --- | --- | --- | --- |
+| `jsql star` | `auth.vexify.top` + GitHub | OAuth authorization has to go through the server | `JSQL_OFFLINE=1` |
+| `jsql star --token-check` | `api.github.com` | star status only exists on the GitHub account | `JSQL_OFFLINE=1` |
+| `jsql update` | `registry.npmjs.org` | "is there a newer version" only exists in the registry | `JSQL_OFFLINE=1` |
+| `jsql plugin list\|search\|info\|install` | `registry-beta.vexify.top` | the plugin catalogue only exists remotely | `JSQL_OFFLINE=1` |
+| `npm install` (postinstall) | GitHub releases | the precompiled Rust `.node` is not in the npm tarball | `JSQL_NO_NATIVE_DOWNLOAD=1` or `JSQL_OFFLINE=1` |
+
+`JSQL_OFFLINE=1` disables every external request at once; affected commands
+report the reason instead of failing silently. Loopback traffic (the
+`127.0.0.1` links between `jsql serve` and the client / Web UI) is not
+external access and is unaffected.
+
 ## 📖 Documentation
 
 Detailed docs live in `doc/` — click to read.
