@@ -6,6 +6,38 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **#86 `ON DUPLICATE KEY UPDATE` 中赋值右侧含 `VALUES(col)` 的表达式把列写成 `NULL`（数据损坏）**：
+  冲突处理只在「顶层节点」识别 `VALUES(col)`/`EXCLUDED.col`，一旦嵌套进表达式
+  （`a = VALUES(a) + 1`）就求值失败，左操作数解析成 `undefined`，`undefined + 1` 得 `NULL`。
+
+  ```sql
+  INSERT INTO t (id,a) VALUES (1,100) ON DUPLICATE KEY UPDATE a = VALUES(a) + 1;
+  -- 修复前：a 变成 NULL     修复后：a = 101
+  ```
+
+  现在先把 `VALUES()`/`EXCLUDED.col` 在表达式树中就地替换为「本次本应插入的值」再求值。
+
+- **#99 `ON DUPLICATE KEY UPDATE` 中裸列名赋值（`col = col`）抛 1292**：
+  `parseValueAtom()` 把裸标识符解析成普通 JS 字符串，与真正的字符串字面量无法区分，
+  于是 `other = other` 把字符串 `'other'` 写进 INT 列而报
+  `Truncated incorrect integer value`。现在在 upsert 赋值右侧解析时把裸标识符标记为
+  列引用节点（`{ type: 'column' }`），按 MySQL 语义取**冲突行（旧行）**的值，
+  因此 `other = other` 是 no-op、`cnt = cnt + 1` 正确递增。
+
+- 顺带修复 `ON CONFLICT ... DO UPDATE SET a = EXCLUDED.a + 5` 的解析：
+  以前 `EXCLUDED.col` 只返回裸节点，后面的 `+ 5` 会报
+  `Unexpected token '+' after statement`。
+
+新增 `test/upsert-values-and-bare-column.test.js`（15 项）覆盖 `VALUES()` 表达式、
+裸列名、字符串字面量不被误当列名、PG `EXCLUDED` 表达式、非冲突路径，以及
+「INT 列写入真字符串仍报 1292」确保类型校验未被削弱。
+
+> 已知未覆盖（与本 issue 无关的既有缺口）：赋值右侧的多层嵌套算术
+> （如 `VALUES(a)*2+1`）仍不可用，因为 `type:'binary'` 同时被「BINARY 运算符」
+> 和「算术节点」复用，`resolveOperand` 的分支会命中前者。
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
