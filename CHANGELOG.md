@@ -6,6 +6,37 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **#91 MySQL 多语句结果集被客户端丢弃**：`SERVER_MORE_RESULTS_EXISTS`（0x0008）
+  从未被设置，客户端读完第一个结果集的 EOF 就认为语句结束，`SELECT 1; SELECT 2`
+  只会看到第一个结果集。现在除最后一条语句外的 OK/EOF 包都会带上该标志。
+
+  注：issue 里推测的根因（引擎只执行了第一条语句）并不成立——引擎的语句循环本身是
+  正确的，问题纯粹在线协议层。
+
+- **#95 `COM_PROCESS_INFO` 发送非 length-encoded 行**：直接发 `Buffer.from([0x31])`，
+  而文本协议的行必须是 length-encoded string，客户端会把 `0x31`(=49) 读成长度前缀 49
+  并一直等待。现改为 `encodeLenencString('1')`（0x01 0x31）。顺带去掉该分支里多余的
+  手动 `sequence` 自增——`_send()` 已经自增，原来会跳号。
+
+- **#97 `MysqlServer#_route` 偏移错位破坏字符串字面量**：mask 由原始 SQL 计算，但替换
+  是逐步对不断缩短的 `s` 做 `replace()`，两边的偏移基准不一致，一旦第一个限定表名被
+  缩短，后续偏移全部错位，`masked[offset]` 会指到错误位置，把字符串字面量里的表名
+  一起删掉：
+
+  ```sql
+  SELECT '  db1.t2  ' FROM db1.t2;   -- 修复前字面量变成 '  t2  '
+  ```
+
+  现在一次扫描原始 SQL 收集所有待替换区间，再单遍重建字符串。
+
+  注：issue 里举的跨库例子（`db1.t1 JOIN db2.t2`）是被**设计上拒绝**的
+  （`Cross-database references are not supported in one statement`），并不是本 bug；
+  真正的错位问题用上面的字面量例子可以稳定复现。
+
+新增 `test/mysql-protocol.test.js`（16 项，用假 socket 校验真实发出的包）。
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
