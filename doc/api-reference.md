@@ -1,72 +1,76 @@
-# API 参考
+? Language / 语言: **English** | [简体中文](cn/api-reference.md)
+
+# API Reference
 
 ## Database
 
 ```js
 const { Database } = require('jsql-neo');
 
-// 内存模式
+// In-memory
 const mem = new Database(':memory:');
 
-// 磁盘模式（目录存储，stop() 时自动刷盘）
+// On-disk (directory storage; flushed automatically on stop())
 const disk = new Database('./data/app', { mode: 'disk' });
 
-// 混合模式（LRU + 异步刷盘）
+// Hybrid (LRU + asynchronous flush)
 const hybrid = new Database('./data', { mode: 'hybrid', autoSave: true, autoSaveInterval: 3000 });
 
-// 旧版单文件 JSON 模式（需显式 save() / flush() / close() 落盘，stop() 不落盘）
+// Legacy single-file JSON mode (requires an explicit save() / flush() / close(); stop() does not flush)
 const legacy = new Database('./data/db.json');
 
-// 下面各节示例统一使用这个内存库
+// The examples below all use this in-memory database
 const db = new Database(':memory:');
 ```
 
-### 构造函数选项
+### Constructor options
 
 ```ts
 interface DatabaseOptions {
-  mode?: 'memory' | 'hybrid' | 'disk';              // 存储模式，默认 memory
-  autoSave?: boolean;                               // 旧文件模式自动保存，默认 true
-  autoSaveInterval?: number;                        // 旧文件模式自动保存间隔 ms，默认 0（每次写立即存）
-  memReserveMB?: number;                            // 混合模式预留内存 MB，默认 512
-  flushInterval?: number;                           // 混合/磁盘模式刷盘间隔 ms，默认 hybrid 200 / disk 50
-  encryptKey?: string;                              // AES-256-CBC 密钥（16/24/32 字节）
-  versioning?: boolean;                             // 行版本历史，默认 false
-  wal?: boolean;                                    // WAL 模式，默认 false
-  isolationLevel?: 'READ_COMMITTED' | 'REPEATABLE_READ'; // 默认 READ_COMMITTED
-  slowQueryThreshold?: number;                      // 慢查询阈值 ms，默认 100，<0 禁用
-  fileLock?: boolean;                               // 文件锁，默认 false
+  mode?: 'memory' | 'hybrid' | 'disk';              // storage mode, default memory
+  autoSave?: boolean;                               // legacy file mode auto-save, default true
+  autoSaveInterval?: number;                        // legacy file mode auto-save interval ms, default 0 (save on every write)
+  memReserveMB?: number;                            // hybrid mode reserve MB, default 512
+  flushInterval?: number;                           // hybrid/disk flush interval ms, default 200 hybrid / 50 disk
+  encryptKey?: string;                              // AES-256-CBC key (16/24/32 bytes)
+  versioning?: boolean;                             // row version history, default false
+  wal?: boolean;                                    // WAL mode, default false
+  isolationLevel?: 'READ_COMMITTED' | 'REPEATABLE_READ'; // default READ_COMMITTED
+  slowQueryThreshold?: number;                      // slow query threshold ms, default 100, <0 disables
+  fileLock?: boolean;                               // file lock, default false
 }
 ```
 
-### 初始化 / 停止
+### Initialisation / shutdown
 
-构造函数即完成初始化，没有 `init()`；数据操作全部返回 Promise。
+The constructor completes initialisation; there is no `init()`. All data operations return Promises.
 
 ```js
-await db.stop();                    // 停止（目录模式会自动刷盘）
-await db.flush();                   // 手动刷盘（旧文件模式等价于 save()）
-db.save();                          // 旧文件模式立即写盘
-db.backup('./backup.json');         // 备份全部表为 JSON 文件
-db.close();                         // 保存并清理定时器
+await db.stop();                    // stop (directory mode flushes automatically)
+await db.flush();                   // flush manually (equivalent to save() in legacy file mode)
+db.save();                          // legacy file mode: write to disk immediately
+db.backup('./backup.json');         // back up all tables to a JSON file
+db.close();                         // save and clear timers
 ```
 
-恢复数据：`db.restore('./backup.json')` 只把行灌入**已存在**的表，所以要先 `createTable` 建好结构再 restore；内存里的整体导出/导入用 `db.export()` / `db.import(data)`。
+Restoring: `db.restore('./backup.json')` only fills rows into **already existing** tables, so
+call `createTable` first and then restore. For whole-database in-memory export/import use
+`db.export()` / `db.import(data)`.
 
-### 表操作
+### Table operations
 
 ```js
-await db.createTable('posts', { title: { type: 'string' } });   // 建表
-await db.truncate('posts');                                      // 清空表（不是 truncateTable）
-await db.renameTable('posts', 'articles');                       // 改名
-await db.dropTable('articles');                                  // 删表
+await db.createTable('posts', { title: { type: 'string' } });   // create
+await db.truncate('posts');                                      // empty the table (not truncateTable)
+await db.renameTable('posts', 'articles');                       // rename
+await db.dropTable('articles');                                  // drop
 
-await db.getTables();                 // → string[]（不是 listTables）
+await db.getTables();                 // → string[] (not listTables)
 await db.getTableSchema('users');     // → TableSchema
 db.stats();                           // → { tables, views, triggers, totalRows, ... }
 ```
 
-### 数据操作
+### Data operations
 
 ```js
 await db.createTable('users', {
@@ -79,7 +83,7 @@ await db.insertMany('users', [
   { id: 2, name: 'Bob', age: 17 },
 ]);
 
-await db.insert('users', { id: 9, name: 'Dave', age: 25 });   // → 主键数组
+await db.insert('users', { id: 9, name: 'Dave', age: 25 });   // → array of primary keys
 await db.find('users', { age: { $gte: 18 } }, { limit: 10 }); // → Row[]
 await db.findById('users', 1);                                // → Row | null
 await db.count('users', { age: { $gte: 18 } });               // → number
@@ -89,9 +93,9 @@ await db.removeWhere('users', { name: 'Eve' });
 await db.removeById('users', 9);
 ```
 
-Database 上没有 `findOne`，取单行用 `(await db.find(table, filter))[0]` 或 `db.findById`。
+There is no `findOne` on Database; fetch a single row with `(await db.find(table, filter))[0]` or `db.findById`.
 
-### SQL 执行
+### Executing SQL
 
 ```js
 const { Database, executeSQL } = require('jsql-neo');
@@ -100,20 +104,24 @@ const db = new Database(':memory:');
 await executeSQL(db, "CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name TEXT)");
 await executeSQL(db, "INSERT INTO users (name) VALUES ('Alice')");
 
-// 结果信封：{ ok, rows, columns, affectedRows, rowCount, message, durationMs, ... }
+// Result envelope: { ok, rows, columns, affectedRows, rowCount, message, durationMs, ... }
 const { rows, columns } = await executeSQL(db, "SELECT * FROM users WHERE id = ?", [1]);
 
-// Database 实例上的快捷方式（等价于 executeSQL(db, ...)）
+// Shortcut on the Database instance (equivalent to executeSQL(db, ...))
 const r = await db.query("SELECT name FROM users");
 ```
 
-> `executeSQL` 默认拒绝 SQL 注释（`--`、`#`、`/* */`），需要时传 `{ safety: false }` 或 `{ allowComments: true }`。
+> `executeSQL` rejects SQL comments (`--`, `#`, `/* */`) by default; pass `{ safety: false }` or
+> `{ allowComments: true }` when needed.
 >
-> 自 v6.5.16 起，安全模式还默认**单语句**（`maxStatements: 1`），并拒绝无 WHERE 的 `DROP` / `TRUNCATE` / `DELETE` / `UPDATE`（含 `WITH ... DELETE`）。需要写入时显式传 `{ allowWrites: true }`（服务端协议层已默认放行写入），或 `{ safety: false }` 关闭全部安全检查。
+> Since v6.5.16, safe mode also defaults to **single statement** (`maxStatements: 1`) and rejects
+> `DROP` / `TRUNCATE` / `DELETE` / `UPDATE` without a WHERE clause (including `WITH ... DELETE`).
+> To write, pass `{ allowWrites: true }` explicitly (the server protocol layer already allows
+> writes), or `{ safety: false }` to disable all safety checks.
 
-### 链式查询（Query）
+### Chained queries (Query)
 
-`Query` 接受一个 **Table 实例**（`db._tables[name]`），不是表名：
+`Query` takes a **Table instance** (`db._tables[name]`), not a table name:
 
 ```js
 const { Query } = require('jsql-neo');
@@ -125,18 +133,18 @@ const q = new Query(db._tables.users)
   .limit(10)
   .offset(0);
 
-q.get();      // → Row[]（执行）
+q.get();      // → Row[] (executes)
 q.first();    // → Row | null
 q.count();    // → number
 q.exists();   // → boolean
-q.toSQL();    // → SQL 字符串（调试用）
+q.toSQL();    // → SQL string (for debugging)
 ```
 
-导出类名是 `Query`，没有 `QueryBuilder`；`db.query()` 是执行 SQL，不返回查询构造器。
+The exported class is `Query`; there is no `QueryBuilder`. `db.query()` executes SQL and does not return a query builder.
 
-### 聚合
+### Aggregation
 
-用 SQL 的 `GROUP BY` / 聚合函数：
+Use SQL `GROUP BY` / aggregate functions:
 
 ```js
 await db.createTable('employees', { dept: { type: 'string' }, salary: { type: 'integer' } });
@@ -156,9 +164,9 @@ const { rows } = await db.query(`
 `);
 ```
 
-Database 上没有 `aggregate()` 方法。
+There is no `aggregate()` method on Database.
 
-### 事务
+### Transactions
 
 ```js
 await db.begin();
@@ -171,7 +179,7 @@ try {
 }
 ```
 
-方法名是 `begin` / `commit` / `rollback`（没有 `beginTransaction`）。保存点：
+The methods are `begin` / `commit` / `rollback` (there is no `beginTransaction`). Savepoints:
 
 ```js
 await db.begin();
@@ -182,9 +190,9 @@ await db.listSavepoints();   // → string[]
 await db.commit();
 ```
 
-### 索引
+### Indexes
 
-索引通过 SQL 创建（Database 上没有 `createIndex` / `dropIndex` / `listIndexes`）：
+Indexes are created via SQL (Database has no `createIndex` / `dropIndex` / `listIndexes`):
 
 ```js
 await db.createTable('orders', { user_id: { type: 'integer' }, email: { type: 'string' }, created_at: { type: 'string' } });
@@ -197,35 +205,40 @@ await db.query("DROP INDEX idx_email ON orders");
 ## Table
 
 ```js
-const table = db._tables.users;      // Table 实例
+const table = db._tables.users;      // Table instance
 await table.count();                 // → number
 await table.findOne({ name: 'Alice' });
 await table.findById(1);
-await table.describe();              // → 表结构
+await table.describe();              // → table structure
 table.toJSON();                      // → Row[]
-await table.createIndex('email');    // 字段级索引
+await table.createIndex('email');    // field-level index
 await table.dropIndex('email');
 ```
 
-## 插件与 XQL
+## Plugins and XQL
 
 ```js
-await db.use('xql');                     // 启用内置 XQL 插件（v6.5.12+）
-await db.xqlIndex('users', 'id');        // hash / range 索引
+await db.use('xql');                     // enable the built-in XQL plugin (v6.5.12+)
+await db.xqlIndex('users', 'id');        // hash / range index
 await db.xqlRefresh('users');
 const rows = await db.xql('FROM users |> WHERE id == 1 |> LIMIT 10');
 await db.xqlClear();
 ```
 
-其他 API：`xqlLoad()` / `xqlTables()` / `xqlCollection()` / `xqlIndex()` / `xqlRefresh()` / `xqlClear()`。写入会自动使索引失效，下次查询时重建。插件也可通过 `jsql plugin install <name>` 从注册表安装。
+Other APIs: `xqlLoad()` / `xqlTables()` / `xqlCollection()` / `xqlIndex()` / `xqlRefresh()` /
+`xqlClear()`. Writes invalidate the index automatically and it is rebuilt on the next query.
+Plugins can also be installed from the registry with `jsql plugin install <name>`.
 
-## 兼容层（jsql 1.0.0）
+## Compatibility layer (jsql 1.0.0)
 
 ```js
 const { compatV1 } = require('jsql-neo/compat/v1');
-const db = compatV1('./data/app');   // 包装 Database
+const db = compatV1('./data/app');   // wraps Database
 ```
 
-`V1Database` 把 `createTable` / `dropTable` 变为同步、镜像 `db.<table>` 访问器；`import` 可从行推断 schema 并恢复自增主键，`export` 返回深拷贝。v6 的 `Table` / `Query` 本就同步且签名与 1.0.0 一致，因此兼容层只补齐建表/删表与表访问器。
+`V1Database` makes `createTable` / `dropTable` synchronous and mirrors `db.<table>` accessors;
+`import` can infer a schema from rows and restore auto-increment keys, while `export` returns a
+deep copy. The v6 `Table` / `Query` are already synchronous with signatures matching 1.0.0, so
+the compat layer only adds table creation/drop and table accessors.
 
-详见完整 [README.md](../README.md) 中的完整 API 文档。
+See the full API documentation in [README.md](../README.md).

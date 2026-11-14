@@ -1,3 +1,5 @@
+? Language / 语言: **English** | [简体中文](README-CN.md)
+
 # JSQL-NEO
 
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
@@ -245,7 +247,7 @@ external access and is unaffected.
 
 ## 📖 Documentation
 
-Detailed docs live in `doc/` — click to read.
+Detailed docs live in `doc/` — click to read. Chinese translations live in `doc/cn/`.
 
 | Document | Description |
 |---|---|
@@ -261,6 +263,8 @@ Detailed docs live in `doc/` — click to read.
 | [doc/sql-reference.md](doc/sql-reference.md) | SQL: statements, data types, functions, operators, indexes |
 | [doc/cli.md](doc/cli.md) | CLI: `jsql tui`, `jsql serve`, `jsql ui` |
 | [doc/changelog.md](doc/changelog.md) | Release notes |
+| [doc/cn/index.md](doc/cn/index.md) | 中文文档 — overview |
+| [README-CN.md](README-CN.md) | 中文版 README |
 
 ---
 

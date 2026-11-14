@@ -1,47 +1,47 @@
+🌐 Language / 语言: **English** | [简体中文](cn/why.md)
+
 # Why JSQL-NEO
 
-## 项目简介
+## What it is
 
-JSQL-NEO 是一个嵌入式数据库，使用 Rust 编写的核心引擎，支持 **MySQL、PostgreSQL、MongoDB、Redis** 四种协议，一个 npm 包、核心引擎零运行时依赖（整套包仅 CLI 参数解析用到 `@vexify-org/yaggs`），同时支持原生（Native）和浏览器（WASM）运行。
+JSQL-NEO is an embedded database whose core engine is written in Rust. It speaks **MySQL, PostgreSQL, MongoDB and Redis** — one npm package, zero runtime dependencies in the core engine (only CLI argument parsing uses `@vexify-org/yaggs`), and it runs both natively and in the browser (WASM).
 
-## 为什么选择 JSQL-NEO？
+## Why JSQL-NEO?
 
-大多数嵌入式数据库迫使你在以下三点中做选择：
+Most embedded databases force you to pick two out of three:
 
-- **原生速度**（Native 性能）
-- **可移植性**（WASM 浏览器运行）
-- **熟悉协议**（兼容现有工具生态）
+- **Native speed**
+- **Portability** (WASM in the browser)
+- **Familiar protocols** (compatibility with the existing tool ecosystem)
 
-JSQL-NEO 让三者兼得：
+JSQL-NEO gives you all three:
 
-| 对比维度 | JSQL-NEO | better-sqlite3 | sql.js (WASM) | LevelDB | local redis/mongo |
+| Dimension | JSQL-NEO | better-sqlite3 | sql.js (WASM) | LevelDB | local redis/mongo |
 |---|---|---|---|---|---|
-| 原生速度（Rust N-API） | ✅ | ✅ | ❌ | ✅ | ✅ |
-| 浏览器运行（WASM） | ✅ | ❌ | ✅ | ❌ | ❌ |
-| 零运行时依赖 | ✅（核心） | ✅ | ✅ | ✅ | ❌ |
-| MySQL 协议 | ✅ | ❌ | ❌ | ❌ | ❌ |
-| PostgreSQL 协议 | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Native speed (Rust N-API) | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Runs in browser (WASM) | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Zero runtime dependencies | ✅ (core) | ✅ | ✅ | ✅ | ❌ |
+| MySQL protocol | ✅ | ❌ | ❌ | ❌ | ❌ |
+| PostgreSQL protocol | ✅ | ❌ | ❌ | ❌ | ❌ |
 | MongoDB Wire Protocol | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Redis RESP2 | ✅ | ❌ | ❌ | ❌ | ❌ |
-| 一个端口，全协议 | ✅ | ❌ | ❌ | ❌ | ❌ |
-| 交互式 TUI | ✅ | ❌ | ❌ | ❌ | ❌ |
+| One port, all protocols | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Interactive TUI | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-核心亮点：
+Key highlights:
 
-- **一套引擎，三种形态** — `native`（Rust N-API）、`wasm`（同一 Rust 核心编译为 WebAssembly）、`js`（纯 JS 实现）。三者功能等价，**但没有自动降级**：用哪种要在构造时显式指定 `new Database(path, { engine: 'native' | 'wasm' | 'js' })`。
-  直接 `require('./lib/native_client')` 而机器上没有预编译的 `.node` 时会**抛错**，不会悄悄退回纯 JS —— 这是刻意选择：静默降级会让「为什么突然慢了十倍」变得无法排查。需要无 native 环境时，请显式用 `lib/database` 的 `engine: 'js'`。
-- **Wire Protocol 栈，不是模拟器** — 手写的 MySQL 4.1+、PostgreSQL Wire Protocol v3（SCRAM-SHA-256）、MongoDB OP_MSG/OP_QUERY、Redis RESP2。
-  自 v6.5.1 起，`jsql serve` 单端口即可按首包嗅探同时服务四种客户端，MongoDB 官方 driver 的握手与 `insertMany` 已打通；MySQL 路径验证最久，PG / Redis / Mongo 也已有端到端测试（`test/multiprotocol.test.js`），但相较 MySQL 仍属较新路径。
-- **一个端口，四种协议** — `jsql serve --port 3306` 默认启动 `lib/multiserver.js` 嗅探网关，MySQL / PostgreSQL / MongoDB / Redis 客户端共用同一端口、读写同一个 `Database`（Redis 为独立 key 命名空间）；`--mysql-only` 可退回只服务 MySQL。也可在代码里用 `createMultiServer(...)` 装配。
-- **完整 SQL** — DDL/DML、JOIN、子查询、带保存点的事务、视图、索引、约束、89 个标量函数、窗口函数和 CTE 基础支持。
-- **文档语义** — MongoDB 风格操作符（`$gt`、`$regex`、`$elemMatch` 等）、聚合管道（`$match`、`$group`、`$sort` 等）。
-- **KV 语义** — 五种 Redis 数据类型、TTL、快照持久化。
-- **零依赖 TUI** — 完整行编辑、持久历史、补全、CJK 友好的表格。
-- **迁移工具** — 导入 `mysqldump` 输出，导出/导入 JSON 和 CSV。
+- **One engine, three shapes** — `native` (Rust N-API), `wasm` (the same Rust core compiled to WebAssembly), and `js` (pure JS). The three are feature-equivalent, **but there is no automatic fallback**: the engine must be chosen explicitly at construction time via `new Database(path, { engine: 'native' | 'wasm' | 'js' })`. Requiring `./lib/native_client` directly on a machine without a prebuilt `.node` binary **throws** — it does not silently degrade to pure JS. This is a deliberate choice: silent degradation makes "why did it suddenly get 10× slower" impossible to diagnose. In environments without the native module, explicitly use `lib/database` with `engine: 'js'`.
+- **A wire-protocol stack, not an emulator** — hand-written MySQL 4.1+, PostgreSQL wire protocol v3 (SCRAM-SHA-256), MongoDB OP_MSG/OP_QUERY, and Redis RESP2. Since v6.5.1, `jsql serve` serves all four client types on a single port via first-packet sniffing; the MongoDB official driver's handshake and `insertMany` already work end to end. The MySQL path has been battle-tested the longest; PG / Redis / Mongo are newer paths but covered by end-to-end tests (`test/multiprotocol.test.js`).
+- **One port, four protocols** — `jsql serve --port 3306` starts the `lib/multiserver.js` sniffing gateway by default: MySQL / PostgreSQL / MongoDB / Redis clients share one port and read/write the same `Database` (Redis keeps its own key namespace); `--mysql-only` falls back to serving MySQL alone. You can also assemble it in code with `createMultiServer(...)`.
+- **Full SQL** — DDL/DML, JOINs, subqueries, transactions with savepoints, views, indexes, constraints, 89 scalar functions, window functions, and basic CTE support.
+- **Document semantics** — MongoDB-style operators (`$gt`, `$regex`, `$elemMatch`, …) and aggregation pipelines (`$match`, `$group`, `$sort`, …).
+- **KV semantics** — five Redis data types, TTL, snapshot persistence.
+- **Zero-dependency TUI** — full line editing, persistent history, completion, CJK-friendly tables.
+- **Migration tooling** — import `mysqldump` output; export/import JSON and CSV.
 
-## Feature Overview
+## Feature overview
 
-### 多协议服务器（核心功能）
+### Multi-protocol server (core feature)
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
@@ -67,23 +67,23 @@ JSQL-NEO 让三者兼得：
 └───────────────────────────────────────────────────────────────┘
 ```
 
-用 `psql` 写入，用 `mysql2` 读取，用 `mongosh` 查询，用 `redis-cli` 缓存 — **同一端口，同一份数据**。
+Write with `psql`, read with `mysql2`, query with `mongosh`, cache with `redis-cli` — **one port, one dataset**.
 
-### 四种语义，一套引擎
+### Four semantics, one engine
 
-| 语义 | 特性 |
+| Semantics | Features |
 |---|---|
-| MySQL 语义 | `AUTO_INCREMENT`、`ON DUPLICATE KEY UPDATE`、`information_schema`、`SHOW` |
-| PostgreSQL 语义 | `SERIAL`、`ILIKE`、`ON CONFLICT`、JSONB、`RETURNING`、预处理语句 |
-| MongoDB 语义 | 操作符、`updateOne`/`deleteMany`、聚合管道 |
-| Redis 语义 | 5 种数据类型、TTL、快照持久化 |
+| MySQL | `AUTO_INCREMENT`, `ON DUPLICATE KEY UPDATE`, `information_schema`, `SHOW` |
+| PostgreSQL | `SERIAL`, `ILIKE`, `ON CONFLICT`, JSONB, `RETURNING`, prepared statements |
+| MongoDB | operators, `updateOne`/`deleteMany`, aggregation pipeline |
+| Redis | 5 data types, TTL, snapshot persistence |
 
-### 运行形态
+### Runtime shapes
 
-| 形态 | 入口 | 适用场景 |
+| Shape | Entry point | When to use |
 |---|---|---|
-| 嵌入式（内存） | `new Database(':memory:')` | 测试、缓存 |
-| 嵌入式（磁盘） | `new Database('./data/db')` | 单进程应用 |
-| 服务器（4 协议） | `createMultiServer(...)` / `jsql serve` | 多客户端、微服务 |
-| 浏览器（WASM） | `JSQL`（lib/wasm_client） | 浏览器内查询 |
-| 交互终端 | `jsql tui` | 手动管理、调试 |
+| Embedded (memory) | `new Database(':memory:')` | Testing, caching |
+| Embedded (disk) | `new Database('./data/db')` | Single-process apps |
+| Server (4 protocols) | `createMultiServer(...)` / `jsql serve` | Multiple clients, microservices |
+| Browser (WASM) | `JSQL` (lib/wasm_client) | In-browser queries |
+| Interactive terminal | `jsql tui` | Manual management, debugging |

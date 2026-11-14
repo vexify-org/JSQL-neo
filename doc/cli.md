@@ -1,35 +1,38 @@
-# CLI 命令
+? Language / 语言: **English** | [简体中文](cn/cli.md)
 
-## 快速开始
+# CLI Commands
+
+## Quick start
 
 ```bash
 npm install -g jsql-neo
-# 或直接 npx jsql-neo <command>
+# or use npx directly
+npx jsql-neo <command>
 ```
 
-## serve — 单端口多协议服务器
+## serve — single-port multi-protocol server
 
 ```bash
-# 启动多协议服务器（前台运行）：同一端口接受 MySQL / PostgreSQL / MongoDB / Redis
+# Start the multi-protocol server (foreground): one port accepts MySQL / PostgreSQL / MongoDB / Redis
 jsql serve --port 3306 --data-dir ./data
 
-# 全部选项
+# All options
 jsql serve --port 3306 --host 127.0.0.1 --data-dir ./data --no-auth --log
 
-# 只提供 MySQL 协议（旧行为）
+# Serve the MySQL protocol only (legacy behaviour)
 jsql serve --port 3306 --mysql-only
 ```
 
-| 选项 | 说明 |
+| Option | Description |
 | --- | --- |
-| `--port`, `-p` | 监听端口（默认 3306） |
-| `--host` | 监听地址（默认 127.0.0.1） |
-| `--data-dir` | 数据库存储目录 |
-| `--no-auth` | 允许无认证连接 |
-| `--log` | 把执行的查询打到 stdout |
-| `--mysql-only` | 只启动 MySQL Wire Protocol，不做协议嗅探 |
+| `--port`, `-p` | Listening port (default 3306) |
+| `--host` | Bind address (default 127.0.0.1) |
+| `--data-dir` | Data directory |
+| `--no-auth` | Allow unauthenticated connections |
+| `--log` | Print executed queries to stdout |
+| `--mysql-only` | Start the MySQL wire protocol only, no sniffing |
 
-连接方式：
+Connecting:
 
 ```bash
 mysql -h 127.0.0.1 -P 3306 -u root
@@ -38,18 +41,19 @@ mongosh "mongodb://127.0.0.1:3306/app?directConnection=true"
 redis-cli -h 127.0.0.1 -p 3306 PING
 ```
 
-协议按连接首包嗅探：`0x00` → PostgreSQL，`0x0a/0x0d` → MySQL，
-OP_MSG/OP_QUERY → MongoDB，其余按 Redis 处理。MySQL 客户端等服务器先发
-握手包，因此 200ms 内没有字节的连接默认按 MySQL 处理（可用
-`idleProtocol` 改成 `redis` / `pg` / `mongo`）。
+Protocols are sniffed from the first packet of each connection: `0x00` → PostgreSQL,
+`0x0a/0x0d` → MySQL, OP_MSG/OP_QUERY → MongoDB, anything else is treated as Redis.
+MySQL clients wait for the server greeting to arrive first, so a connection that
+sends nothing within 200ms is treated as MySQL by default (change this with
+`idleProtocol` set to `redis` / `pg` / `mongo`).
 
-> 此前文档里的 `--mysql` / `--pg` / `--redis` / `--mongo` 四个旗标从未实现，
-> 现在统一由协议嗅探处理；`--password` / `--auto-save` / `--save-interval`
-> 同样不存在。
+> The `--mysql` / `--pg` / `--redis` / `--mongo` flags that used to appear in the docs
+> were never implemented; protocol sniffing handles all of them now. `--password` /
+> `--auto-save` / `--save-interval` likewise do not exist.
 
-### 多协议：Node API
+### Multi-protocol: Node API
 
-在代码里直接装配同一个监听端口：
+Assemble the same listener in code:
 
 ```js
 const { createMultiServer } = require('jsql-neo');
@@ -63,64 +67,64 @@ const srv = createMultiServer({
 srv.listen(() => console.log('listening on', srv.address.port));
 ```
 
-也可以按需单独启动某一个协议栈（`createPgServer` / `createMongoServer` /
-`createRedisServer`），各自监听独立端口。
+You can also start a single protocol stack on its own port
+(`createPgServer` / `createMongoServer` / `createRedisServer`).
 
 ## ui — Web UI
 
 ```bash
-# 启动 Web 管理界面
+# Start the web management UI
 jsql ui --port 8080
 jsql ui --port 8080 --data-dir ./data
 ```
 
-打开浏览器访问 http://localhost:8080
+Open http://localhost:8080 in your browser.
 
-## tui — 交互式终端
+## tui — interactive terminal
 
 ```bash
-# 交互式 SQL 终端
+# Interactive SQL terminal
 jsql tui
 jsql tui --data-dir ./data
 ```
 
-功能：行编辑、历史记录、Tab 补全、CJK 字符对齐、元命令（`.tables`、`.schema` 等）
+Features: line editing, history, Tab completion, CJK character alignment, meta commands (`.tables`, `.schema`, …).
 
-## redis — Redis 协议服务器
+## redis — Redis protocol server
 
 ```bash
 jsql redis --port 6379 --data-dir ./data
 ```
 
-## bench — 性能测试
+## bench — benchmarks
 
 ```bash
-# 内置基准测试
+# Built-in benchmark
 jsql bench
 jsql bench --rows 10000 --iterations 100
 ```
 
-## export / import — 数据迁移
+## export / import — data migration
 
 ```bash
-# 导出单表（JSON 或 CSV；流式写入，不整表读入内存）
+# Export a single table (JSON or CSV; streamed, not loaded fully into memory)
 jsql export users backup.json
 jsql export orders orders.csv --db ./data/app.json
 
-# 导入（自动识别 .sql / .json / .csv）
+# Import (auto-detects .sql / .json / .csv)
 jsql import dump.sql --db ./data/app.json
 jsql import data.json --db ./data/app.json
 jsql import data.csv --table users --db ./data/app.json
 ```
 
-| 选项 | 说明 |
-|---|---|
-| `--db` | 目标数据库文件（默认 `./db.json`） |
-| `--table` | CSV 导入的目标表（必需） |
-| `--strict` | 导入遇错即中止 |
-| `--json` | 输出机器可读结果 |
+| Option | Description |
+| --- | --- |
+| `--db` | Target database file (default `./db.json`) |
+| `--table` | Target table for CSV import (required) |
+| `--strict` | Abort on the first import error |
+| `--json` | Emit machine-readable output |
 
-## plugin — 插件注册表
+## plugin — plugin registry
 
 ```bash
 jsql plugin list
@@ -130,26 +134,28 @@ jsql plugin uninstall <name>
 jsql plugin info <name>
 ```
 
-安装的插件（如 `xql`）会在 `new Database()` 时自动加载，也可在代码里 `db.use('xql')`。
+Installed plugins (such as `xql`) load automatically on `new Database()`; you can also call `db.use('xql')` in code.
 
-## version — 版本信息
+## version — version info
 
 ```bash
 jsql version
-# jsql-neo v6.6.1
+# jsql-neo v6.6.2
 # engine: native
 # node: v22.10.0
 ```
 
-## 通用选项
+## Common options
 
-| 选项 | 说明 |
-|---|---|
-| `--port, -p` | 端口号（`serve` / `ui` / `redis` / `tui` 可用） |
-| `--host` | 监听地址（默认 127.0.0.1） |
-| `--data-dir, -d` | 数据目录 |
-| `--no-auth` | 允许无认证连接（仅本地开发） |
-| `--log` | 把执行的查询 / 命令打到 stdout |
-| `--json` | 以 JSON 输出（export / import / bench / plugin 等） |
+| Option | Description |
+| --- | --- |
+| `--port, -p` | Port number (available for `serve` / `ui` / `redis` / `tui`) |
+| `--host` | Bind address (default 127.0.0.1) |
+| `--data-dir, -d` | Data directory |
+| `--no-auth` | Allow unauthenticated connections (local development only) |
+| `--log` | Print executed queries / commands to stdout |
+| `--json` | JSON output (export / import / bench / plugin, etc.) |
 
-> 不存在 `--password` / `--auto-save` / `--save-interval` / `--verbose` 这些旧文档中的旗标；认证请用 `--auth`（`redis` / `server`）或 `--auth-token`（`ui`）。
+> The `--password` / `--auto-save` / `--save-interval` / `--verbose` flags from older
+> docs do not exist. For authentication use `--auth` (`redis` / `server`) or
+> `--auth-token` (`ui`).

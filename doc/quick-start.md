@@ -1,15 +1,17 @@
-# 快速开始
+🌐 Language / 语言: **English** | [简体中文](cn/quick-start.md)
 
-> 适用于 **v6.6.1**。
+# Quick Start
 
-## 安装
+> Applies to **v6.6.2**.
+
+## Installation
 
 ```bash
 npm install jsql-neo
-npx jsql-neo --version   # jsql-neo v6.6.1
+npx jsql-neo --version   # jsql-neo v6.6.2
 ```
 
-## 三行代码
+## Three lines of code
 
 ```js
 const { Database, executeSQL } = require('jsql-neo');
@@ -24,15 +26,15 @@ const { Database, executeSQL } = require('jsql-neo');
 })();
 ```
 
-> CJS 里没有顶层 `await`，所以包一层 `async` IIFE；ESM 里可直接写 `await`。
+> CommonJS has no top-level `await`, hence the async IIFE wrapper; in ESM you can use `await` directly.
 
-## 内存模式 vs 磁盘模式
+## In-memory vs on-disk
 
-| 模式 | 用法 | 适用场景 |
+| Mode | Usage | When to use |
 |---|---|---|
-| 内存 | `new Database(':memory:')` | 测试、缓存 |
-| 磁盘 | `new Database('./data/app', { mode: 'disk' })` | 生产持久化 |
-| 混合 | `new Database('./data', { mode: 'hybrid', autoSave: true, autoSaveInterval: 3000 })` | 平衡性能与持久化 |
+| Memory | `new Database(':memory:')` | Testing, caching |
+| Disk | `new Database('./data/app', { mode: 'disk' })` | Production persistence |
+| Hybrid | `new Database('./data', { mode: 'hybrid', autoSave: true, autoSaveInterval: 3000 })` | Balance of speed and durability |
 
 ## Web UI
 
@@ -40,21 +42,21 @@ const { Database, executeSQL } = require('jsql-neo');
 npx jsql-neo ui --port 8080
 ```
 
-然后打开 http://localhost:8080
+Then open http://localhost:8080
 
-## 多协议服务器
+## Multi-protocol server
 
-一个端口，同时服务 MySQL / PostgreSQL / MongoDB / Redis 客户端：
+One port, serving MySQL / PostgreSQL / MongoDB / Redis clients at the same time:
 
 ```bash
 npx jsql-neo serve --port 3306
-# MySQL 客户端: mysql -h 127.0.0.1 -P 3306
-# PostgreSQL 客户端: psql -h 127.0.0.1 -p 3306
-# MongoDB 客户端: mongosh mongodb://127.0.0.1:3306
-# Redis 客户端: redis-cli -p 3306
+# MySQL clients: mysql -h 127.0.0.1 -P 3306
+# PostgreSQL clients: psql -h 127.0.0.1 -p 3306
+# MongoDB clients: mongosh mongodb://127.0.0.1:3306
+# Redis clients: redis-cli -p 3306
 ```
 
-## 浏览器 / WASM 模式
+## Browser / WASM
 
 ```js
 import { JSQL } from 'jsql-neo/wasm/browser.mjs';
@@ -72,12 +74,10 @@ console.log(await db.find('users', {})); // [{ id: 1, name: 'Alice', … }]
 db.stop();
 ```
 
-> 浏览器里 `start()` 会自动加载同目录的 `browser_bg.wasm`；WASM 引擎提供
-> `createTable` / `insert` / `find` / `findById` / `count` / `updateById` 等方法
-> （没有 `executeSQL`）。
+> In the browser, `start()` automatically loads `browser_bg.wasm` from the same directory; the WASM engine exposes `createTable` / `insert` / `find` / `findById` / `count` / `updateById` and more (there is no `executeSQL`).
 
-## 进阶
+## Going further
 
-- 详细用法见 [API 参考](api-reference.md)
-- CLI 命令见 [CLI 命令](cli.md)
-- SQL 语法见 [SQL 参考](sql-reference.md)
+- Detailed usage: [API Reference](api-reference.md)
+- CLI commands: [CLI Commands](cli.md)
+- SQL syntax: [SQL Reference](sql-reference.md)

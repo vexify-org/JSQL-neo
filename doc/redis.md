@@ -1,22 +1,24 @@
-# Redis 协议支持
+? Language / 语言: **English** | [简体中文](cn/redis.md)
 
-JSQL-NEO 内置完整的 Redis RESP2 协议兼容层，支持主流 Redis 客户端直连，数据与其他协议（MySQL / PostgreSQL / MongoDB）共享同一个引擎实例。
+# Redis protocol support
+
+JSQL-NEO ships a complete Redis RESP2 compatibility layer. Mainstream Redis clients connect directly, and Redis data shares the same engine instance as the other protocols (MySQL / PostgreSQL / MongoDB).
 
 ---
 
-## 支持的客户端
+## Supported clients
 
-| 客户端 | 类型 | 状态 |
+| Client | Type | Status |
 |---|---|---|
-| `ioredis` | Node.js driver | ✅ 完整支持 |
-| `node-redis` (v4) | Node.js driver | ✅ 完整支持 |
-| `redis-cli` | CLI | ✅ 完整支持 |
-| `redis-benchmark` | 压测工具 | ✅ 完整支持 |
-| RedisInsight / Another Redis Desktop Manager | GUI 工具 | ✅ 完整支持 |
+| `ioredis` | Node.js driver | ✅ full support |
+| `node-redis` (v4) | Node.js driver | ✅ full support |
+| `redis-cli` | CLI | ✅ full support |
+| `redis-benchmark` | load testing tool | ✅ full support |
+| RedisInsight / Another Redis Desktop Manager | GUI tools | ✅ full support |
 
-> JSQL-NEO 的 Redis 兼容基于 RESP2，所有标准 Redis 客户端均可直连，无需任何修改。
+> JSQL-NEO's Redis compatibility is built on RESP2, so any standard Redis client connects unchanged.
 
-**快速示例：**
+**Quick example:**
 
 ```js
 const Redis = require('ioredis');
@@ -34,25 +36,25 @@ await redis.quit();
 
 ---
 
-## 支持的数据类型
+## Supported data types
 
-| 类型 | 内部实现 | 支持的命令 |
+| Type | Internal representation | Supported commands |
 |---|---|---|
-| **String** | 内部字符串 | `SET GET MSET MGET SETNX INCR DECR INCRBY DECRBY APPEND STRLEN` |
-| **Hash** | 字段值映射 | `HSET HGET HGETALL HKEYS HVALS HLEN HEXISTS HDEL` |
-| **List** | 有序数组 | `LPUSH RPUSH LPOP RPOP LRANGE LLEN LREM LINDEX` |
-| **Set** | 无序去重集合 | `SADD SREM SMEMBERS SISMEMBER SCARD` |
-| **Sorted Set** | 分值排序 | `ZADD ZRANGE ZREVRANGE ZSCORE ZCARD ZREM ZINCRBY` |
+| **String** | plain string | `SET GET MSET MGET SETNX INCR DECR INCRBY DECRBY APPEND STRLEN` |
+| **Hash** | field-value map | `HSET HGET HGETALL HKEYS HVALS HLEN HEXISTS HDEL` |
+| **List** | ordered array | `LPUSH RPUSH LPOP RPOP LRANGE LLEN LREM LINDEX` |
+| **Set** | unordered unique set | `SADD SREM SMEMBERS SISMEMBER SCARD` |
+| **Sorted Set** | score-ordered set | `ZADD ZRANGE ZREVRANGE ZSCORE ZCARD ZREM ZINCRBY` |
 
-所有数据类型共享同一个键命名空间 — 先执行 `SET a 1` 再执行 `LPUSH a x` 会返回 `WRONGTYPE` 错误（与标准 Redis 行为一致）。
+All data types share one key namespace — running `SET a 1` and then `LPUSH a x` returns a `WRONGTYPE` error, matching standard Redis behaviour.
 
 ---
 
-## 命令参考
+## Command reference
 
-### 通用命令
+### General commands
 
-`PING [msg]`、`SELECT idx`、`AUTH user pass`、`ECHO msg`、`QUIT`、`INFO [section]`、`KEYS pattern`、`DBSIZE`、`FLUSHDB`/`FLUSHALL`、`TYPE key`、`EXPIRE key sec`、`TTL key`、`PERSIST key`。
+`PING [msg]`, `SELECT idx`, `AUTH user pass`, `ECHO msg`, `QUIT`, `INFO [section]`, `KEYS pattern`, `DBSIZE`, `FLUSHDB`/`FLUSHALL`, `TYPE key`, `EXPIRE key sec`, `TTL key`, `PERSIST key`.
 
 ### String
 
@@ -73,7 +75,7 @@ STRLEN key
 ```bash
 HSET key field value [field value ...]
 HGET key field
-HGETALL key          # 返回扁平数组 [field, value, ...]
+HGETALL key          # returns a flat array [field, value, ...]
 HKEYS key
 HVALS key
 HLEN key
@@ -88,7 +90,7 @@ LPUSH key value [value ...]
 RPUSH key value [value ...]
 LPOP key
 RPOP key
-LRANGE key start stop      # 支持负索引，如 LRANGE key 0 -1
+LRANGE key start stop      # negative indexes supported, e.g. LRANGE key 0 -1
 LLEN key
 LINDEX key index
 LREM key count value
@@ -108,15 +110,15 @@ SCARD key
 
 ```bash
 ZADD key score member [score member ...]
-ZRANGE key start stop [WITHSCORES]     # 升序
-ZREVRANGE key start stop [WITHSCORES]  # 降序
+ZRANGE key start stop [WITHSCORES]     # ascending
+ZREVRANGE key start stop [WITHSCORES]  # descending
 ZSCORE key member
 ZCARD key
 ZREM key member [member ...]
 ZINCRBY key increment member
 ```
 
-**示例 — 排行榜：**
+**Example — a leaderboard:**
 
 ```bash
 redis-cli -p 5432 ZADD leaderboard 100 alice 90 bob 110 carol
@@ -126,29 +128,29 @@ redis-cli -p 5432 ZREVRANGE leaderboard 0 2 WITHSCORES
 
 ---
 
-## TTL 与持久化
+## TTL and persistence
 
-- `SET ... EX/PX` 和 `EXPIRE` 命令均支持；过期键采用惰性删除（访问时清理）
-- `TTL key` 返回剩余秒数；`-1` = 无过期时间，`-2` = 键不存在
-- Redis 命名空间随引擎快照一起持久化（`stop()` 时保存，重启后完整恢复）
-- 多参数命令（`MSET`、`ZADD` 等）原子提交
+- `SET ... EX/PX` and `EXPIRE` are both supported; expired keys are removed lazily (on access)
+- `TTL key` returns the remaining seconds; `-1` = no expiry, `-2` = key does not exist
+- The Redis namespace is persisted with the engine snapshot (saved on `stop()`, fully restored on restart)
+- Multi-argument commands (`MSET`, `ZADD`, …) commit atomically
 
 ---
 
 ## FAQ
 
-**Q: `redis-cli` 报 `NOAUTH` 错误？**
+**Q: `redis-cli` reports `NOAUTH`?**
 
-A：服务器默认需要认证。开发环境使用 `--no-auth` 启动，生产环境请配置强密码。
+A: The server requires authentication by default. Use `--no-auth` in development and configure strong passwords in production.
 
-**Q: 支持 Redis Cluster 或 Sentinel 吗？**
+**Q: Are Redis Cluster or Sentinel supported?**
 
-A：不支持。JSQL-NEO 是单实例数据库，所有标准命令均完全兼容。如需分布式，请自行在上层实现分片。
+A: No. JSQL-NEO is a single-instance database; all standard commands are fully compatible. For distribution, shard at the application layer.
 
-**Q: 支持 pub/sub（`SUBSCRIBE`）吗？**
+**Q: Is pub/sub (`SUBSCRIBE`) supported?**
 
-A：不支持，`SUBSCRIBE` 会返回明确错误提示。普通读写命令均正常工作。
+A: No — `SUBSCRIBE` returns an explicit error. Regular read/write commands all work.
 
-**Q: Redis 数据与 MySQL/PostgreSQL/MongoDB 数据是隔离的吗？**
+**Q: Is Redis data isolated from MySQL/PostgreSQL/MongoDB data?**
 
-A：Redis 键（如 `app:users:count`）与 SQL 表（`CREATE TABLE users`）使用独立的命名空间，不会互相覆盖，但都存储在同一个数据文件中。
+A: Redis keys (e.g. `app:users:count`) and SQL tables (`CREATE TABLE users`) use separate namespaces and never overwrite each other, but both live in the same data file.

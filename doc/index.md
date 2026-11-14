@@ -1,33 +1,35 @@
-# JSQL-NEO 文档
+🌐 Language / 语言: **English** | [简体中文](cn/index.md)
 
-> 完整的离线文档站点 · 当前版本 **v6.6.1**
+# JSQL-NEO Documentation
 
-## 📚 文档导航
+> Complete offline documentation site · Current version **v6.6.2**
 
-- [快速开始](quick-start.md) — 3 分钟上手
-- [API 参考](api-reference.md) — Database / Table / Query 类
-- [SQL 参考](sql-reference.md) — DDL / DML / 函数 / 索引
-- [CLI 命令](cli.md) — jsql serve / tui / bench / export
-- [变更日志](changelog.md) — 版本历史
+## 📚 Documentation
 
-## 🌐 在线资源
+- [Quick Start](quick-start.md) — up and running in 3 minutes
+- [API Reference](api-reference.md) — Database / Table / Query classes
+- [SQL Reference](sql-reference.md) — DDL / DML / functions / indexes
+- [CLI Commands](cli.md) — jsql serve / tui / bench / export
+- [Changelog](changelog.md) — release history
 
-- [官网 jsql.vexify.top](https://jsql.vexify.top)
+## 🌐 Online resources
 
-- [README 完整版](../README.md)
-- [GitHub 仓库](https://github.com/vexify-org/JSQL-neo)
-- [npm 包](https://www.npmjs.com/package/jsql-neo)
-- [PLUGINS.md](../PLUGINS.md) — 插件系统
+- [Official site: jsql.vexify.top](https://jsql.vexify.top)
 
-## ⚡ 核心特性速览
+- [Full README](../README.md)
+- [GitHub repository](https://github.com/vexify-org/JSQL-neo)
+- [npm package](https://www.npmjs.com/package/jsql-neo)
+- [PLUGINS.md](../PLUGINS.md) — plugin system
 
-| 特性 | 说明 |
+## ⚡ Feature highlights
+
+| Feature | Description |
 |---|---|
-| 多协议 | MySQL / PostgreSQL / MongoDB / Redis 一端口同时服务（`jsql serve`） |
-| 轻依赖 | 核心引擎零运行时依赖；仅 CLI 参数解析用 `@vexify-org/yaggs` |
-| 三引擎 | Native (N-API) / WASM / Pure JS |
-| 存储模式 | 内存模式 / 混合模式 / 磁盘模式 |
-| 内置 UI | 零依赖 Web 管理界面 + HTTP API |
-| TUI | 交互式终端，Tab 补全、CJK 对齐 |
-| XQL 插件 | 内置 `xql`，hash / range 索引 + 管道式查询 |
-| 兼容层 | `jsql-neo/compat/v1` 提供 jsql 1.0.0 怀旧 API |
+| Multi-protocol | MySQL / PostgreSQL / MongoDB / Redis served simultaneously on one port (`jsql serve`) |
+| Light dependencies | Zero runtime dependencies in the core engine; only CLI argument parsing uses `@vexify-org/yaggs` |
+| Three engines | Native (N-API) / WASM / Pure JS |
+| Storage modes | In-memory / hybrid / on-disk |
+| Built-in UI | Zero-dependency web management UI + HTTP API |
+| TUI | Interactive terminal with Tab completion and CJK-friendly tables |
+| XQL plugin | Built-in `xql`: hash / range indexes + piped queries |
+| Compat layer | `jsql-neo/compat/v1` provides the nostalgic jsql 1.0.0 API |

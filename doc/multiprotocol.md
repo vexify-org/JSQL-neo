@@ -1,79 +1,80 @@
-# 多协议服务器
+? Language / 语言: **English** | [简体中文](cn/multiprotocol.md)
 
-> 一个 TCP 端口，同时服务 MySQL / PostgreSQL / MongoDB / Redis 客户端，操作同一份数据。
+# Multi-protocol server
 
-## 快速开始
+> One TCP port serving MySQL / PostgreSQL / MongoDB / Redis clients against the same data.
+
+## Quick start
 
 ```js
 const { createMultiServer } = require('jsql-neo');
 
 const srv = createMultiServer({
-  port: 3306,        // 监听端口
-  host: '0.0.0.0',   // 对外监听地址
-  dataDir: './data', // 数据目录（省略则为纯内存）
-  noAuth: true,      // 免认证（默认 false）
-  auth: { root: { password: 'secret', databases: ['*'] } }, // 用户表（可选）
-  idleProtocol: 'mysql', // 200ms 内无字节时按哪个协议处理
+  port: 3306,        // listening port
+  host: '0.0.0.0',   // bind address
+  dataDir: './data', // data directory (omit for pure in-memory)
+  noAuth: true,      // disable auth (default false)
+  auth: { root: { password: 'secret', databases: ['*'] } }, // user table (optional)
+  idleProtocol: 'mysql', // protocol assumed when no bytes arrive within 200ms
   sniffTimeout: 200,
 });
 
 srv.listen(() => console.log('multiprotocol on', srv.address.port));
-// ... 之后 srv.close() 优雅退出
+// ... later srv.close() to shut down gracefully
 ```
 
-命令行等价形式：
+The equivalent from the command line:
 
 ```bash
 jsql serve -p 3306 --data-dir ./data --no-auth
 ```
 
-`jsql serve` 默认就是多协议模式；加 `--mysql-only` 可退回只服务 MySQL。
+`jsql serve` is multi-protocol by default; add `--mysql-only` to serve MySQL alone.
 
-## 协议嗅探原理
+## How sniffing works
 
-连接建立后，服务器收集首包字节并按下表判定：
+Once a connection is established, the server collects the first packet and decides using this table:
 
-| 首字节 / 特征 | 协议 | 说明 |
+| First byte / signature | Protocol | Notes |
 |---|---|---|
-| `0x00`（大端 Int32 长度，< 2^24） | PostgreSQL | PG 的 StartupMessage 长度头 |
-| `0x0a` / `0x0d` | MySQL | client handshake 协议版本字节 |
-| Int32LE 长度 + opCode `2004/2012/2013` | MongoDB | OP_QUERY / OP_COMPRESSED / OP_MSG |
-| ASCII 命令 / RESP 前缀（`* + $ - :`） | Redis | 普通命令或 RESP 数组 |
-| 200ms 内无任何字节 | `idleProtocol`（默认 MySQL） | MySQL 客户端等待服务器握手包；空闲的 Redis 连接也不发包，可用 `idleProtocol` 调整 |
+| `0x00` (big-endian Int32 length, < 2^24) | PostgreSQL | PG StartupMessage length header |
+| `0x0a` / `0x0d` | MySQL | client handshake protocol version byte |
+| Int32LE length + opCode `2004/2012/2013` | MongoDB | OP_QUERY / OP_COMPRESSED / OP_MSG |
+| ASCII command / RESP prefix (`* + $ - :`) | Redis | plain command or RESP array |
+| No bytes within 200ms | `idleProtocol` (default MySQL) | MySQL clients wait for the server greeting; idle Redis connections also send nothing — adjust with `idleProtocol` |
 
-实现位于 `lib/multiserver.js` 的 `sniffProtocol(buf)`，判定基于前 16 字节，误判率极低：
+The implementation lives in `sniffProtocol(buf)` in `lib/multiserver.js` and decides from the first 16 bytes, so misclassification is very unlikely:
 
-- Redis 命令首字节必为可打印 ASCII，而 Mongo 消息长度首字节几乎总是二进制字节
-- PG 首字节为 `0x00`，与 MySQL 的 `0x0a/0x0d` 不可能混淆
-- MySQL 不主动发包的客户端（等待握手）由 `sniffTimeout` 兜底
-- MongoDB 的 OP_MSG 同时支持 kind 0（命令体）与 kind 1（文档序列，
-  `insertMany` 走这条路径）
+- A Redis command always starts with printable ASCII, whereas a Mongo message length almost always starts with a binary byte
+- A PG first byte is `0x00`, which cannot be confused with MySQL's `0x0a/0x0d`
+- MySQL clients that do not send first (they wait for the greeting) are covered by `sniffTimeout`
+- MongoDB OP_MSG supports both kind 0 (command body) and kind 1 (document sequence, the path `insertMany` takes)
 
-## 共享数据模型
+## Shared data model
 
-四种 SQL / 文档协议共享同一个 `Database` 引擎实例（按库名懒创建）：
+All four SQL / document protocols share a single `Database` engine instance (created lazily per database name):
 
-- MySQL / PG 的表 ↔ Mongo 的集合（行即文档，`_id` 对应主键或整行匹配）
-- 用 MySQL 建的表可以直接被 Mongo 客户端按集合名访问
-- Redis 使用独立 key 命名空间（如 `app:users:count`），不与表冲突
+- MySQL / PG tables ↔ Mongo collections (a row is a document; `_id` maps to the primary key or the whole row)
+- A table created via MySQL can be accessed by a Mongo client under the same collection name
+- Redis uses its own key namespace (e.g. `app:users:count`) and does not collide with tables
 
 ```text
-// 多协议服务器内部结构（伪代码）
+// Internal structure of the multi-protocol server (pseudo-code)
 getEngine('app')  // → Database('./data/app')
-  ├── mysql 处理器   ── 读同一引擎
-  ├── pg 处理器      ── 读同一引擎
-  ├── mongo 处理器   ── 读同一引擎
-  └── redis 处理器   ── 独立 key 存储
+  ├── mysql handler   ── reads the same engine
+  ├── pg handler      ── reads the same engine
+  ├── mongo handler   ── reads the same engine
+  └── redis handler   ── separate key store
 ```
 
-## 端口与进程管理
+## Port and lifecycle management
 
 ```js
-srv.listen();                  // 启动监听（幂等）
-srv.address                    // → { address, port } 实际地址（getter）
-srv.close()                    // 关闭所有连接、停止所有引擎的落盘、释放端口
+srv.listen();                  // start listening (idempotent)
+srv.address                    // → { address, port } actual address (getter)
+srv.close()                    // close all connections, flush all engines, release the port
 ```
 
-- 每个引擎在 `close()` 时执行 `engine.stop()`（落盘 + 清理）
-- 连接断开自动清理（`_sockets` 集合）
-- 端口被占用时通过 `onError` 回调通知，默认抛出
+- Each engine runs `engine.stop()` on `close()` (flush + cleanup)
+- Disconnected sockets are cleaned up automatically (the `_sockets` set)
+- When the port is in use, `onError` is called; by default the error is thrown
