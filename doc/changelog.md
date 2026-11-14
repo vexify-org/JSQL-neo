@@ -1,9 +1,21 @@
 # 变更日志
 
-> 当前版本：**6.6.0**（2026-11-13）
+> 当前版本：**6.6.1**（2026-11-14）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## 6.6.1 — 2026-11-14 (bugfix)
+
+### Fixed
+- **#77** SQL `WHERE` 对 `BIGINT` 列改用精确数值比较（此前用字符串字典序，`50 > 1000` 误判为真）。
+- **#78** `UNION`/`INTERSECT`/`EXCEPT` 去重键改用 BigInt 安全序列化，`bigint` 列不再抛 `TypeError`。
+- **#79** `Table.removeById()` 触发 `beforeRemove`/`afterRemove`，`BEFORE DELETE` 触发器按 id 删除时生效。
+- **#80** `AND`/`OR`/`XOR` 遵循 SQL 三值逻辑，`UNKNOWN` 正确传播（不再塌缩成 `FALSE`）。
+- **#81** NeDB 兼容 `$pull` 使用真实字段名 + NeDB 元素匹配语义（此前硬编码键 `"k"` 为 no-op）。
+- **#82** `DATETIME`/`TIMESTAMP` 从字符串输入保留亚秒精度（不再静默截断为整秒）。
+- **#83** `BOOLEAN` 列与数字字符串字面量 `'1'`/`'0'` 按 MySQL `BOOL` 数值语义比较。
+- **#84** 插件钩子按 `priority` 降序执行（高优先级先跑，此前被注册顺序覆盖）。
 
 ## 6.6.0 — 2026-11-13 (语义变更)
 
