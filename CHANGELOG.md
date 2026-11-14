@@ -6,6 +6,35 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **未知函数静默返回 `NULL`（不报错）**：`applyScalarFunction` 的 `default` 分支写
+  `return null`，任何拼错或不存在的函数名都会得到 `NULL` 且 `ok=true`，调用方拿到的
+  是「一列空值」，很容易当成「数据为空」。引擎对未知列早已显式抛
+  `no such column`（`_validateColumnRefs`），函数路径漏了同一处理。未知聚合函数会被
+  当作标量函数走到同一个 `default`，所以 `SELECT SUMM(v) FROM t` 以前返回
+  `[[null],[null]]` 而不是报错。
+
+  ```sql
+  SELECT date_ad('2026-01-01', 5);  -- 修复前 NULL（且 ok=true），修复后 ERROR 1305
+  SELECT SUMM(v) FROM t;            -- 修复前 [[null],[null]]，修复后 ERROR 1305
+  ```
+
+  现在按 MySQL 的 `ER_SP_DOES_NOT_EXIST`(1305) 抛
+  `FUNCTION <name>() does not exist`；`executeSQL(..., { functions })` 注册的用户自定义
+  函数仍然优先匹配、不受影响。
+
+- **补齐 `default` 掩盖的三角 / 对数函数族**：`SIN` `COS` `TAN` `COT` `ASIN` `ACOS`
+  `ATAN` `ATAN2` `LOG` `LN` `LOG2` `LOG10` `EXP` `PI` `CBRT` `DEGREES` `RADIANS` 此前根本
+  不存在，全部靠上面的 `default` 返回 `NULL`。这一点在测试里留下过痕迹：
+  `test/issue-63-68.test.js` 的 #65 断言 `SELECT LOG(-5)` 与 `SELECT ACOS(2)` 应返回
+  `NULL`，实际上是「函数不存在」而非「域外取值返回 NULL」，属于**假通过**；补齐实现后
+  这两条断言才真正成立。语义按 MySQL：`LOG(X)` 是自然对数、`LOG(B, X)` 才是以 B 为底，
+  域外（`ACOS(2)`、`LOG(-5)`、`LOG(1,5)`）、溢出（`EXP(1000)`）与非数字入参返回 `NULL`。
+
+  新增 `test/unknown-function.test.js`（36 项）覆盖未知标量/聚合、错误码与消息、
+  已知函数与 UDF 不被误杀、以及新函数族的边界语义。
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
