@@ -4,7 +4,44 @@ All notable changes to **JSQL-NEO** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com) — **Added** / **Changed** / **Fixed** / **Breaking**.
 SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public API is stable.
 
-## [Unreleased] — 6.6.0 (语义变更)
+## [Unreleased]
+
+## [6.6.2] — 2026-11-14
+
+### Added
+
+- **统一的网络访问策略**（新增 `lib/network-policy.js`）：
+  - `JSQL_OFFLINE=1|true|yes|on` 一键禁用所有外部网络访问；
+  - 约定任何真正访问外网的位置都要在紧邻处写 `NETWORK:` 注释
+    （Why 为什么非联网不可 / Trigger 什么操作触发 / Offline 离线时行为 /
+    Scope 目标主机）；只连 127.0.0.1 的本地回环写 `LOCAL-ONLY` 一句。
+- `jsql star --token-check`：用 `GITHUB_TOKEN` / `gh` 直接查 GitHub API 并
+  写回 `~/.jsqlmr`，不开浏览器、不走 OAuth。
+
+### Changed
+
+- **CLI 启动路径不再有任何网络请求。** 此前每次启动都会同步
+  `curl api.github.com`（外加 `gh auth token`）确认 star 状态，最多阻塞
+  ~9.5 秒，只为少印一行提示；现在只读本地 `~/.jsqlmr`，零出网。
+- `jsql update` / `jsql plugin *` / `jsql star` / 安装期下载 native 的
+  出网点全部加了离线短路：离线时给出可读原因，不再静默失败。
+
+### Tests
+
+- 新增 `test/network-policy.test.js`（28 项）：打桩 `execFileSync` / `execFile` /
+  `spawn`，断言启动路径零子进程调用；离线时各联网入口被拦住且不出网。
+  已进 `npm test` 与 `test:all`。
+
+## [6.6.1] — 2026-11-14
+
+> 补记：这一版发布时未单独写入 CHANGELOG。
+
+- 修复 issue #77~#84（PR #85）：BIGINT 比较与 UNION、触发器、三值逻辑 XOR、
+  `$pull`、亚秒精度、BOOLEAN 比较、插件优先级。
+- 同步各处的版本标记（package.json / index.js / README）。
+
+## [6.6.0] — 2026-11-13
+
 
 ### Breaking
 
