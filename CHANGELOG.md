@@ -6,6 +6,20 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **#90 版本比较：预发布号按字符串比较、4 段版本号被截断**
+
+  - `compareVersions()` 只比较前 3 段，`1.2.3.4` 与 `1.2.3` 被判为相等，
+    `jsql update` 因此认为「已经是最新」。
+  - 预发布号直接用 JS 字符串比较：`'alpha.9' > 'alpha.10'`（逐字符比），
+    于是 `isNewer('1.0.0-alpha.10', '1.0.0-alpha.9')` 返回 `false`。
+
+  现在按 semver §11 逐段比较：数字标识符按数值比、数字标识符优先级低于字母标识符、
+  前缀相同时标识符少的更低；核心版本按最长段数比较，缺失段补 0。
+
+新增 `test/updater-semver.test.js`（22 项）。
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
