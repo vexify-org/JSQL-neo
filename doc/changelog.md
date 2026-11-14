@@ -1,9 +1,27 @@
 # 变更日志
 
-> 当前版本：**6.6.1**（2026-11-14）
+> 当前版本：**6.6.3**（2026-11-14）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## 6.6.3 — 2026-11-14 (bugfix)
+
+### Fixed
+- **#86** `ON DUPLICATE KEY UPDATE` 中 `VALUES(col)+1` 表达式正确解析新行值（此前变 `NULL`）。
+- **#87** SQLite 兼容 `.raw(true).all()` 不再重复执行（raw 只是输出格式开关）。
+- **#88** NeDB 兼容 `$regex` 字符串模式直接作正则源（此前匹配全表）。
+- **#89** `LRANGE` 负索引越界钳到 0（与 Redis 一致）。
+- **#90** 版本比较支持 4+ 段号 + prerelease 数值比较（`alpha.10 > alpha.9`）。
+- **#91** MySQL 多语句（`CLIENT_MULTI_STATEMENTS`）逐条执行，不再被 `maxStatements` 拒绝。
+- **#92** 参数绑定混用 `?N` 与 `?` 时按序消费未占用槽（不再错绑/误报 Too many）。
+- **#93** PostgreSQL Bind 按参数 OID 解码二进制格式（int4/int8/float8/bool）。
+- **#94** 数值列 `LIKE` 先转字符串（`10 LIKE '1%'` 为真）；`NULL LIKE` → UNKNOWN。
+- **#95** `COM_PROCESS_INFO` 数据行用 length-encoded string（修复协议失步）。
+- **#96** `CAST(x AS DECIMAL(p,s))` 按标度 s 四舍五入。
+- **#97** MySQL 路由改写多限定表时每次重算掩码（≥2 个 `db.table` 不再错位）。
+- **#98** 字符串列 `MIN`/`MAX` 用字典序且结果保持字符串（与 ORDER BY 一致）。
+- **#99** `ON DUPLICATE` 赋值右侧裸标识符按列引用求值（`other=other` 合法 no-op）。
 
 ## 6.6.1 — 2026-11-14 (bugfix)
 

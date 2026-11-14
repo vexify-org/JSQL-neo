@@ -136,7 +136,7 @@ jsql plugin info <name>
 
 ```bash
 jsql version
-# jsql-neo v6.6.1
+# jsql-neo v6.6.3
 # engine: native
 # node: v22.10.0
 ```
