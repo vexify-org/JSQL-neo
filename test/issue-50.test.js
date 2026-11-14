@@ -55,10 +55,10 @@ function storedOf(iso) { return utcStr(Date.parse(iso)); }
   const expectMinus5 = storedOf('2024-01-15T10:30:00-05:00');
   ok('#50 ISO -05:00 偏移正确换算', r.rows[0][0] === expectMinus5, { got: r.rows[0][0], want: expectMinus5 });
 
-  // 4) 带毫秒 + Z
+  // 4) 带毫秒 + Z（#82：保留亚秒精度，不再静默截断为整秒）
   await q("INSERT INTO t (id, dt) VALUES (4, '2024-01-15T10:30:00.500Z')");
   r = await q('SELECT dt FROM t WHERE id = 4');
-  ok('#50 带毫秒的 Z 同样换算（毫秒截断）', r.rows[0][0] === expectZ, r.rows[0][0]);
+  ok('#50 带毫秒的 Z 同样换算（保留亚秒 .500）', r.rows[0][0] === '2024-01-15 10:30:00.500', r.rows[0][0]);
 
   // 5) 不带时区标记：字面值即 UTC 墙上时间，原样保存（与 Z 等价）
   await q("INSERT INTO t (id, dt) VALUES (5, '2024-01-15T10:30:00')");
