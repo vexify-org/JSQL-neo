@@ -6,6 +6,33 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **BigInt 参与算术 / 位运算时被静默塌成 0（数据正确性级）**。`mysqlNum()`
+  没有 `bigint` 分支，落到 `return 0`，而一元负号、`%`、`DIV`、`MOD()` 与
+  `& | ^ << >>` 都经由它取数，导致三类后果：
+
+  1. **静默错值**：`SELECT -9223372036854775807` → `0`（而非 `-2^63+1`）；
+     `SELECT 9223372036854775807 % 3` → `0`（真值 `1`）；
+     `SIGN(bigint)` → `0`；`TRUNCATE(bigint, …)` → `NULL`。
+  2. **直接崩溃**：`ABS` / `CEIL` / `CEILING` / `FLOOR` / `SQRT` / `POW` 对
+     BigInt 抛 `Cannot convert a BigInt value to a number`，`MOD()` 抛
+     `Cannot mix BigInt and other types`；BIGINT 列上同样崩溃。
+     `ABS(-9223372036854775808)` 还会因 JS number 溢出而得 `0`。
+  3. **32 位截断**：位运算写作 `(x | 0)`，`4294967296 & 4294967296` → `0`、
+     `8589934592 | 0` → `0`、`-1 & 4294967295` → `-1`（MySQL 均为无符号 64 位结果）。
+
+  现在 `mysqlNum()` 认 BigInt（按既有 int64→number 口径），`bigintExactArith()`
+  扩到 `DIV` / `%`，并新增按 **64 位**二进制补码计算的 `bitwise64()`
+  （`& | ^ << >>` 与 `~` 全部改走它；沿用引擎既有的有符号口径，`~0` 仍是 `-1`）。
+  同一 bug 家族在 `resolveOperand` 的 `case 'arith'` 与 `evaluateExpr` 的
+  `case 'binary'` 中各有一份重复实现，两处一并修正。`ROUND` / `TRUNCATE` /
+  `ABS` / `SIGN` 对 BigInt 走精确路径，不再经过 `Number()` 丢精度。
+
+  新增 `test/bigint-arith.test.js`（31 项）覆盖字面量、表达式与真实 BIGINT 列，
+  并确认既有小整数行为（`7 % 3`、`1 << 8`、`7 DIV 2`、除零返回 NULL、`~0 = -1`）不回归。
+
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
