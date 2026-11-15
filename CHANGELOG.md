@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.0-beta.4] — 2026-11-15
+
+### Performance
+
+- **`GROUP BY` 数值键改用数组桶**：单列整数键且落在 `[0, 65535]` 区间时，
+  用数组下标分桶代替 `Map` 的哈希开销；多列 / 非整数键仍走 `Map`，行为不变。
+  10 万行 `GROUP BY age`：**7.4 → 5.6ms**（与 DuckDB 差距 8.0x → 6.2x）。
+  分桶前会先扫一遍键做范围判定，不满足就退回 `Map`。
+
 ## [6.7.0-beta.3] — 2026-11-15
 
 ### Performance
