@@ -128,28 +128,49 @@ async function query(sql) {
     ok('JSON_QUOTE adds quotes', r && r.val === '"hello"', r && r.val);
   }
 
-  // ===== JSON_TYPE =====
+  // ===== JSON_TYPE（MySQL 8.0：大写类型名，数字区分 INTEGER / DOUBLE）=====
   {
     const r1 = await query('SELECT JSON_TYPE(\'{"a":1}\') AS val');
-    ok('JSON_TYPE object returns "object"', r1 && r1.val === 'object', r1 && r1.val);
+    ok('JSON_TYPE object returns "OBJECT"', r1 && r1.val === 'OBJECT', r1 && r1.val);
 
     const r2 = await query('SELECT JSON_TYPE(\'[1,2,3]\') AS val');
-    ok('JSON_TYPE array returns "array"', r2 && r2.val === 'array', r2 && r2.val);
+    ok('JSON_TYPE array returns "ARRAY"', r2 && r2.val === 'ARRAY', r2 && r2.val);
 
     const r3 = await query('SELECT JSON_TYPE(\'"hello"\') AS val');
-    ok('JSON_TYPE string returns "string"', r3 && r3.val === 'string', r3 && r3.val);
+    ok('JSON_TYPE string returns "STRING"', r3 && r3.val === 'STRING', r3 && r3.val);
 
     const r4 = await query('SELECT JSON_TYPE(\'42\') AS val');
-    ok('JSON_TYPE integer returns "integer"', r4 && r4.val === 'integer', r4 && r4.val);
+    ok('JSON_TYPE integer returns "INTEGER"', r4 && r4.val === 'INTEGER', r4 && r4.val);
+
+    const r5 = await query('SELECT JSON_TYPE(\'4.5\') AS val');
+    ok('JSON_TYPE double returns "DOUBLE"', r5 && r5.val === 'DOUBLE', r5 && r5.val);
+
+    const r6 = await query('SELECT JSON_TYPE(\'true\') AS val');
+    ok('JSON_TYPE boolean returns "BOOLEAN"', r6 && r6.val === 'BOOLEAN', r6 && r6.val);
+
+    const r7 = await query('SELECT JSON_TYPE(\'null\') AS val');
+    ok('JSON_TYPE null returns "NULL"', r7 && r7.val === 'NULL', r7 && r7.val);
   }
 
-  // ===== JSON_DEPTH =====
+  // ===== JSON_DEPTH（MySQL 8.0：标量/空容器=1，非空纯标量容器=2，含容器=3+）=====
   {
+    const r0 = await query('SELECT JSON_DEPTH(\'{}\') AS val');
+    ok('JSON_DEPTH empty object returns 1', r0 && r0.val === 1, r0 && r0.val);
+
     const r1 = await query('SELECT JSON_DEPTH(\'{"a":1}\') AS val');
-    ok('JSON_DEPTH flat object returns 1', r1 && r1.val === 1, r1 && r1.val);
+    ok('JSON_DEPTH flat object returns 2', r1 && r1.val === 2, r1 && r1.val);
 
     const r2 = await query('SELECT JSON_DEPTH(\'{"a":{"b":1}}\') AS val');
-    ok('JSON_DEPTH nested object returns 2', r2 && r2.val === 2, r2 && r2.val);
+    ok('JSON_DEPTH nested object returns 3', r2 && r2.val === 3, r2 && r2.val);
+
+    const r3 = await query('SELECT JSON_DEPTH(\'[10, {"a": 20}]\') AS val');
+    ok('JSON_DEPTH mixed array returns 3', r3 && r3.val === 3, r3 && r3.val);
+
+    const r4 = await query('SELECT JSON_DEPTH(\'[[], {}]\') AS val');
+    ok('JSON_DEPTH nested empty containers returns 2', r4 && r4.val === 2, r4 && r4.val);
+
+    const r5 = await query('SELECT JSON_DEPTH(\'1\') AS val');
+    ok('JSON_DEPTH scalar returns 1', r5 && r5.val === 1, r5 && r5.val);
   }
 
   // ===== JSON_VALID =====

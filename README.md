@@ -210,6 +210,19 @@ Full reference: [doc/sql-reference.md](doc/sql-reference.md).
 `JSON_TYPE` / `JSON_DEPTH` follow **this project's** documented semantics
 (lowercase type names, flat object depth 1), not MySQL's. See the SQL reference.
 
+## Columnar storage (one-shot convert)
+
+```js
+db.convertToColumnar('events');   // split each column into its own array
+db.convertToRow('events');        // back to row storage
+```
+
+A **derived in-memory view**, not an on-disk format: any write invalidates it
+(reads fall back to row storage), so the two can never disagree. Small-result /
+point queries measure **2.7–6.4x faster than DuckDB** in our benchmark; full-table
+aggregation is **36–70x slower** — the honest numbers and the exact limits are in
+[doc/columnar.md](doc/columnar.md).
+
 ## ✨ XQL 集成
 
 用 [XQL](https://github.com/vexify-org/XQL) 查询 JSQL 表：把 SQL 直接接到文档上，

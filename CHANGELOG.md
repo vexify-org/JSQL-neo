@@ -6,6 +6,28 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Added
+
+- **一键转换列存**：`db.convertToColumnar(table)` / `db.convertToRow(table)`。
+  按字段拆成「每列一个数组」的查询加速视图；单表、无 WHERE/JOIN/GROUP BY/
+  HAVING/ORDER BY/DISTINCT、投影为简单列引用时，直接按列取值并跳过未选中的
+  列。`_rows` 仍是唯一权威数据，任何写入都会让列存失效（自动回退行存），
+  因此不可能出现两份不一致的数据；列存不落盘。
+  基准（10 万行 × 4 列，各 5 次均值）：`SELECT id LIMIT 10` 2.5 → 0.1ms
+  （比 DuckDB 快 3.9x）、`SELECT id` 35.3 → 25.8ms（快 2.7x）、
+  `SELECT * LIMIT 10` 1.7 → 0.1ms（快 6.4x）；全表聚合仍比 DuckDB 慢
+  36~70x，且聚合尚未接列路径 —— 见 `doc/columnar.md`。
+- **MySQL 语义对齐**：`JSON_TYPE` 改为 MySQL 8.0 的**大写**类型名
+  （`OBJECT` / `ARRAY` / `STRING` / `INTEGER` / `DOUBLE` / `BOOLEAN` / `NULL`）；
+  `JSON_DEPTH` 改为 MySQL 口径（标量/空容器 = 1，非空纯标量容器 = 2）。
+  此前这两处是项目自定义语义，现按「正规 MySQL」统一，`test/json-functions.test.js`
+  的断言同步更新。
+
+### Docs
+
+- 新增 `doc/columnar.md`（适用场景、限制、基准）与 `scripts/bench-columnar.js`
+  （可选依赖 DuckDB，缺失时只报 jsql 两侧数字）。
+
 ### Performance
 
 - **LIMIT / OFFSET 下推**：单表、无 WHERE / JOIN / GROUP BY / HAVING /

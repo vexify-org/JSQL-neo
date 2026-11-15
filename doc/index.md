@@ -16,6 +16,7 @@
 | [PostgreSQL](postgresql.md) | SCRAM-SHA-256、wire v3、SQLSTATE |
 | [MongoDB](mongodb.md) | BSON、命令、操作符、聚合 |
 | [Redis](redis.md) | 数据类型、命令、TTL、快照 |
+| [列存（一键转换）](columnar.md) | 适用场景、限制、与 DuckDB 的真实基准 |
 | [变更日志](changelog.md) | 关键版本变更摘要 |
 | [根目录 CHANGELOG](../CHANGELOG.md) | 逐条完整变更记录 |
 | [README](../README.md) | 项目总览与快速开始 |
