@@ -6,6 +6,18 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Mongo collection 重载后整表丢失**：无 schema 集合（`createTable(name, {})`）
+  在刷盘时 `buildEncoders` 产出 0 个编码器，每行被写成 4 字节空桩，
+  `readTableSync` 又把首个 0 长行当块尾 —— 重启后 0 行。空 schema 现在
+  从行数据的字段并集生成编码器；同时补上 `TYPE.DATE`（此前 BSON 日期落进
+  通用对象分支，`Object.keys(date)` 为空，会存成 `{}`）。
+  直连 `createMongoServer({ dataDir })` 也一并修复：引擎改用
+  `mode: 'hybrid'`（与 multiserver 一致），legacy 单文件模式在 insert
+  路径上从不落盘。README 存储示例中不存在的 `saveInterval` 更正为
+  `flushInterval`（并补上 `mode: 'hybrid'`，否则该选项无效）。
+
 ## [6.7.2] — 2026-11-15
 
 ### Added
