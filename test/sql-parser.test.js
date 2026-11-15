@@ -521,7 +521,8 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     // CAST(x AS INT)：数字前缀解析、非法为 0（此前返回 null）
     ok("CAST('abc' AS INT) → 0", await scalar("SELECT CAST('abc' AS INT) AS x") === 0);
     ok("CAST('12abc' AS INT) → 12", await scalar("SELECT CAST('12abc' AS INT) AS x") === 12);
-    ok("CAST('3.9' AS INT) → 3", await scalar("SELECT CAST('3.9' AS INT) AS x") === 3);
+    // MySQL 8.0：小数转整数是四舍五入（半远离零），不是截断 → 3.9 应为 4
+    ok("CAST('3.9' AS INT) → 4", await scalar("SELECT CAST('3.9' AS INT) AS x") === 4);
     // ROUND 中点浮点偏差
     ok('ROUND(1.005, 2) → 1.01', await scalar('SELECT ROUND(1.005, 2) AS x') === 1.01);
     ok('ROUND(2.5, 0) → 3（半远离零）', await scalar('SELECT ROUND(2.5, 0) AS x') === 3);
@@ -735,8 +736,9 @@ const rowsOf = (r) => (Array.isArray(r) ? r[0] : r).rows;
     const cast = [
       [`SELECT CAST('12abc' AS SIGNED) AS v`, 12, 'SIGNED 取数字前缀'],
       [`SELECT CAST('abc' AS SIGNED) AS v`, 0, 'SIGNED 非数字返 0'],
-      [`SELECT CAST(12.9 AS SIGNED) AS v`, 12, 'SIGNED 截断小数'],
-      [`SELECT CAST(12.9 AS INTEGER) AS v`, 12, 'INTEGER 回归对照'],
+      // 小数按 MySQL 语义四舍五入（此前实现与这两条断言都写成了截断，已修正）
+      [`SELECT CAST(12.9 AS SIGNED) AS v`, 13, 'SIGNED 四舍五入小数'],
+      [`SELECT CAST(12.9 AS INTEGER) AS v`, 13, 'INTEGER 与 SIGNED 一致'],
     ];
     for (const [sql, expect, desc] of cast) {
       let got = null, err = null;

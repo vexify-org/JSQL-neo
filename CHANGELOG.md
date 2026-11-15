@@ -6,6 +6,25 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.1] — 2026-11-15
+
+### Fixed
+
+- **`CAST(x AS SIGNED / INT / INTEGER / UNSIGNED)` 对小数改为四舍五入**
+  （MySQL 语义：round half away from zero）。此前用 `Math.trunc` 截断 ——
+  `CAST(1.9 AS SIGNED)` 返回 1（MySQL 是 2）、`CAST(-1.5 AS SIGNED)` 返回 -1
+  （应为 -2）。负数必须取绝对值再舍入，否则 `Math.round` 的「半向 +∞」
+  会让 -1.5 变成 -1。
+  `test/sql-parser.test.js` 里三条把「截断」当预期的旧断言同步修正
+  （`CAST(12.9 AS SIGNED)` 12 → 13、`CAST('3.9' AS INT)` 3 → 4），
+  并在注释里注明这是按 MySQL 标准修正预期，不是迁就实现。
+
+### Tests
+
+- 新增 `test/cast-rounding.test.js`（18 项）：正负半值、数字前缀、
+  非法字符串、`UNSIGNED` 的 2^64 回绕、NULL，以及
+  `CAST(x AS DECIMAL(p,s))` 标度（#96）与 `CAST(x AS CHAR)` 不回归。
+
 ## [6.7.0] — 2026-11-15
 
 ### 6.7.0 汇总（beta.1 ~ beta.5）
