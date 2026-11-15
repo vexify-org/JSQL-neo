@@ -53,5 +53,10 @@ jobs:
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi
 
+      - name: 发版元数据门禁
+        # 阻止「bump 了版本却漏写 CHANGELOG 章节」的包被发出去（6.6.0/6.6.1、
+        # 6.6.3/6.6.4 都发生过）。纯本地静态检查，不联网。
+        run: npm run check:release
+
       - name: 发布到 npm
         run: npm publish --provenance --access public --tag ${{ steps.dist.outputs.tag }}

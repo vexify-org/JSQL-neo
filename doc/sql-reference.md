@@ -239,6 +239,19 @@ SELECT JSON_VALID('{bad');                       -- 0
 SELECT JSON_ARRAY_LENGTH('[1,2,3]');             -- 3
 ```
 
+### 日期/时间互转（MySQL 兼容）
+
+```sql
+SELECT TO_DAYS('1970-01-01');                -- 719528
+SELECT FROM_DAYS(719528);                    -- '1970-01-01'
+SELECT TO_SECONDS('1970-01-01 01:02:03');   -- 62167222923
+SELECT TIME_TO_SEC('12:30:45');              -- 45045
+SELECT SEC_TO_TIME(45045);                   -- '12:30:45'
+```
+
+基准与不带时区标记的日期字面量一致（UTC 墙上时间）。`TIME_TO_SEC` /
+`SEC_TO_TIME` 支持负值与超过 24 小时的时间量。
+
 `->` / `->>` 同时支持两种路径写法：
 
 ```sql

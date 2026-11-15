@@ -6,6 +6,17 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Added
+
+- **发版元数据门禁**（`scripts/check-release-metadata.js`）：校验三处版本标记
+  一致，并要求 CHANGELOG 含当前版本章节。接进 `npm test` / `test:all` 与
+  `publish.yml` 发布前 —— 漏写 CHANGELOG 就发不了版（6.6.0/6.6.1、
+  6.6.3/6.6.4 都发生过）。纯本地静态检查，不联网；`[Unreleased]` 有内容
+  只给 WARN，不阻碍日常开发。
+- **MySQL 日期/时间互转函数**：`TO_DAYS` / `FROM_DAYS` / `TO_SECONDS` /
+  `TIME_TO_SEC` / `SEC_TO_TIME`。此前完全未实现，调用时静默返回 null。
+  基准与 UTC 墙上时间口径一致，支持负值及超过 24 小时的时间量。
+
 ## [6.6.5] — 2026-11-15
 
 ### Fixed（全部先在 6.6.4 上复现再动手）
