@@ -83,13 +83,32 @@ const norm = (rows) => JSON.stringify(
     'SELECT age, COUNT(*) AS c FROM t GROUP BY age ORDER BY age, c DESC',
   ];
 
+  // ORDER BY + LIMIT：不仅结果集相同，**顺序**也必须一致（含同值行的相对
+  // 顺序）。所以这一组基线用保序的 JSON.stringify，不走 norm 的排序。
+  const ORDER_QUERIES = [
+    'SELECT id FROM t ORDER BY age LIMIT 10',
+    'SELECT id FROM t ORDER BY age DESC LIMIT 10',
+    'SELECT id, age FROM t ORDER BY age LIMIT 10 OFFSET 5',
+    'SELECT name FROM t ORDER BY name LIMIT 5',
+    'SELECT * FROM t ORDER BY score DESC LIMIT 3',
+    'SELECT id FROM t ORDER BY age LIMIT 10 OFFSET 4995',
+  ];
+
   const before = {};
   for (const q of QUERIES) {
     try { before[q] = norm((await db.query(q)).rows); }
     catch (e) { before[q] = 'ERR ' + e.message; }
   }
+  const beforeOrder = {};
+  for (const q of ORDER_QUERIES) beforeOrder[q] = JSON.stringify((await db.query(q)).rows);
 
   db.convertToColumnar('t');
+
+  for (const q of ORDER_QUERIES) {
+    const got = JSON.stringify((await db.query(q)).rows);
+    ok('顺序一致：' + q.slice(0, 56), got === beforeOrder[q],
+      { got: got.slice(0, 48), exp: String(beforeOrder[q]).slice(0, 48) });
+  }
 
   for (const q of QUERIES) {
     let got;

@@ -6,6 +6,28 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.0-beta.5] — 2026-11-15
+
+### Performance
+
+- **列存上的 `ORDER BY ... LIMIT`**：只排索引数组、只物化前 K 行（含 OFFSET），
+  不再把 10 万行全建成对象再排序。同值时用原始下标决胜，等价于
+  `Array.prototype.sort` 的稳定语义，因此结果与「全排序后切片」完全一致。
+  10 万行实测：`ORDER BY age LIMIT 10` **32.2 → 11.7ms**、`DESC` **32.6 → 10.1ms**、
+  带 OFFSET **26.7 → 10.1ms**。
+  无 LIMIT 的全量排序、多键排序仍走通用路径。
+
+### Fixed
+
+- 列存快路径在 `ORDER BY` 列不在投影里时（如 `SELECT id ... ORDER BY age`）
+  会缺列并触发 `no such column`；现在按需把排序键列一并取出，
+  多带的列在最终投影时被忽略。
+
+### Tests
+
+- `test/columnar-vector.test.js` 35 → 41 项：新增一组**保序**断言
+  （对比 JSON 原文而不是排序后的集合），覆盖同值行的相对顺序与尾部 OFFSET。
+
 ## [6.7.0-beta.4] — 2026-11-15
 
 ### Performance

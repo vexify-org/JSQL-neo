@@ -55,6 +55,7 @@ db._tables.events.isColumnar();  // true / false
 | `SUM(score)` | 29.0ms | **2.6ms** | 0.5ms | 慢 4.7x |
 | `COUNT(*) WHERE age>30` | 30.6ms | **1.0ms** | 0.5ms | 慢 2.0x |
 | `GROUP BY age` | 57.6ms | **5.6ms** | 0.9ms | 慢 6.2x |
+| `ORDER BY age LIMIT 10` | 32.2ms | **11.7ms** | — | 列存内部 2.7x |
 
 **结论要分开看**：
 
