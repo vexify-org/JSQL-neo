@@ -1,9 +1,28 @@
 # 变更日志
 
-> 当前版本：**6.6.4**（2026-11-15）
+> 当前版本：**6.6.6**（2026-11-15）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## 6.6.6 — 2026-11-15 (功能 + 文档)
+
+### Added
+- **发版元数据门禁** `npm run check:release`：三处版本标记一致 + CHANGELOG 必须含当前版本章节；接进 `npm test` / `test:all` 与 `publish.yml` 发布前，漏写章节就发不了版。纯本地、不联网。
+- **5 个日期/时间互转函数**：`TO_DAYS` / `FROM_DAYS` / `TO_SECONDS` / `TIME_TO_SEC` / `SEC_TO_TIME`（此前静默返回 NULL）。
+- **16 个 MySQL 工具函数**：`BIT_LENGTH` / `BIN` / `OCT` / `HEX` / `UNHEX` / `CONV` / `QUOTE` / `FIND_IN_SET` / `INSERT` / `FORMAT` / `CRC32` / `INET_ATON` / `INET_NTOA` / `MAKE_SET` / `EXPORT_SET` / `SOUNDEX`（此前静默返回 NULL）。
+
+### Docs
+- 重写 [CLI 命令](cli.md)：补 `native status|refresh|verify`、离线模式、`star --token-check`、发版门禁。
+- 重写 [文档首页](index.md)：完整导航 + SQL 能力概览 + 离线/门禁特性。
+- README 补 SQL 函数清单；本页版本与根 CHANGELOG 对齐，补记 6.6.5 / 6.6.2。
+
+## 6.6.5 — 2026-11-15 (bugfix)
+
+### Fixed
+- **#105**：`JSON_CONTAINS` 解析 candidate 并应用 path（委托 `jsonContainsValue`）；`JSON_SEARCH` 改为大小写敏感并支持 LIKE 通配符；`jsonContainsValue` 类型敏感；`jsonPathGet` 支持数组索引与 JSON null。
+- **BigInt 精度链**：`mysqlNum()` 缺 bigint 分支致负的大整数变 0；`negate` 保精度；整数语义数学函数走 BigInt 精确路径，浮点函数降级 DOUBLE，不再抛 `TypeError` 或静默算错。
+- 新增 41 项回归测试（`test/issue-105.test.js` 22 项、`test/bigint-math.test.js` 19 项）。
 
 ## 6.6.4 — 2026-11-15 (bugfix)
 
@@ -29,6 +48,14 @@
 - **#97** MySQL 路由改写多限定表时每次重算掩码（≥2 个 `db.table` 不再错位）。
 - **#98** 字符串列 `MIN`/`MAX` 用字典序且结果保持字符串（与 ORDER BY 一致）。
 - **#99** `ON DUPLICATE` 赋值右侧裸标识符按列引用求值（`other=other` 合法 no-op）。
+
+## 6.6.2 — 2026-11-14 (网络策略)
+
+### Added
+- 统一网络策略 `lib/network-policy.js` 与 `JSQL_OFFLINE=1` 一键离线开关；
+  CLI 启动路径移除同步 `curl api.github.com`（此前最多阻塞 ~9.5 秒）。
+- `jsql native status` / `refresh` / `verify`（`--json`）、
+  `jsql star --token-check`；出网点统一加 `NETWORK:` 注释说明原因。
 
 ## 6.6.1 — 2026-11-14 (bugfix)
 

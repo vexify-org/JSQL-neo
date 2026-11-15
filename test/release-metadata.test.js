@@ -29,6 +29,15 @@ function fixture(dir, mutate) {
   return root;
 }
 const has = (r, name) => r.checks.find(c => c.name === name);
+// 反例必须随版本 bump 自动跟进：硬编码版本号会让 bump 后替换失配，
+// 反例没构造出来却「通过」，测试自己变成假绿（6.6.5 → 6.6.6 时踩过）。
+const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+function replaceOrThrow(contents, file, from, to) {
+  if (!contents[file].includes(from)) {
+    throw new Error('反例构造失败：' + file + ' 里找不到 ' + JSON.stringify(from) + '（当前版本 ' + VERSION + '）');
+  }
+  contents[file] = contents[file].replace(from, to);
+}
 
 try {
   // 真实仓库当前应通过
@@ -39,7 +48,9 @@ try {
   // 反例 1：release commit 漏写 CHANGELOG 章节（这正是历史上反复出现的）
   const missing = fixture('missing-section', (c) => {
     const v = JSON.parse(c['package.json']).version;
-    c['CHANGELOG.md'] = c['CHANGELOG.md'].replace(new RegExp('^## \\[' + v.replace(/\./g, '\\.') + '\\][^\\n]*\\n', 'm'), '');
+    const re = new RegExp('^## \\[' + v.replace(/\./g, '\\.') + '\\][^\\n]*\\n', 'm');
+    if (!re.test(c['CHANGELOG.md'])) throw new Error('反例构造失败：CHANGELOG 缺章节');
+    c['CHANGELOG.md'] = c['CHANGELOG.md'].replace(re, '');
   });
   const r1 = checkReleaseMetadata(missing);
   ok('漏写 CHANGELOG 章节 → FAIL', r1.ok === false, r1.checks.filter(c => !c.ok));
@@ -47,17 +58,17 @@ try {
     r1.checks.some(c => !c.ok && /缺少 ## \[/.test(c.detail)), r1.checks.filter(c => !c.ok));
 
   // 反例 2：README 横幅没跟着 bump
-  const banner = fixture('bad-banner', (c) => { c['README.md'] = c['README.md'].replace('**v6.6.5**', '**v6.6.4**'); });
+  const banner = fixture('bad-banner', (c) => replaceOrThrow(c, 'README.md', '**v' + VERSION + '**', '**v0.0.1**'));
   const r2 = checkReleaseMetadata(banner);
   ok('README 横幅不一致 → FAIL', r2.ok === false, r2.checks.filter(c => !c.ok));
 
   // 反例 3：index.js 头注释没跟着 bump
-  const idx = fixture('bad-index', (c) => { c['index.js'] = c['index.js'].replace('JSQL-NEO v6.6.5', 'JSQL-NEO v6.6.4'); });
+  const idx = fixture('bad-index', (c) => replaceOrThrow(c, 'index.js', 'JSQL-NEO v' + VERSION, 'JSQL-NEO v0.0.1'));
   const r3 = checkReleaseMetadata(idx);
   ok('index.js 头注释不一致 → FAIL', r3.ok === false, r3.checks.filter(c => !c.ok));
 
   // 反例 4：版本号格式非法
-  const badVer = fixture('bad-version', (c) => { c['package.json'] = c['package.json'].replace('"version": "6.6.5"', '"version": "6.6"'); });
+  const badVer = fixture('bad-version', (c) => replaceOrThrow(c, 'package.json', '"version": "' + VERSION + '"', '"version": "6.6"'));
   const r4 = checkReleaseMetadata(badVer);
   ok('非法版本号 → FAIL', r4.ok === false, r4.checks.filter(c => !c.ok));
 

@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.6.5** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.6.6** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -196,6 +196,20 @@ To check which native addon this installation is actually using:
   `UNVERIFIED` / `UNREADABLE`.
 - `jsql native refresh` — re-fetches a checksum-verified addon
 
+## SQL functions
+
+Full reference: [doc/sql-reference.md](doc/sql-reference.md).
+
+| Group | Functions |
+| --- | --- |
+| JSON | `JSON_EXTRACT`, `JSON_CONTAINS` (path + type-sensitive), `JSON_SEARCH` (case-sensitive, LIKE wildcards), `JSON_SET`, `JSON_REMOVE`, `JSON_MERGE_PATCH`, … |
+| Date / time | UTC wall-clock semantics; `TO_DAYS`, `FROM_DAYS`, `TO_SECONDS`, `TIME_TO_SEC`, `SEC_TO_TIME`, `DATE_ADD`, `DATE_FORMAT`, `TIMESTAMPDIFF`, … |
+| Base / utility | `BIN`, `OCT`, `HEX`, `UNHEX`, `CONV`, `BIT_LENGTH`, `CRC32`, `QUOTE`, `FIND_IN_SET`, `INSERT`, `FORMAT`, `INET_ATON` / `INET_NTOA`, `MAKE_SET`, `EXPORT_SET`, `SOUNDEX` |
+| Exact integers | Values above `2^53` stay exact via BigInt; integer-math functions use exact paths, floating-point ones return DOUBLE |
+
+`JSON_TYPE` / `JSON_DEPTH` follow **this project's** documented semantics
+(lowercase type names, flat object depth 1), not MySQL's. See the SQL reference.
+
 ## ✨ XQL 集成
 
 用 [XQL](https://github.com/vexify-org/XQL) 查询 JSQL 表：把 SQL 直接接到文档上，
@@ -242,6 +256,10 @@ source stating why it cannot be done locally:
 report the reason instead of failing silently. Loopback traffic (the
 `127.0.0.1` links between `jsql serve` and the client / Web UI) is not
 external access and is unaffected.
+
+`jsql native status|refresh|verify` is **entirely local** — it reads
+`native/.installed.json` and hashes the on-disk addon. `verify --json` is
+suitable for CI gates. See [doc/cli.md](doc/cli.md).
 
 ## 📖 Documentation
 

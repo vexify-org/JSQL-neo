@@ -6,6 +6,8 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.6.6] — 2026-11-15
+
 ### Added
 
 - **发版元数据门禁**（`scripts/check-release-metadata.js`）：校验三处版本标记
@@ -30,6 +32,16 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   `test/mysql-utility-functions.test.js`（36 项），均进 `npm test` /
   `test:all`。
 
+### Docs（本次重写）
+
+- `doc/cli.md` 重写：补 `native status|refresh|verify`、离线模式表、
+  `star --token-check`、`npm run check:release`；保留并校正旧旗标说明。
+- `doc/index.md` 重写：完整文档导航、SQL 能力概览、离线策略与发版门禁。
+- `doc/changelog.md` 版本对齐 6.6.6，补记漏写的 6.6.5 / 6.6.2 条目。
+- README 新增 `## SQL functions`，并明确 `JSON_TYPE` / `JSON_DEPTH` 是项目
+  自定义语义（不是 MySQL 兼容承诺）；Network access 段补 `native` 命令组
+  为纯本地。
+- `lib/multiserver.js` 头注释补 MongoDB 嗅探规则（此前只列三种协议）。
 ## [6.6.5] — 2026-11-15
 
 ### Fixed（全部先在 6.6.4 上复现再动手）
