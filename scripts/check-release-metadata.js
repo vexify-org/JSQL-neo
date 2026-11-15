@@ -47,6 +47,14 @@ function checkReleaseMetadata(root) {
     banner && banner[1] === version,
     banner ? 'README=' + banner[1] + ' package=' + version : '未找到横幅');
 
+  // 预发布版本不能把横幅标成 stable —— 那是明确的虚标。
+  if (banner) {
+    const line = (readme.match(/^> \*\*v[^*]+\*\*[^\n]*/m) || [''])[0];
+    const isPre = /-(?:alpha|beta|rc)\./.test(version);
+    add('预发布版本未标注为 stable', !(isPre && /—\s*stable release/.test(line)),
+      line.slice(0, 80));
+  }
+
   const index = read(root, 'index.js');
   const im = index && index.match(/JSQL-NEO v(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)/);
   add('index.js 头部版本注释与 package.json 一致',

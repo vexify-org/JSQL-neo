@@ -6,6 +6,8 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.0-beta.1] — 2026-11-15
+
 ### Added
 
 - **一键转换列存**：`db.convertToColumnar(table)` / `db.convertToRow(table)`。
