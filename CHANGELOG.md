@@ -6,6 +6,25 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.2] — 2026-11-15
+
+### Added
+
+- **`CONVERT(expr, type)`**：MySQL 的另一种 `CAST` 写法，语义与
+  `CAST(expr AS type)` 完全一致（`SIGNED` / `UNSIGNED` / `CHAR` /
+  `DECIMAL(p,s)` 等），直接复用 cast 节点。此前完全没解析 ——
+  `SIGNED` / `CHAR` 被当成列名，报 `no such column`。
+  `CONVERT(expr USING charset)` 是另一套语法，未支持（会报语法错，
+  不会静默当列引用）。
+
+### Tests
+
+- 新增 `test/convert-subquery.test.js`（22 项）：`CONVERT` 各类型、
+  `BINARY` 的大小写敏感、`GROUP_CONCAT`（`SEPARATOR` / `ORDER BY` /
+  `DISTINCT`）、`HAVING` 表达式与别名等价、`IN` / `NOT IN` 子查询的
+  三值逻辑（**`NOT IN` 遇含 NULL 的子查询必须返回空集**）、
+  `EXISTS` / `NOT EXISTS`。
+
 ## [6.7.1] — 2026-11-15
 
 ### Fixed
