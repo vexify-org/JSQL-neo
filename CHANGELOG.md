@@ -6,6 +6,55 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.0] — 2026-11-15
+
+### 6.7.0 汇总（beta.1 ~ beta.5）
+
+**新增能力**
+
+- **一键转换列存**：`db.convertToColumnar(table)` / `db.convertToRow(table)`。
+  `_rows` 是唯一权威数据，列存是「每列一个数组」的派生缓存 —— 写入即失效、
+  读取自动回退行存、不落盘，因此不可能出现两份不一致的数据。
+- **列存快路径**覆盖：`COUNT/SUM/AVG/MIN/MAX` 聚合、`WHERE`（`IN` /
+  `BETWEEN` / `IS [NOT] NULL` / `AND` / `OR`）、多列 `GROUP BY`、
+  分组后的 `ORDER BY` / `LIMIT` / `OFFSET`、扫描侧的 `ORDER BY ... LIMIT`
+  （只排索引、只物化前 K 行）。所有快路径都以「结果与行存逐字节一致」为前提，
+  不满足就退回通用路径。
+- **MySQL 语义对齐**：`JSON_TYPE` 返回大写类型名并按 `INTEGER` / `DOUBLE`
+  区分数字；`JSON_DEPTH` 按 MySQL 口径（标量/空容器 1，非空纯标量容器 2）。
+- **补齐 21 个 MySQL 函数**：日期/时间互转 5 个（`TO_DAYS` / `FROM_DAYS` /
+  `TO_SECONDS` / `TIME_TO_SEC` / `SEC_TO_TIME`），进制/字符串/IP/位图 16 个
+  （`BIT_LENGTH` / `BIN` / `OCT` / `HEX` / `UNHEX` / `CONV` / `QUOTE` /
+  `FIND_IN_SET` / `INSERT` / `FORMAT` / `CRC32` / `INET_ATON` / `INET_NTOA` /
+  `MAKE_SET` / `EXPORT_SET` / `SOUNDEX`）。
+- **发版流程**：`scripts/release.js` 一条命令完成三处版本标记 + CHANGELOG
+  转正 + 横幅字样；`check:release` 门禁校验版本一致、章节齐全、预发布不得
+  标 `stable`，并接进 `npm test` 与 `publish.yml` 发布前。
+
+**性能（10 万行 × 4 列，各 5~10 次均值）**
+
+| 项 | 前 | 后 |
+| --- | --- | --- |
+| `SELECT * FROM t LIMIT 10` | 18.9ms | **2.0ms**（9.5x） |
+| `result.raw` 惰性构造（堆占用） | 126.2MB | **95.1MB**（−25%） |
+| `SUM(score)` | 29.0ms | **2.6ms**（11x） |
+| `COUNT(*) WHERE age>30` | 30.6ms | **1.0ms**（30x） |
+| `GROUP BY age` | 57.6ms | **5.6ms**（10x） |
+| `ORDER BY age LIMIT 10` | 32.2ms | **11.7ms**（2.7x） |
+
+**与 DuckDB 的关系（如实）**
+
+小结果 / 点查快 **2.7~6.5x**；聚合 / 分组慢 **2~6x**（相比 6.7.0 之前的
+36~70x 已收窄一个数量级，但**没有超越，也不宣称超越**）；
+**JOIN 后聚合未优化**，整条走行路径 —— 这是 6.7.0 的已知缺口。
+完整基准与限制见 `doc/columnar.md`。
+
+**测试**
+
+`npm test` / `test:all` 全绿（0 FAIL / 0 FATAL）。列存回归
+`test/columnar-vector.test.js` 41 项：转换前后双跑对比，含保序断言
+（对比 JSON 原文，不被排序掩盖）与「必须退回通用路径」的对照组。
+
 ## [6.7.0-beta.5] — 2026-11-15
 
 ### Performance

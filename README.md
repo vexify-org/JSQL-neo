@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.7.0-beta.5** — beta release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.7.0** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -222,8 +222,9 @@ A **derived in-memory view**, not an on-disk format: any write invalidates it
 single-column `GROUP BY` scan the column arrays directly (no row objects).
 
 Point queries measure **2.7–6.5x faster than DuckDB**; aggregation is now
-**2–8x slower** (it was 36–70x before the vectorized column path). Still behind —
-not claimed otherwise. Honest numbers: [doc/columnar.md](doc/columnar.md).
+**2–6x slower** (it was 36–70x before the vectorized column path). Still behind —
+not claimed otherwise. `JOIN`-then-aggregate is **not** optimized yet and falls
+back to the row path. Honest numbers and limits: [doc/columnar.md](doc/columnar.md).
 
 ## ✨ XQL 集成
 
