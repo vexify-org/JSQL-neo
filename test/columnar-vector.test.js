@@ -57,11 +57,17 @@ const norm = (rows) => JSON.stringify(
     'SELECT age, AVG(score) AS a, MIN(score) AS mn, MAX(score) AS mx FROM t GROUP BY age',
     'SELECT name, COUNT(*) AS c FROM t GROUP BY name',
     'SELECT age, COUNT(*) AS c FROM t WHERE score > 50 GROUP BY age',
+    // 多列 GROUP BY（含列顺序互换）
+    'SELECT age, name, COUNT(*) AS c FROM t GROUP BY age, name',
+    'SELECT name, age, SUM(score) AS s FROM t GROUP BY name, age',
+    // OR 条件（AND/OR 混合）
+    'SELECT COUNT(*) AS c FROM t WHERE age > 30 OR score > 90',
+    'SELECT SUM(score) AS s FROM t WHERE age > 30 OR (score > 90 AND age > 20)',
+    'SELECT age, COUNT(*) AS c FROM t WHERE age > 30 OR score > 90 GROUP BY age',
     // 应退回通用路径（结果仍必须一致）
     'SELECT COUNT(*) AS c FROM t LIMIT 0',
     'SELECT COUNT(DISTINCT age) AS c FROM t',
     'SELECT SUM(age + 1) AS s FROM t',
-    'SELECT COUNT(*) AS c FROM t WHERE age > 30 OR score > 90',
     'SELECT age, COUNT(*) AS c FROM t GROUP BY age ORDER BY age',
   ];
 

@@ -6,6 +6,22 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.0-beta.2] — 2026-11-15
+
+### Performance
+
+- **列存快路径扩展**：
+  - **多列 `GROUP BY`**（如 `GROUP BY age, name`）：用 NUL 拼接复合键分桶，
+    各组独立累加；投影列顺序可与分组顺序不同。
+  - **`OR` 条件**：`列 OP 字面量` 的 AND / OR 组合（含嵌套）都可编译成
+    命中行下标，不再退回通用路径。
+  此前这两类查询都会退回行路径，享受不到列存收益。
+
+### Tests
+
+- `test/columnar-vector.test.js` 增加多列分组（含列顺序互换）、
+  AND/OR 混合条件用例。
+
 ## [6.7.0-beta.1] — 2026-11-15
 
 ### Added
