@@ -16,6 +16,19 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - **MySQL 日期/时间互转函数**：`TO_DAYS` / `FROM_DAYS` / `TO_SECONDS` /
   `TIME_TO_SEC` / `SEC_TO_TIME`。此前完全未实现，调用时静默返回 null。
   基准与 UTC 墙上时间口径一致，支持负值及超过 24 小时的时间量。
+- **补齐 16 个 MySQL 工具函数**：`BIT_LENGTH` / `BIN` / `OCT` / `HEX` /
+  `UNHEX` / `CONV` / `QUOTE` / `FIND_IN_SET` / `INSERT` / `FORMAT` /
+  `CRC32` / `INET_ATON` / `INET_NTOA` / `MAKE_SET` / `EXPORT_SET` /
+  `SOUNDEX`。此前全部落到 `applyScalarFunction` 的 default 静默返回 null，
+  很容易被误读成「值不存在」。差分探针批量发现后一次补齐，
+  `doc/sql-reference.md` 增加对应章节。
+
+### Tests
+
+- 新增 `test/release-metadata.test.js`（10 项）、
+  `test/date-conversions.test.js`（23 项）、
+  `test/mysql-utility-functions.test.js`（36 项），均进 `npm test` /
+  `test:all`。
 
 ## [6.6.5] — 2026-11-15
 

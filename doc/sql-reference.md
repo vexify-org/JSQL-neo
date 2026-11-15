@@ -252,6 +252,28 @@ SELECT SEC_TO_TIME(45045);                   -- '12:30:45'
 基准与不带时区标记的日期字面量一致（UTC 墙上时间）。`TIME_TO_SEC` /
 `SEC_TO_TIME` 支持负值与超过 24 小时的时间量。
 
+### 进制 / 字符串 / IP / 位图工具函数
+
+```sql
+SELECT BIT_LENGTH('abc');                     -- 24
+SELECT BIN(10), OCT(10), HEX(255);           -- '1010', '12', 'FF'
+SELECT UNHEX(HEX('hello'));                  -- 'hello'
+SELECT CONV('A', 16, 2);                     -- '1010'（2~36 进制）
+SELECT QUOTE('abc');                         -- "'abc'"
+SELECT FIND_IN_SET('b', 'a,b,c');            -- 2（1-based，精确匹配）
+SELECT INSERT('abcdef', 2, 3, 'XY');        -- 'aXYef'（1-based）
+SELECT FORMAT(1234.567, 2);                  -- '1,234.57'
+SELECT CRC32('abc');                         -- 891568578
+SELECT INET_ATON('127.0.0.1');              -- 2130706433
+SELECT INET_NTOA(2130706433);               -- '127.0.0.1'
+SELECT MAKE_SET(5, 'a', 'b', 'c');          -- 'a,c'
+SELECT EXPORT_SET(5, 'Y', 'N', ',', 8);     -- 'Y,N,Y,N,N,N,N,N'
+SELECT SOUNDEX('Hello');                     -- 'H400'
+```
+
+`UNHEX` 遇奇数长度或非十六进制字符返回 NULL；`CONV` 支持非负数与 2~36
+进制；`INET_ATON` 对非法段返回 NULL。
+
 `->` / `->>` 同时支持两种路径写法：
 
 ```sql
