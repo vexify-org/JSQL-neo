@@ -13,6 +13,7 @@
 
 const WasmClient = require('./lib/wasm_client');
 const NativeClient = require('./lib/native_client');
+const { SqliteJSQL } = require('./lib/sqlite_client');
 const { Plugin, definePlugin, HOOKS } = require('./lib/plugin');
 const plugins = require('./lib/plugins');
 const { ModuleManager } = require('./lib/mod');
@@ -135,6 +136,8 @@ module.exports = {
     // 用法：const { Database } = require('jsql-neo/compat/v1');
     compatV1: require('./lib/compat/v1'),
     NativeJSQL: NativeClient.JSQL,
+    // SQLite 可选底层（方案 A）：与 JSQL 相同的 CRUD/query 面，底层走 lib/sqlite_compat.js
+    SqliteJSQL,
     Database: require('./lib/database'),
     Table: require('./lib/table'),
     Query: require('./lib/query'),

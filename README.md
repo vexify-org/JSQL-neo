@@ -161,6 +161,27 @@ const db = new NativeJSQL();          // :memory: — persist by passing a path
 await db.start();
 ```
 
+### 🪶 SqliteJSQL (SQLite optional backend)
+
+Same high-level API as `JSQL` (createTable / insert / find / findById / updateById /
+removeById / count / query / transactions), but backed by the SQLite-compatible
+`lib/sqlite_compat.js` engine instead of WASM. The default `JSQL` engine is
+completely untouched — pick whichever backend fits.
+
+```javascript
+const { SqliteJSQL } = require('jsql-neo');
+const db = new SqliteJSQL();                    // :memory:
+// const db = new SqliteJSQL({ file: './app.db' }); // file-backed
+await db.start();
+await db.createTable('users', { name: { type: 'string' }, age: 'integer' });
+const ids = await db.insert('users', { name: 'Alice', age: 30 });
+await db.stop();
+```
+
+Notes: the underlying engine's security policy blocks `DROP TABLE`, so
+`dropTable()` degrades to a soft drop (rows cleared + table unregistered);
+`INSERT ... DEFAULT VALUES` is not supported (empty rows throw).
+
 ### Storage modes
 
 | Mode | Usage | Use Case |
