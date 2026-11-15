@@ -6,6 +6,64 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.6.5] — 2026-11-15
+
+### Fixed（全部先在 6.6.4 上复现再动手）
+
+JSON / SQL 标量函数（issue #105 + 差分探针）：
+
+- **`JSON_CONTAINS`**：旧实现是 `JSON.stringify(...).includes(...)` ——
+  candidate 从未解析（字符串 '2' 一直是 "2"）、第三个 path 参数被完全忽略。
+  现改为解析 candidate → `jsonPathGet` 应用 path → 委托同文件里本就存在的
+  `jsonContainsValue()`。
+- **`JSON_SEARCH`**：`toLowerCase + includes` 导致大小写不敏感（#105）。
+  改用 `likeMatch(ci=false)`，顺带补上 MySQL 的 LIKE 通配符 `%` / `_`。
+- **`jsonContainsValue`**：`String()` 宽松比较使字符串 "2" 命中数字 2，
+  违反 MySQL / PG 的类型敏感语义；去掉回退，PG 的 `@>` 同样受益。
+- **`jsonPathGet`**：开头正则不支持纯数组索引 `$[1]`；改正则并加可选
+  `notFound` 哨兵，区分「路径不存在」与「该路径的值恰好是 JSON null」。
+
+BigInt 精度（差分探针挖出的一整条根因链）：
+
+- `mysqlNum()` 缺 bigint 分支，静默 `return 0` ——
+  `SELECT -9223372036854775807` 直接变 0（ABS / CAST 的 0 只是连带结果）。
+- `case 'negate'` 改为对 BigInt 直接取负，保持精度，交给
+  `finalizeResultBigInts` 转字符串输出。
+- 新增 `INTEGER_MATH_FNS`（ABS / SIGN / FLOOR / CEIL / CEILING / ROUND /
+  TRUNCATE / MOD / POWER / POW）走 BigInt 精确路径；其余浮点函数
+  （SQRT / LOG / 三角…）在参数入口降级 DOUBLE，不再抛
+  `Cannot convert a BigInt value to a number`。
+- 特意避免「一律降级 number」—— 那会把 `MOD(9007199254740993, 2)`
+  算成 0（正确是 1），静默错值比抛错更糟。
+
+### 判定不改（项目自定义语义，不是 bug）
+
+- `JSON_TYPE` 返回小写 `'object'`（MySQL 大写）：
+  `doc/sql-reference.md:237` 明确写了小写，且有测试钉住。
+- `JSON_DEPTH` flat object = 1（MySQL 为 2）：同上，测试定义了口径。
+
+### Tests
+
+- 新增 `test/issue-105.test.js`（22 项）、`test/bigint-math.test.js`（19 项），
+  已进 `npm test` / `test:all`。
+- `npm test` 与 `test:all` 均 exit=0，0 FAIL，0 FATAL。
+- #105 已随 `Closes #105` 关闭，OPEN issues = 0。
+
+## [6.6.4] — 2026-11-15
+
+> 补记：这一版发布时未单独写入 CHANGELOG。
+
+- 修复 issue #101 / #102 / #103（PR #104）：自连接别名解析、
+  `PERCENT_RANK` + `CUME_DIST`、窗口函数 NULL 排序。
+- 同步各处的版本标记。
+
+## [6.6.3] — 2026-11-14
+
+> 补记：这一版发布时未单独写入 CHANGELOG。
+
+- 修复 issue #86~#99（PR #100），新增对应回归测试。
+
+
 ## [6.6.2] — 2026-11-14
 
 ### Added
