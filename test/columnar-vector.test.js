@@ -34,7 +34,8 @@ const norm = (rows) => JSON.stringify(
   });
   const rows = [];
   for (let i = 0; i < 5000; i++) {
-    rows.push({ age: 20 + (i % 50), score: (i % 1000) / 10, name: 'n' + (i % 7) });
+    // 每 13 行留一个 NULL name：IS NULL / GROUP BY 遇到 NULL 分组键都要与行存一致
+    rows.push({ age: 20 + (i % 50), score: (i % 1000) / 10, name: i % 13 === 0 ? null : 'n' + (i % 7) });
   }
   for (let i = 0; i < rows.length; i += 500) await db.insert('t', rows.slice(i, i + 500));
 
@@ -64,11 +65,22 @@ const norm = (rows) => JSON.stringify(
     'SELECT COUNT(*) AS c FROM t WHERE age > 30 OR score > 90',
     'SELECT SUM(score) AS s FROM t WHERE age > 30 OR (score > 90 AND age > 20)',
     'SELECT age, COUNT(*) AS c FROM t WHERE age > 30 OR score > 90 GROUP BY age',
+    // WHERE IN / NOT IN / BETWEEN / IS NULL
+    'SELECT COUNT(*) AS c FROM t WHERE age IN (30, 40)',
+    'SELECT COUNT(*) AS c FROM t WHERE age NOT IN (30, 40)',
+    'SELECT SUM(score) AS s FROM t WHERE age BETWEEN 20 AND 30',
+    'SELECT COUNT(*) AS c FROM t WHERE age NOT BETWEEN 20 AND 30',
+    'SELECT COUNT(*) AS c FROM t WHERE name IS NULL',
+    'SELECT COUNT(*) AS c FROM t WHERE name IS NOT NULL',
+    // GROUP BY + ORDER BY / LIMIT / OFFSET
+    'SELECT age, COUNT(*) AS c FROM t GROUP BY age ORDER BY age DESC',
+    'SELECT age, COUNT(*) AS c FROM t GROUP BY age ORDER BY c DESC LIMIT 3',
+    'SELECT age, COUNT(*) AS c FROM t GROUP BY age ORDER BY age LIMIT 4 OFFSET 2',
     // 应退回通用路径（结果仍必须一致）
     'SELECT COUNT(*) AS c FROM t LIMIT 0',
     'SELECT COUNT(DISTINCT age) AS c FROM t',
     'SELECT SUM(age + 1) AS s FROM t',
-    'SELECT age, COUNT(*) AS c FROM t GROUP BY age ORDER BY age',
+    'SELECT age, COUNT(*) AS c FROM t GROUP BY age ORDER BY age, c DESC',
   ];
 
   const before = {};

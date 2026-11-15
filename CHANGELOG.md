@@ -6,6 +6,26 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.0-beta.3] — 2026-11-15
+
+### Performance
+
+- **列存快路径再扩展**（此前这些形态都会退回通用行路径）：
+  - **WHERE**：`IN` / `NOT IN`、`BETWEEN` / `NOT BETWEEN`、`IS [NOT] NULL`。
+    参与值为 NULL 时按 SQL 三值逻辑处理 —— `NULL IN (...)`、`NULL BETWEEN`
+    都算「不命中」，不会因取反而误命中。
+  - **`GROUP BY ... ORDER BY`**（单键，按分组列或聚合别名）与
+    **`LIMIT / OFFSET`**：排序与切片在分组结果上做（组数远小于行数）。
+  - **安全阀**：分组键或投影里出现 NULL / 非简单列 / 多键排序时，
+    主动返回 null 退回通用路径 —— 例如用 `String(null)` 会把 NULL 组和
+    字符串 `'null'` 组错并成一组，这类语义差必须交给通用实现。
+
+### Tests
+
+- `test/columnar-vector.test.js` 26 → 35 项：新增 IN / BETWEEN / IS NULL、
+  `GROUP BY ... ORDER BY` / `LIMIT` / `OFFSET` 用例；数据里掺入 NULL `name`，
+  确保 `IS NULL` 与「含 NULL 分组键」的结果仍与行存逐字节一致。
+
 ## [6.7.0-beta.2] — 2026-11-15
 
 ### Performance
