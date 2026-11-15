@@ -49,17 +49,17 @@ db._tables.events.isColumnar();  // true / false
 
 | 查询 | jsql 行存 | jsql 列存 | DuckDB | 对比 |
 | --- | --- | --- | --- | --- |
-| `SELECT id LIMIT 10` | 2.5ms | **0.1ms** | 0.5ms | 快 3.9x |
-| `SELECT id`（10 万行） | 35.3ms | **25.8ms** | 70.3ms | 快 2.7x |
-| `SELECT * LIMIT 10` | 1.7ms | **0.1ms** | 0.4ms | 快 6.4x |
-| `SUM(score)` | 26.7ms | 29.4ms | **0.8ms** | 慢 36x |
-| `COUNT(*) WHERE age>30` | 27.3ms | 30.1ms | **0.6ms** | 慢 53x |
-| `GROUP BY age` | 64.1ms | 51.0ms | **0.7ms** | 慢 70x |
+| `SELECT id LIMIT 10` | 1.8ms | **0.1ms** | 0.6ms | 快 5.8x |
+| `SELECT id`（10 万行） | 34.2ms | **26.3ms** | 70.3ms | 快 2.7x |
+| `SELECT * LIMIT 10` | 3.7ms | **0.1ms** | 0.5ms | 快 6.5x |
+| `SUM(score)` | 29.0ms | **2.6ms** | 0.5ms | 慢 4.7x |
+| `COUNT(*) WHERE age>30` | 30.6ms | **1.0ms** | 0.5ms | 慢 2.0x |
+| `GROUP BY age` | 57.6ms | **7.4ms** | 0.9ms | 慢 8.0x |
 
 **结论要分开看**：
 
-- **小结果 / 点查**：jsql 更快（2.7~6.4x）。原因是进程内、无 SQL 执行引擎的固定开销；DuckDB 每次查询都有解析与调度成本。
-- **全表聚合 / 分组**：jsql 慢 36~70x。DuckDB 是向量化执行的原生引擎，这一项**短期内追不上**，也不该宣称能追上。
-- 列存的聚合数字（29.4 / 30.1 / 51.0）目前**不比行存快** —— 因为聚合还没接列路径，只是多了一层判定。这是已知待办，不当作成果。
+- **小结果 / 点查**：jsql 更快（2.7~6.5x）。原因是进程内、无 SQL 执行引擎的固定开销；DuckDB 每次查询都有解析与调度成本。
+- **聚合 / 分组**：仍然慢，但差距从早期的 36~70x 收窄到 **2~8x**（聚合走列存向量化后，`SUM` 29.0 → 2.6ms、`COUNT(*) WHERE` 30.6 → 1.0ms、`GROUP BY` 57.6 → 7.4ms）。DuckDB 是原生向量化引擎，这一项**没有超越，也不宣称超越**。
+- 剩余差距主要在 `GROUP BY`（Map 分桶的分配开销）与浮点循环的 JIT 效率 —— 继续压需要更底层的实现，不是 JS 层加几行能解决的。
 
 复现：`node scripts/bench-columnar.js`（需先 `npm i duckdb --no-save`；缺失时脚本只报 jsql 数字）。

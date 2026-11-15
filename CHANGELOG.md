@@ -30,6 +30,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Performance
 
+- **列存聚合向量化**（`lib/columnar_fast.js`）：`COUNT` / `SUM` / `AVG` /
+  `MIN` / `MAX` 与单列 `GROUP BY` 命中列存时直接扫列数组，不再构造行对象；
+  支持 `列 OP 字面量` 及 AND 组合的 WHERE 过滤。10 万行实测：
+  `SUM` 29.0 → **2.6ms**、`COUNT(*) WHERE age>30` 30.6 → **1.0ms**、
+  `GROUP BY age` 57.6 → **7.4ms**（与 DuckDB 的差距从 36~70x 收窄到 2~8x）。
+  `DISTINCT` 聚合、非简单列引用、OR/LIKE 条件一律退回通用路径 ——
+  快路径只允许更快，不允许改变结果。
 - **LIMIT / OFFSET 下推**：单表、无 WHERE / JOIN / GROUP BY / HAVING /
   ORDER BY / DISTINCT、投影无聚合或窗口函数时，把 `offset + limit` 作为
   取行上限传给存储层，不再「读全表再切」。10 万行表

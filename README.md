@@ -218,10 +218,12 @@ db.convertToRow('events');        // back to row storage
 ```
 
 A **derived in-memory view**, not an on-disk format: any write invalidates it
-(reads fall back to row storage), so the two can never disagree. Small-result /
-point queries measure **2.7–6.4x faster than DuckDB** in our benchmark; full-table
-aggregation is **36–70x slower** — the honest numbers and the exact limits are in
-[doc/columnar.md](doc/columnar.md).
+(reads fall back to row storage), so the two can never disagree. Aggregates and
+single-column `GROUP BY` scan the column arrays directly (no row objects).
+
+Point queries measure **2.7–6.5x faster than DuckDB**; aggregation is now
+**2–8x slower** (it was 36–70x before the vectorized column path). Still behind —
+not claimed otherwise. Honest numbers: [doc/columnar.md](doc/columnar.md).
 
 ## ✨ XQL 集成
 
