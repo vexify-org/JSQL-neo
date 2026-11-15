@@ -167,7 +167,7 @@ await db.start();
 |---|---|---|
 | Memory | `new Database(':memory:')` | Testing, caching |
 | Disk | `new Database('./data/app')` | Production persistence |
-| Hybrid | `new Database('./data', { autoSave: true, saveInterval: 3000 })` | Performance + durability |
+| Hybrid | `new Database('./data', { mode: 'hybrid', flushInterval: 3000 })` | Performance + durability |
 
 ---
 
