@@ -6,6 +6,25 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Performance
+
+- **LIMIT / OFFSET 下推**：单表、无 WHERE / JOIN / GROUP BY / HAVING /
+  ORDER BY / DISTINCT、投影无聚合或窗口函数时，把 `offset + limit` 作为
+  取行上限传给存储层，不再「读全表再切」。10 万行表
+  `SELECT * FROM t LIMIT 10` 从 **18.9ms → 2.0ms（9.5x）**，带 OFFSET 同样。
+  任一条不满足就退回全表路径 —— 下推错误是静默错行，保守优先。
+- **`result.raw` 惰性构造**：10 万行结果集此前每行为 raw 新建一个对象
+  （共 10 万个），而多数调用方只用 `rows`。改为 getter 首次访问才构造并
+  缓存；`finalizeResultBigInts` 同步跳过 raw（其值派生自 rows，已处理过，
+  且读它会立刻触发构造）。同机基准：`SELECT id` **46.0 → 36.2ms（1.27x）**、
+  `SELECT *` **60.6 → 43.6ms（1.39x）**，heapUsed **−21~25%**。
+
+### Tests
+
+- 新增 `test/limit-pushdown.test.js`（15 项）：下推边界（LIMIT 0 / OFFSET
+  越界 / 超过总数）与「有 WHERE 时不得按扫描行数截断」，以及 ORDER BY /
+  GROUP BY / DISTINCT / JOIN / 子查询下推必须关闭。
+
 ## [6.6.6] — 2026-11-15
 
 ### Added
