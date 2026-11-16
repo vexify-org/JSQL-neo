@@ -100,6 +100,30 @@ function ok(name, cond, extra) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 
+  // --- Layer 3: 兼容旧版单文件库 —— dataDir 下已有同名文件时必须走 legacy 模式 ---
+  {
+    // 旧版直接 Database 用法（mode 缺省 = 单文件模式）落一个库文件；
+    // 该模式下 stop() 不落盘，必须显式 save()。
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsql-legacy-'));
+    const legacy = new Database(path.join(dir, 'test'), { autoSave: true });
+    await legacy.createTable('legacy_t', { id: 'int', name: 'string' });
+    await legacy.insert('legacy_t', { id: 1, name: 'old' });
+    legacy.save();
+    await legacy.stop();
+    ok('legacy: single-file db written to disk', fs.statSync(path.join(dir, 'test')).isFile());
+
+    // 回归点：_createEngine 用 fs.statSync 探测旧文件，但模块没有 require('fs') 时
+    // ReferenceError 被空 catch 吞掉 → 恒走 hybrid → mkdirSync 对已存在文件抛 EEXIST，
+    // 旧库彻底不可访问。修复后应走 legacy 模式并正常读到数据。
+    const srv = createMongoServer({ port: 0, noAuth: true, dataDir: dir });
+    await new Promise((res) => srv.listen(res));
+    const found = await srv._dispatch('find', { find: 'legacy_t', filter: {}, $db: 'test' });
+    const batch = found.cursor ? found.cursor.firstBatch : [];
+    ok('legacy: mongo server reads legacy single-file db', batch.length === 1 && batch[0].name === 'old', batch);
+    await new Promise((res) => srv.close(res));
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+
   console.log(fail === 0 ? `\nALL ${pass} TESTS PASSED` : `\n${fail} FAILURES (${pass} passed)`);
   process.exit(fail === 0 ? 0 : 1);
 })().catch(e => {
