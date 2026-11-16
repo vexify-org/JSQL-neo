@@ -4,10 +4,10 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 6.5.x   | Yes       |
-| < 6.5   | No        |
+| 6.7.x   | Yes       |
+| < 6.7   | No        |
 
-Only the latest 6.5.x release receives security fixes. Please upgrade before
+Only the latest 6.7.x release receives security fixes. Please upgrade before
 reporting an issue that may already be fixed.
 
 ## Reporting a vulnerability
