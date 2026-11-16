@@ -6,6 +6,36 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **位移运算符 `<<` / `>>`（#109）**：移位量现在先截断为整数（`1 << 1.9` = 2，
+  此前得 `3.7321319661472296`），并改为 BigInt 精确计算——`1 << 63` 不再因
+  `Math.pow` 的浮点误差返回 `9223372036854776000`。边界与 MySQL 对齐：
+  操作数按 64 位无符号整数处理（`-1 << 1` = `18446744073709551614`），
+  移位量 `< 0` 或 `>= 64` 结果为 `0`，溢出按 64 位回绕；结果超过 `2^53`
+  时以字符串输出，精度不丢。
+- **`UNHEX` / `HEX` 字节往返（#108）**：`UNHEX()` 不再把字节塞进 latin1
+  字符串（码点 `0x80`-`0xFF` 会在后续 UTF-8 编码中被摊成两字节）。内部改用
+  二进制值保存原始字节，`HEX` / `LENGTH` / `BIT_LENGTH` / `CHAR_LENGTH`
+  按字节处理，因此 `HEX(UNHEX('DEADBEEF'))` = `'DEADBEEF'`、
+  `LENGTH(UNHEX('DEADBEEF'))` = 4、`BIT_LENGTH(...)` = 32，对任意字节
+  （`0x00`-`0xFF`）都是恒等变换；对外输出仍是字符串，API 形状不变。
+- **原生下载代理策略与文档不一致（#110）**：移除 `postinstall.js` 内置的
+  第三方加速站 `https://gh-proxy.com/`——代理只有在显式设置 `JSQL_GHPROXY`
+  时才启用，默认只直连官方 GitHub Release 主机；同步修正 `SECURITY.md` /
+  `README.md` 与代码内自相矛盾的注释，并明确 `JSQL_GHPROXY_TOKEN` 只以
+  `Authorization: Bearer` 头发给 `JSQL_GHPROXY` 里列出的代理主机（不发往
+  `github.com`，跨源重定向即丢弃）。SHA256SUMS 校验仍是 fail closed。
+
+### Tests
+
+- `test/mysql-utility-functions.test.js` 新增 32 项：#109 位移（小数截断、
+  大移位量精度、负数/边界/回绕）与 #108 字节往返（`0x00`-`0xFF` 全字节 HEX
+  恒等、`LENGTH` / `BIT_LENGTH` / `CHAR_LENGTH` 字节计数）。
+- `test/network-policy.test.js` 新增 6 项：#110 确认 `postinstall.js` 不再内置
+  代理、文档说明 `JSQL_GHPROXY` 与 token 作用域、校验仍为 fail closed。
+
+
 ## [6.7.2] — 2026-11-15
 
 ### Added

@@ -73,9 +73,17 @@ legal action and will work with you on disclosure.
 ## Security practices
 
 - Release assets are published with `SHA256SUMS`; the installer verifies the
-  checksum and fails closed.
-- Native downloads are restricted to the official GitHub release host, with
-  redirects validated and authorization headers stripped on cross-origin hops.
+  checksum and fails closed — an unverified addon is never loaded.
+- Native downloads target the official GitHub release host
+  (`github.com/vexify-org/JSQL-neo/releases`). No third-party mirror is built
+  in. A mirror/proxy is used **only** when the operator explicitly sets
+  `JSQL_GHPROXY` (comma-separated `https://…/` prefixes, tried in order).
+  - `JSQL_GHPROXY_TOKEN`, if set, is sent as `Authorization: Bearer <token>`
+    **only** to those configured proxy origins — never to `github.com` — and
+    the header is dropped on cross-origin redirects.
+  - Redirects are restricted to `http(s)` targets (max 5 hops), download size
+    is capped, and every candidate — direct or proxied — must match the
+    published `SHA256SUMS` before it is installed.
 - JavaScript modules and user-defined functions run in a restricted sandbox by
   default. Full host access requires explicit opt-in via
   `JSQL_ALLOW_UNSAFE_MODULES=1` or `JSQL_ALLOW_UNSAFE_UDF=1`.

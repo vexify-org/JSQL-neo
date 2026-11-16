@@ -30,18 +30,18 @@ const NATIVE_PATH = process.env.JSQL_NATIVE_PATH
   ? path.resolve(process.env.JSQL_NATIVE_PATH)
   : path.join(ROOT, 'native', 'jsql-neo-native.node');
 
-// GitHub 加速代理前缀（可选）。加速站的用法是把原始 URL 直接拼在后面：
+// GitHub 加速代理前缀（可选，默认关闭）。加速站的用法是把原始 URL 直接拼在后面：
 //   https://<host>/https://github.com/owner/repo/releases/download/vX.Y.Z/asset
-// 鉴权走 `Authorization: Bearer <token>` 请求头（Worker 从该头读取，不读 ?token=）。
-// 前缀必须显式设置 JSQL_GHPROXY（逗号分隔多个，按序回退；'' 表示直连）；
-// token 只能从环境变量 JSQL_GHPROXY_TOKEN 读取，代码内不再内置任何 token。
+// 启用方式：显式设置 JSQL_GHPROXY（逗号分隔多个，按序回退；空/未设置 = 只直连）。
+// token（可选）只从 JSQL_GHPROXY_TOKEN 读取，并以 `Authorization: Bearer <token>`
+// 请求头发给 **JSQL_GHPROXY 里列出的代理主机** —— 直连 github.com 时不发送；
+// 跨源重定向时也会丢弃该请求头（见 download/fetchText 的 sameOrigin 判断）。
 //
-// 供应链安全（issue #25）：已移除内置 de5.net 加速站与硬编码 token。这里只内置
-// 「不需要 token 的公共加速站」，且所有代理下载仍强制通过 SHA256SUMS 校验，
-// 因此第三方端点被投毒也装不进去（校验不通过即回退到下一个候选/直连）。
-// gh-proxy.com 实测：v6.5.32 资产 SHA256 与官方 SHA256SUMS 完全一致，且为合法 ELF。
-// 优先级：JSQL_GHPROXY（用户显式）→ 内置公共加速站 → 直连 github.com。
-const DEFAULT_PROXIES = ['https://gh-proxy.com/'];
+// 供应链安全（issue #25 / #110）：代码内不内置任何加速站，也不内置任何 token。
+// 原生下载只走两条路：官方 GitHub Release 主机（直连），或用户自己显式配置的
+// JSQL_GHPROXY 代理；两者都必须通过 SHA256SUMS 校验（fail closed），
+// 因此就算第三方代理被投毒也装不进去。
+// 优先级：JSQL_GHPROXY（用户显式）→ 直连 github.com。
 const GHPROXY = process.env.JSQL_GHPROXY !== undefined
   ? process.env.JSQL_GHPROXY
   : '';
@@ -61,7 +61,8 @@ const GHPROXY_TOKEN = process.env.JSQL_GHPROXY_TOKEN || '';
 //   JSQL_NATIVE_TAG=vX.Y.Z|latest    指定远端 tag；默认 v<package.version>
 //   JSQL_AUTO_DOWNLOAD_NATIVE=1 / JSQL_NATIVE_DOWNLOAD=1  仍然兼容（显式开）
 //
-// 供应链安全（issue #25）：不内置任何加速站/token，代理仍需显式 JSQL_GHPROXY，
+// 供应链安全（issue #25 / #110）：不内置任何加速站/token —— 代理只能由用户
+// 显式 JSQL_GHPROXY 指定，未设置时只直连官方 GitHub Release 主机；
 // 且下载必须通过 SHA256SUMS 校验（除非用户显式 JSQL_ALLOW_UNVERIFIED_NATIVE=1）。
 const DOWNLOAD_DISABLED = isOffline()
   || process.env.JSQL_NO_NATIVE_DOWNLOAD === '1'
@@ -81,14 +82,14 @@ function proxyHeaders() {
 
 /**
  * 生成候选下载地址列表（按优先级）：
- *   JSQL_GHPROXY 指定的代理 → 内置加速站 → 直连
+ *   JSQL_GHPROXY 指定的代理（用户显式）→ 直连官方 github.com
+ * 没有内置的第三方加速站；JSQL_GHPROXY 为空时列表里只有直连一项。
  */
 function proxyCandidates(raw) {
   const bases = String(GHPROXY || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
-    .concat(DEFAULT_PROXIES)
     .concat('');
   const list = [];
   for (const base of bases) {
@@ -464,12 +465,12 @@ async function downloadAndVerify(opts = {}) {
     console.warn('[jsql-neo] WARNING: JSQL_ALLOW_UNVERIFIED_NATIVE=1 — native module integrity is NOT verified.');
   }
 
-  // 依次尝试：环境变量指定的代理 → 内置加速站 → 直连
+  // 依次尝试：JSQL_GHPROXY 显式指定的代理 → 直连官方 GitHub Release 主机
   for (const cand of proxyCandidates(raw)) {
     console.log(`[jsql-neo] fetching native module (${tag}): ${cand.url}`);
     const tmp = `${NATIVE_PATH}.${process.pid}.download`;
     try {
-      // 加速站鉴权走 Authorization 头，直连时不带
+      // 代理鉴权（JSQL_GHPROXY_TOKEN）走 Authorization 头，且只发给代理主机；直连时不带
       await download(cand.url, tmp, cand.viaProxy ? proxyHeaders() : undefined);
       if (expected) {
         const actual = sha256File(tmp);
