@@ -104,6 +104,25 @@ function resetCalls() { calls.length = 0; }
   ok('jsql plugin list 离线抛 JSQL_OFFLINE', perr && perr.code === 'JSQL_OFFLINE', perr && perr.code);
   ok('jsql plugin list 离线不出网', calls.length === 0, calls);
 
+  // ---------- 原生下载供应链策略（Issue #110）----------
+  // 文档曾声称「只走官方 GitHub Release 主机」，而 postinstall.js 实际会默认
+  // 优先走第三方代理 gh-proxy.com。这里钉死修正后的策略：不内置任何代理，
+  // 代理只能由用户显式 JSQL_GHPROXY 指定，且文档与代码口径一致。
+  {
+    const post = fs.readFileSync(path.join(ROOT, 'postinstall.js'), 'utf8');
+    ok('#110 postinstall 不内置 DEFAULT_PROXIES', !/DEFAULT_PROXIES/.test(post), null);
+    ok('#110 postinstall 不内置 gh-proxy.com', !/gh-proxy\.com/.test(post), null);
+    ok('#110 postinstall 仍支持显式 JSQL_GHPROXY', /JSQL_GHPROXY/.test(post), null);
+    ok('#110 postinstall 仍强制 SHA256 校验（fail closed）',
+      /expectedHashFromManifest/.test(post) && /refusing to download an unverified native module/.test(post), null);
+    const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+    const security = fs.readFileSync(path.join(ROOT, 'SECURITY.md'), 'utf8');
+    ok('#110 README 说明 JSQL_GHPROXY 与 token 作用域',
+      /JSQL_GHPROXY/.test(readme) && /JSQL_GHPROXY_TOKEN/.test(readme), null);
+    ok('#110 SECURITY 不再声称「仅官方主机」而无代理例外',
+      /JSQL_GHPROXY/.test(security) && /No third-party mirror is built/i.test(security), null);
+  }
+
   // ---------- 恢复 ----------
   process.env.JSQL_OFFLINE = saved === undefined ? '' : saved;
   if (saved === undefined) delete process.env.JSQL_OFFLINE;

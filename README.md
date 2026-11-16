@@ -266,7 +266,18 @@ source stating why it cannot be done locally:
 | `jsql star --token-check` | `api.github.com` | star status only exists on the GitHub account | `JSQL_OFFLINE=1` |
 | `jsql update` | `registry.npmjs.org` | "is there a newer version" only exists in the registry | `JSQL_OFFLINE=1` |
 | `jsql plugin list\|search\|info\|install` | `registry-beta.vexify.top` | the plugin catalogue only exists remotely | `JSQL_OFFLINE=1` |
-| `npm install` (postinstall) | GitHub releases | the precompiled Rust `.node` is not in the npm tarball | `JSQL_NO_NATIVE_DOWNLOAD=1` or `JSQL_OFFLINE=1` |
+| `npm install` (postinstall) | GitHub releases (`github.com`) | the precompiled Rust `.node` is not in the npm tarball | `JSQL_NO_NATIVE_DOWNLOAD=1` or `JSQL_OFFLINE=1` |
+
+`npm install` downloads the prebuilt addon from the official GitHub release host
+and verifies it against the published `SHA256SUMS`; a mismatch (or a missing
+manifest) aborts the download. **No third-party mirror is used by default.** If
+`github.com` is unreachable you can opt into a proxy explicitly:
+
+| Variable | Meaning |
+| --- | --- |
+| `JSQL_GHPROXY` | Comma-separated proxy prefixes, tried in order (e.g. `https://gh-proxy.com/`). Empty/unset = direct only. |
+| `JSQL_GHPROXY_TOKEN` | Optional bearer token, sent as `Authorization: Bearer …` **only** to the proxy origins listed in `JSQL_GHPROXY` (never to `github.com`, never on cross-origin redirects). |
+| `JSQL_NATIVE_SHA256` | Pin the expected digest instead of reading `SHA256SUMS`. |
 
 `JSQL_OFFLINE=1` disables every external request at once; affected commands
 report the reason instead of failing silently. Loopback traffic (the
