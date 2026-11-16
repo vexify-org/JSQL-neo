@@ -6,6 +6,8 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.3] — 2026-11-16
+
 ### Fixed
 
 - **位移运算符 `<<` / `>>`（#109）**：移位量现在先截断为整数（`1 << 1.9` = 2，
@@ -34,7 +36,6 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   恒等、`LENGTH` / `BIT_LENGTH` / `CHAR_LENGTH` 字节计数）。
 - `test/network-policy.test.js` 新增 6 项：#110 确认 `postinstall.js` 不再内置
   代理、文档说明 `JSQL_GHPROXY` 与 token 作用域、校验仍为 fail closed。
-
 
 ## [6.7.2] — 2026-11-15
 
