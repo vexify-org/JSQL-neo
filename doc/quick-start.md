@@ -34,6 +34,10 @@ const { Database, executeSQL } = require('jsql-neo');
 | 磁盘 | `new Database('./data/app', { mode: 'disk' })` | 生产持久化 |
 | 混合 | `new Database('./data', { mode: 'hybrid', autoSave: true, autoSaveInterval: 3000 })` | 平衡性能与持久化 |
 
+单文件模式 `new Database('./data/db.json')` 默认**每一步写入都落盘**：变更发生时立刻往
+`db.json.wal` 追加一条记录并 `fsync`，`kill -9` 不丢已提交数据；`save()` / `close()` 只做
+检查点（写快照 + 清空 WAL）。细节见 [API 参考 · 持久化与 WAL](api-reference.md#持久化与-wal)。
+
 ## Web UI
 
 ```bash

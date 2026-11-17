@@ -169,6 +169,17 @@ await db.start();
 | Disk | `new Database('./data/app')` | Production persistence |
 | Hybrid | `new Database('./data', { autoSave: true, saveInterval: 3000 })` | Performance + durability |
 
+File mode (`new Database('./data/db.json')`) is **not** an in-memory store that only
+writes on exit. Every `insert` / `insertMany` / `update` / `updateById` / `remove` /
+`removeById` / `softDelete` / `truncate` appends one JSONL record to `<file>.wal` and
+`fsync`s it before returning, so a `kill -9` loses nothing that already committed.
+`save()` / `close()` / `stop()` only checkpoint (write a full snapshot, then truncate
+the WAL); they are no longer the moment data first reaches disk.
+WAL is on by default for file mode — pass `wal: false` for the old semantics, or tune
+auto-checkpointing with `walCheckpointOps` (default 1000, `0` disables). Directory
+(`mode: 'disk' | 'hybrid'`) and encrypted (`encryptKey`) databases keep it off unless
+you opt in with `wal: true`, because the WAL is plaintext.
+
 ---
 
 ## Query results
