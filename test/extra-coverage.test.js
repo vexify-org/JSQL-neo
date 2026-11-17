@@ -167,10 +167,11 @@ test('Unicode é：LENGTH 为字节数（6），CHAR_LENGTH 为字符数（5）'
   assert.strictEqual(await one(q, "SELECT UPPER('café')"), 'CAFÉ');
 });
 
-test('Emoji 按 UTF-8 字节计数（LENGTH=8, CHAR_LENGTH=4）', async () => {
+test('Emoji 按 UTF-8 字节计数（LENGTH=8, CHAR_LENGTH=2）', async () => {
   const { q } = makeDb();
   assert.strictEqual(await one(q, "SELECT LENGTH('🚀🌟')"), 8);
-  assert.strictEqual(await one(q, "SELECT CHAR_LENGTH('🚀🌟')"), 4);
+  // Issue #111：CHAR_LENGTH 按 code point 计，两个 emoji = 2 个字符
+  assert.strictEqual(await one(q, "SELECT CHAR_LENGTH('🚀🌟')"), 2);
 });
 
 test('Emoji UPPER 无变化', async () => {

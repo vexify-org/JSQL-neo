@@ -152,7 +152,8 @@ console.warn = () => {};
   ok('LENGTH 是字节数（é = 2 字节）', (await one("SELECT LENGTH('héllo')")) === 6);
   ok('LENGTH 是字节数（emoji 4 字节 ×2）', (await one("SELECT LENGTH('🚀🌟')")) === 8);
   ok('CHAR_LENGTH 是字符数', (await one("SELECT CHAR_LENGTH('héllo')")) === 5);
-  ok('CHARACTER_LENGTH 是字符数', (await one("SELECT CHARACTER_LENGTH('🚀🌟')")) === 4);
+  // Issue #111：字符数按 Unicode code point 计（🚀🌟 是 2 个字符，不是 4 个 UTF-16 code unit）
+  ok('CHARACTER_LENGTH 是字符数', (await one("SELECT CHARACTER_LENGTH('🚀🌟')")) === 2);
   ok('OCTET_LENGTH 已实现（= LENGTH）', (await one("SELECT OCTET_LENGTH('中文')")) === 6);
   ok('LENGTH(NULL) = NULL', (await one('SELECT LENGTH(NULL)')) === null);
   ok('OCTET_LENGTH(NULL) = NULL', (await one('SELECT OCTET_LENGTH(NULL)')) === null);
