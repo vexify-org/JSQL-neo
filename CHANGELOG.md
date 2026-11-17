@@ -6,6 +6,33 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.5] — 2026-11-17
+
+### Changed
+
+- **文件模式的持久化语义改为「一步一个 WAL」**：`new Database(file)` 不再默认是
+  「内存中改完、退出时 `save()`」。WAL 在文件模式下默认开启，每次
+  `insert` / `insertMany` / `update` / `updateById` / `remove` / `removeById` /
+  `softDelete` / `truncate` 都在变更发生的那一刻追加一条 JSONL 并 `fsync`，
+  进程被 `kill -9` 也不会丢已提交的写入。`save()` / `stop()` 只负责把 WAL
+  压实成快照（检查点），不再是数据首次落盘的时机。
+  内存模式自动禁用；目录模式（hybrid/disk）与 `encryptKey` 加密库仍默认关闭
+  （WAL 是明文），需要显式传 `wal: true`；传 `wal: false` 保留旧语义。
+- 新增 `walCheckpointOps` 选项（默认 1000，`0` 关闭）：WAL 累积到阈值后自动做
+  一次快照检查点，避免日志无限增长；事务进行中会跳过检查点。
+
+### Fixed
+
+- **WAL 漏记写入（P1-6）**：`insertMany` / `update` / `delete` / `truncate`
+  此前完全不写 WAL（无主键表同样漏记），崩溃恢复会丢这些操作。现在统一在
+  `Table` 的变更点记录 `upsertRows` / `removeRows` / `replaceTable` 三种记录，
+  无主键表退化为整表行镜像。
+- **回滚后崩溃会「复活」已回滚的数据**：`rollback` / `ROLLBACK TO SAVEPOINT`
+  恢复快照后，WAL 里仍留着被回滚的写入，重放等于回滚失效。现在回滚后立即把
+  受影响表的快照写入 WAL。
+- **WAL 回放不再重复插行**：`insert` 等记录按主键幂等覆盖，快照与 WAL 重叠、
+  或 `save()` 写完快照但未删 WAL 就崩溃时，重开不会出现重复行。
+
 ## [6.7.3] — 2026-11-16
 
 ### Fixed
