@@ -156,6 +156,28 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         fs.rmSync(dir, { recursive: true, force: true });
     }
 
+    console.log('--- 8. 默认即 WAL：不传 wal、也不调用 save() 也必须恢复 ---');
+    {
+        const { dir, file } = tmpFile('default');
+        const db = new Database(file, { autoSave: false });
+        ok('文件模式默认启用 WAL', db._walEnabled === true);
+        await db.createTable('t', SCHEMA);
+        await db.createTable('np', { x: { type: 'string' } });
+        await db.insert('t', { id: 1, v: 'a' });
+        await db.updateById('t', 1, { v: 'a2' });
+        await db.insert('np', { x: 'n1' });
+        await db.insert('np', { x: 'n2' });
+        await db.delete('np', { x: 'n1' });
+        ok('写入后立即产生 .wal', fs.existsSync(file + '.wal'));
+
+        const db2 = new Database(file);   // 不传 wal，模拟进程崩溃后重启
+        const rows = await db2.find('t', {});
+        const npRows = await db2.find('np', {});
+        ok('默认 WAL 恢复主键表', rows.length === 1 && rows[0].v === 'a2', rows);
+        ok('默认 WAL 恢复无主键表', npRows.length === 1 && npRows[0].x === 'n2', npRows);
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+
     console.log(`\n${pass} passed, ${fail} failed`);
     process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error('FATAL', e); process.exit(1); });
