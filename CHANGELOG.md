@@ -10,16 +10,21 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Changed
 
-- **hybrid / disk 模式改为「一行缓存 + 一行刷盘」**：此前任一行的变更都会把整表重写，
-  内存里也整表常驻。现在刷盘只把变更行追加到表文件并就地更新主键索引；内存中只保留
-  `{block, off}` 定位符，被访问的行才读盘，冷行按 LRU 逐行回退成定位符。公共 API
-  （find / insert / update / remove / SQL 等）的签名与语义完全不变。
+- **Hybrid / disk mode now caches and flushes one row at a time**: previously any single row
+  change rewrote the whole table, and the whole table stayed resident in memory. Writes now
+  append only the changed rows to the table file and update the primary-key index in place;
+  memory keeps `{block, off}` locators only, rows are read from disk when accessed, and cold
+  rows fall back to locators one by one under LRU. The public API (`find` / `insert` /
+  `update` / `remove` / SQL, etc.) is unchanged in both signature and semantics.
 
 ### Fixed
 
-- **主键索引跨块后重开会丢行**：索引条目超过单块容量（335 项）时 next 指针被写到错误
-  位置，索引链断裂，重开数据库后只能读到第一块的行。现在先分配块号再回填链指针。
-- **整表压缩后文件只增不减**：整表重写后回收文件尾部的历史空洞块。
+- **Reopen lost rows once the primary-key index spanned more than one block**: when index
+  entries exceeded a single block (335 entries), the `next` pointer was written to the wrong
+  offset, breaking the chain so only the first block of rows survived a reopen. Block ids are
+  now allocated first and the chain pointers patched afterwards.
+- **Table files never shrank after a full-table compaction**: trailing hole blocks are now
+  reclaimed after a whole-table rewrite.
 
 ## [6.7.5] — 2026-11-17
 
