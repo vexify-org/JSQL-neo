@@ -155,6 +155,37 @@ const SCHEMA = {
         db.close();
     }
 
+    console.log('--- 7. 重开后按行懒加载 + 逐行淘汰 ---');
+    {
+        const dir = tmpDir('lazy');
+        let db = new Database(dir, { mode: 'hybrid' });
+        await db.createTable('t', SCHEMA);
+        // 400 行超过单个索引块的容量（335 项），同时覆盖索引分块读取
+        await db.insertMany('t', Array.from({ length: 400 }, (_, i) => ({ id: i + 1, v: 'v' + i, n: i })));
+        await db.flush();
+        db.close();
+
+        db = new Database(dir, { mode: 'hybrid' });
+        const table = db._ensureTable('t');
+        ok('重开后行数完整（索引跨块）', table._rows.length === 400 && (await db.count('t')) === 400,
+            table._rows.length);
+        ok('打开时不把整表读入内存', table._rowCache.size() === 0, table._rowCache.size());
+
+        const row = await db.findById('t', 200);
+        ok('按主键只加载命中的一行', row && row.n === 199 && table._rowCache.size() === 1,
+            { row, cached: table._rowCache.size() });
+
+        await db.updateById('t', 200, { n: 8888 });
+        await db.flush();
+        table._evictRows(Infinity);
+        ok('淘汰后按需重读仍是新值',
+            (await db.findById('t', 200)).n === 8888 && table._rowCache.size() === 1);
+
+        table._evictRows(Infinity);
+        ok('淘汰后行数不变', (await db.count('t')) === 400 && table._rowCache.size() === 0);
+        db.close();
+    }
+
     console.log(`\n${pass} passed, ${fail} failed`);
     if (fail > 0) process.exit(1);
 })();
