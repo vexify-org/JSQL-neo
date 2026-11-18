@@ -17,6 +17,83 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   `mode: 'hybrid'`（与 multiserver 一致），legacy 单文件模式在 insert
   路径上从不落盘。README 存储示例中不存在的 `saveInterval` 更正为
   `flushInterval`（并补上 `mode: 'hybrid'`，否则该选项无效）。
+## [6.7.6] — 2026-11-17
+
+### Changed
+
+- **Hybrid / disk mode now caches and flushes one row at a time**: previously any single row
+  change rewrote the whole table, and the whole table stayed resident in memory. Writes now
+  append only the changed rows to the table file and update the primary-key index in place;
+  memory keeps `{block, off}` locators only, rows are read from disk when accessed, and cold
+  rows fall back to locators one by one under LRU. The public API (`find` / `insert` /
+  `update` / `remove` / SQL, etc.) is unchanged in both signature and semantics.
+
+### Fixed
+
+- **Reopen lost rows once the primary-key index spanned more than one block**: when index
+  entries exceeded a single block (335 entries), the `next` pointer was written to the wrong
+  offset, breaking the chain so only the first block of rows survived a reopen. Block ids are
+  now allocated first and the chain pointers patched afterwards.
+- **Table files never shrank after a full-table compaction**: trailing hole blocks are now
+  reclaimed after a whole-table rewrite.
+
+## [6.7.5] — 2026-11-17
+
+### Changed
+
+- **文件模式的持久化语义改为「一步一个 WAL」**：`new Database(file)` 不再默认是
+  「内存中改完、退出时 `save()`」。WAL 在文件模式下默认开启，每次
+  `insert` / `insertMany` / `update` / `updateById` / `remove` / `removeById` /
+  `softDelete` / `truncate` 都在变更发生的那一刻追加一条 JSONL 并 `fsync`，
+  进程被 `kill -9` 也不会丢已提交的写入。`save()` / `stop()` 只负责把 WAL
+  压实成快照（检查点），不再是数据首次落盘的时机。
+  内存模式自动禁用；目录模式（hybrid/disk）与 `encryptKey` 加密库仍默认关闭
+  （WAL 是明文），需要显式传 `wal: true`；传 `wal: false` 保留旧语义。
+- 新增 `walCheckpointOps` 选项（默认 1000，`0` 关闭）：WAL 累积到阈值后自动做
+  一次快照检查点，避免日志无限增长；事务进行中会跳过检查点。
+
+### Fixed
+
+- **WAL 漏记写入（P1-6）**：`insertMany` / `update` / `delete` / `truncate`
+  此前完全不写 WAL（无主键表同样漏记），崩溃恢复会丢这些操作。现在统一在
+  `Table` 的变更点记录 `upsertRows` / `removeRows` / `replaceTable` 三种记录，
+  无主键表退化为整表行镜像。
+- **回滚后崩溃会「复活」已回滚的数据**：`rollback` / `ROLLBACK TO SAVEPOINT`
+  恢复快照后，WAL 里仍留着被回滚的写入，重放等于回滚失效。现在回滚后立即把
+  受影响表的快照写入 WAL。
+- **WAL 回放不再重复插行**：`insert` 等记录按主键幂等覆盖，快照与 WAL 重叠、
+  或 `save()` 写完快照但未删 WAL 就崩溃时，重开不会出现重复行。
+
+## [6.7.3] — 2026-11-16
+
+### Fixed
+
+- **位移运算符 `<<` / `>>`（#109）**：移位量现在先截断为整数（`1 << 1.9` = 2，
+  此前得 `3.7321319661472296`），并改为 BigInt 精确计算——`1 << 63` 不再因
+  `Math.pow` 的浮点误差返回 `9223372036854776000`。边界与 MySQL 对齐：
+  操作数按 64 位无符号整数处理（`-1 << 1` = `18446744073709551614`），
+  移位量 `< 0` 或 `>= 64` 结果为 `0`，溢出按 64 位回绕；结果超过 `2^53`
+  时以字符串输出，精度不丢。
+- **`UNHEX` / `HEX` 字节往返（#108）**：`UNHEX()` 不再把字节塞进 latin1
+  字符串（码点 `0x80`-`0xFF` 会在后续 UTF-8 编码中被摊成两字节）。内部改用
+  二进制值保存原始字节，`HEX` / `LENGTH` / `BIT_LENGTH` / `CHAR_LENGTH`
+  按字节处理，因此 `HEX(UNHEX('DEADBEEF'))` = `'DEADBEEF'`、
+  `LENGTH(UNHEX('DEADBEEF'))` = 4、`BIT_LENGTH(...)` = 32，对任意字节
+  （`0x00`-`0xFF`）都是恒等变换；对外输出仍是字符串，API 形状不变。
+- **原生下载代理策略与文档不一致（#110）**：移除 `postinstall.js` 内置的
+  第三方加速站 `https://gh-proxy.com/`——代理只有在显式设置 `JSQL_GHPROXY`
+  时才启用，默认只直连官方 GitHub Release 主机；同步修正 `SECURITY.md` /
+  `README.md` 与代码内自相矛盾的注释，并明确 `JSQL_GHPROXY_TOKEN` 只以
+  `Authorization: Bearer` 头发给 `JSQL_GHPROXY` 里列出的代理主机（不发往
+  `github.com`，跨源重定向即丢弃）。SHA256SUMS 校验仍是 fail closed。
+
+### Tests
+
+- `test/mysql-utility-functions.test.js` 新增 32 项：#109 位移（小数截断、
+  大移位量精度、负数/边界/回绕）与 #108 字节往返（`0x00`-`0xFF` 全字节 HEX
+  恒等、`LENGTH` / `BIT_LENGTH` / `CHAR_LENGTH` 字节计数）。
+- `test/network-policy.test.js` 新增 6 项：#110 确认 `postinstall.js` 不再内置
+  代理、文档说明 `JSQL_GHPROXY` 与 token 作用域、校验仍为 fail closed。
 
 ## [6.7.2] — 2026-11-15
 

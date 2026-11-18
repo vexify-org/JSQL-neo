@@ -62,6 +62,54 @@ function ok(name, cond, got) {
   ok('SOUNDEX 空串', await q("SELECT SOUNDEX('')") === '', null);
   ok('SOUNDEX(NULL) → NULL', await q('SELECT SOUNDEX(NULL)') === null, null);
 
+  // ---------- 位移运算符（Issue #109）----------
+  // MySQL：移位量只取整数部分（trunc），操作数按 64 位无符号整数处理，
+  // 结果超过 2^53 时保留精确值（以字符串输出，与 #38 的大整数约定一致）。
+  ok('#109 1 << 1.9 = 2', await q('SELECT 1 << 1.9') === 2, null);
+  ok('#109 1 << 1.5 = 2', await q('SELECT 1 << 1.5') === 2, null);
+  ok('#109 1 << 2.9 = 4', await q('SELECT 1 << 2.9') === 4, null);
+  ok('#109 8 >> 1.9 = 4', await q('SELECT 8 >> 1.9') === 4, null);
+  ok('#109 7 >> 1.5 = 3', await q('SELECT 7 >> 1.5') === 3, null);
+  ok('#109 1 << 0.9 = 1', await q('SELECT 1 << 0.9') === 1, null);
+  ok('#109 1 << 0 = 1', await q('SELECT 1 << 0') === 1, null);
+  ok('#109 1 << 8 = 256（普通值仍是 number）', await q('SELECT 1 << 8') === 256, null);
+  ok('#109 1 << 31 = 2147483648（不按 32 位截断）', await q('SELECT 1 << 31') === 2147483648, null);
+  ok('#109 1 << 63 精确', String(await q('SELECT 1 << 63')) === '9223372036854775808', null);
+  ok('#109 1 << 62 精确', String(await q('SELECT 1 << 62')) === '4611686018427387904', null);
+  ok('#109 1 << 64 按 64 位回绕为 0', await q('SELECT 1 << 64') === 0, null);
+  ok('#109 8 >> 64 = 0', await q('SELECT 8 >> 64') === 0, null);
+  ok('#109 负移位量 → 0', await q('SELECT 1 << -1') === 0, null);
+  ok('#109 18446744073709551615 >> 1 精确',
+    String(await q('SELECT 18446744073709551615 >> 1')) === '9223372036854775807', null);
+  ok('#109 负数按无符号 64 位解释（-1 << 1）',
+    String(await q('SELECT -1 << 1')) === '18446744073709551614', null);
+  ok('#109 负数右移按无符号（-8 >> 1）',
+    String(await q('SELECT -8 >> 1')) === '9223372036854775804', null);
+  ok('#109 小数操作数四舍五入（1.9 << 1 = 4）', await q('SELECT 1.9 << 1') === 4, null);
+  ok('#109 移位结果可继续参与运算（1 << 4 + 1）', await q('SELECT (1 << 4) + 1') === 17, null);
+
+  // ---------- UNHEX / HEX 字节往返（Issue #108）----------
+  ok("#108 HEX(UNHEX('DEADBEEF')) 往返", await q("SELECT HEX(UNHEX('DEADBEEF'))") === 'DEADBEEF', null);
+  ok("#108 LENGTH(UNHEX('DEADBEEF')) = 4", await q("SELECT LENGTH(UNHEX('DEADBEEF'))") === 4, null);
+  ok("#108 BIT_LENGTH(UNHEX('DEADBEEF')) = 32", await q("SELECT BIT_LENGTH(UNHEX('DEADBEEF'))") === 32, null);
+  ok("#108 HEX(UNHEX('80')) 不被 UTF-8 放大", await q("SELECT HEX(UNHEX('80'))") === '80', null);
+  ok("#108 HEX(UNHEX('FF'))", await q("SELECT HEX(UNHEX('FF'))") === 'FF', null);
+  ok("#108 LENGTH(UNHEX('80')) = 1", await q("SELECT LENGTH(UNHEX('80'))") === 1, null);
+  ok("#108 含 0x00 的二进制串", await q("SELECT HEX(UNHEX('00FF00'))") === '00FF00', null);
+  ok("#108 空串往返", await q("SELECT HEX(UNHEX(''))") === '', null);
+  {
+    const allBytes = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, '0')).join('').toUpperCase();
+    ok('#108 0x00-0xFF 全字节 HEX 往返恒等',
+      await q(`SELECT HEX(UNHEX('${allBytes}'))`) === allBytes, null);
+    ok('#108 全字节 LENGTH = 256', await q(`SELECT LENGTH(UNHEX('${allBytes}'))`) === 256, null);
+    ok('#108 全字节 BIT_LENGTH = 2048', await q(`SELECT BIT_LENGTH(UNHEX('${allBytes}'))`) === 2048, null);
+    ok('#108 全字节 CHAR_LENGTH = 256', await q(`SELECT CHAR_LENGTH(UNHEX('${allBytes}'))`) === 256, null);
+  }
+  ok('#108 二进制串与文本可比较', await q("SELECT UNHEX('4142') = 'AB'") === 1, null);
+  ok('#108 二进制串可 CONCAT', await q("SELECT CONCAT(UNHEX('4142'), 'c')") === 'ABc', null);
+  ok('#108 对 HEX 结果再取长度', await q("SELECT LENGTH(HEX(UNHEX('DEADBEEF')))") === 8, null);
+  ok('#108 文本 HEX 仍按 UTF-8 字节', await q("SELECT HEX('中文')") === 'E4B8ADE69687', null);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 })().catch(e => {

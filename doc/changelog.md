@@ -1,9 +1,35 @@
 # 变更日志
 
-> 当前版本：**6.6.6**（2026-11-15）
+> 当前版本：**6.7.6**（2026-11-17）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## 6.7.6 — 2026-11-17 (行级缓存)
+
+### Changed
+- **hybrid / disk 模式改为「一行缓存 + 一行刷盘」**：只把变更行追加到表文件并就地更新
+  主键索引；内存里只保留 `{block, off}` 定位符，访问到的行才读盘，冷行按 LRU 逐行回退。
+  公共 API 保持不变。
+
+### Fixed
+- 主键索引超过单块容量（335 项）后链指针错误，重开数据库丢失后续行。
+- 整表压缩后回收文件尾部空洞块，文件不再只增不减。
+
+## 6.7.5 — 2026-11-17 (持久化语义)
+
+### Changed
+- **单文件模式一步一个 WAL**：文件模式默认开启 WAL，`insert` / `insertMany` / `update` /
+  `updateById` / `remove` / `removeById` / `softDelete` / `truncate` 在变更发生时立刻
+  追加 JSONL 并 `fsync`，`kill -9` 不丢已提交写入；`save()` / `close()` / `stop()` 退化为
+  检查点（写快照 + 清空 WAL）。内存模式自动禁用；目录模式与 `encryptKey` 加密库仍需显式
+  `wal: true`（WAL 为明文）；`wal: false` 保留旧语义。
+- 新增 `walCheckpointOps`（默认 1000，`0` 关闭）：WAL 累积到阈值自动检查点，防止日志膨胀。
+
+### Fixed
+- WAL 漏记 `insertMany` / `update` / `delete` / `truncate`（含无主键表），崩溃恢复不再丢这些写入。
+- `rollback` / `ROLLBACK TO SAVEPOINT` 后崩溃不再「复活」已回滚数据（回滚后立即写回 WAL）。
+- WAL 回放按主键幂等覆盖，快照与 WAL 重叠时不会重复插行。
 
 ## 6.6.6 — 2026-11-15 (功能 + 文档)
 

@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.7.2** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.7.6** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -169,6 +169,17 @@ await db.start();
 | Disk | `new Database('./data/app')` | Production persistence |
 | Hybrid | `new Database('./data', { mode: 'hybrid', flushInterval: 3000 })` | Performance + durability |
 
+File mode (`new Database('./data/db.json')`) is **not** an in-memory store that only
+writes on exit. Every `insert` / `insertMany` / `update` / `updateById` / `remove` /
+`removeById` / `softDelete` / `truncate` appends one JSONL record to `<file>.wal` and
+`fsync`s it before returning, so a `kill -9` loses nothing that already committed.
+`save()` / `close()` / `stop()` only checkpoint (write a full snapshot, then truncate
+the WAL); they are no longer the moment data first reaches disk.
+WAL is on by default for file mode — pass `wal: false` for the old semantics, or tune
+auto-checkpointing with `walCheckpointOps` (default 1000, `0` disables). Directory
+(`mode: 'disk' | 'hybrid'`) and encrypted (`encryptKey`) databases keep it off unless
+you opt in with `wal: true`, because the WAL is plaintext.
+
 ---
 
 ## Query results
@@ -266,7 +277,18 @@ source stating why it cannot be done locally:
 | `jsql star --token-check` | `api.github.com` | star status only exists on the GitHub account | `JSQL_OFFLINE=1` |
 | `jsql update` | `registry.npmjs.org` | "is there a newer version" only exists in the registry | `JSQL_OFFLINE=1` |
 | `jsql plugin list\|search\|info\|install` | `registry-beta.vexify.top` | the plugin catalogue only exists remotely | `JSQL_OFFLINE=1` |
-| `npm install` (postinstall) | GitHub releases | the precompiled Rust `.node` is not in the npm tarball | `JSQL_NO_NATIVE_DOWNLOAD=1` or `JSQL_OFFLINE=1` |
+| `npm install` (postinstall) | GitHub releases (`github.com`) | the precompiled Rust `.node` is not in the npm tarball | `JSQL_NO_NATIVE_DOWNLOAD=1` or `JSQL_OFFLINE=1` |
+
+`npm install` downloads the prebuilt addon from the official GitHub release host
+and verifies it against the published `SHA256SUMS`; a mismatch (or a missing
+manifest) aborts the download. **No third-party mirror is used by default.** If
+`github.com` is unreachable you can opt into a proxy explicitly:
+
+| Variable | Meaning |
+| --- | --- |
+| `JSQL_GHPROXY` | Comma-separated proxy prefixes, tried in order (e.g. `https://gh-proxy.com/`). Empty/unset = direct only. |
+| `JSQL_GHPROXY_TOKEN` | Optional bearer token, sent as `Authorization: Bearer …` **only** to the proxy origins listed in `JSQL_GHPROXY` (never to `github.com`, never on cross-origin redirects). |
+| `JSQL_NATIVE_SHA256` | Pin the expected digest instead of reading `SHA256SUMS`. |
 
 `JSQL_OFFLINE=1` disables every external request at once; affected commands
 report the reason instead of failing silently. Loopback traffic (the

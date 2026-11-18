@@ -14,7 +14,7 @@ const disk = new Database('./data/app', { mode: 'disk' });
 // 混合模式（LRU + 异步刷盘）
 const hybrid = new Database('./data', { mode: 'hybrid', autoSave: true, autoSaveInterval: 3000 });
 
-// 旧版单文件 JSON 模式（需显式 save() / flush() / close() 落盘，stop() 不落盘）
+// 旧版单文件 JSON 模式（每次写入即 append 到 .wal 并 fsync，save()/close() 只做检查点）
 const legacy = new Database('./data/db.json');
 
 // 下面各节示例统一使用这个内存库
@@ -32,7 +32,8 @@ interface DatabaseOptions {
   flushInterval?: number;                           // 混合/磁盘模式刷盘间隔 ms，默认 hybrid 200 / disk 50
   encryptKey?: string;                              // AES-256-CBC 密钥（16/24/32 字节）
   versioning?: boolean;                             // 行版本历史，默认 false
-  wal?: boolean;                                    // WAL 模式，默认 false
+  wal?: boolean;                                    // 旧文件模式 WAL，默认 true；传 false 退回旧语义
+  walCheckpointOps?: number;                        // WAL 累积多少条后自动检查点，默认 1000，0 禁用
   isolationLevel?: 'READ_COMMITTED' | 'REPEATABLE_READ'; // 默认 READ_COMMITTED
   slowQueryThreshold?: number;                      // 慢查询阈值 ms，默认 100，<0 禁用
   fileLock?: boolean;                               // 文件锁，默认 false
@@ -44,11 +45,32 @@ interface DatabaseOptions {
 构造函数即完成初始化，没有 `init()`；数据操作全部返回 Promise。
 
 ```js
-await db.stop();                    // 停止（目录模式会自动刷盘）
+await db.stop();                    // 停止（目录模式会自动刷盘；旧文件模式做一次检查点）
 await db.flush();                   // 手动刷盘（旧文件模式等价于 save()）
-db.save();                          // 旧文件模式立即写盘
+db.save();                          // 旧文件模式：写快照并清空 WAL（检查点）
 db.backup('./backup.json');         // 备份全部表为 JSON 文件
 db.close();                         // 保存并清理定时器
+```
+
+### 持久化与 WAL
+
+单文件模式（`new Database('./data/db.json')`）不是「内存中改完、退出时才落盘」。
+每次写入都会在处理该次变更时立刻往 `<file>.wal` 追加一条 JSONL 并 `fsync`，
+覆盖 `insert` / `insertMany` / `update` / `updateById` / `remove` / `removeById` /
+`softDelete` / `truncate`，所以进程被 `kill -9` 也不会丢已完成的写入。
+
+- **检查点**：`save()` / `close()` / `stop()` / 目录模式 `flush()` 会把当前全量数据写成快照，
+  然后清空 WAL。这只影响恢复速度，不影响数据是否已经落盘。
+- **自动检查点**：WAL 累积 `walCheckpointOps` 条（默认 1000）后自动跑一次快照，防止日志无限增长；
+  事务进行中会跳过。设为 `0` 关闭。
+- **回放**：启动时读快照 + 按 `sequence` 顺序重放 WAL，按主键幂等覆盖，不会重复插行；
+  崩溃时写了一半的尾行会被丢弃。
+- **例外**：`mode: 'hybrid' | 'disk'`（目录存储）和设置了 `encryptKey` 的加密库默认**不**开 WAL
+  （WAL 是明文），需要显式传 `wal: true`。传 `wal: false` 则退回旧的「内存态 + 退出时 `save()`」语义。
+
+```js
+const db = new Database('./data/db.json', { walCheckpointOps: 5000 }); // 更少快照、更长 WAL
+const plain = new Database('./data/db.json', { wal: false });         // 旧语义
 ```
 
 恢复数据：`db.restore('./backup.json')` 只把行灌入**已存在**的表，所以要先 `createTable` 建好结构再 restore；内存里的整体导出/导入用 `db.export()` / `db.import(data)`。
