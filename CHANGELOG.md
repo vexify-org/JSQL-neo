@@ -8,6 +8,16 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Fixed
 
+- **15 个已声明的数学函数静默返回 NULL**（#117）：`LOG` / `LOG10` / `LOG2` /
+  `LN` / `EXP` / `SIN` / `COS` / `TAN` / `ASIN` / `ACOS` / `ATAN` / `ATAN2` /
+  `DEGREES` / `RADIANS` / `COT` 列在 `MATH_SCALAR_FNS` 里（入参会被转成
+  number），但 `applyScalarFunction` 的 `switch` 没有对应 `case`，全部落到
+  `default: return null`，例如 `SELECT LOG2(8)` 得到 NULL。现在逐个补上分支：
+  `LOG(X)` 为自然对数、`LOG(B, X)` 为以 B 为底，`ATAN(Y, X)` 等同 `ATAN2(Y, X)`；
+  任一参数为 NULL 返回 NULL，定义域外（`LOG(0)`、`ASIN(2)`、`LOG(1, X)`、
+  `COT(0)`…）经 `finiteOrNull` 返回 NULL，与 `SQRT` / `POWER` 一致。
+  新增回归测试 `test/issue-117.test.js`。
+
 - **`LOCATE(substr, str, pos)` 忽略第 3 个参数，静默返回错误位置**（#116）：
   `applyScalarFunction` 的 `LOCATE` 分支只把前两个参数交给
   `codePointIndexOf(needle, haystack)`，`pos` 从未被读 —— 三参形式退化成
