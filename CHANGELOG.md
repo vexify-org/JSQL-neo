@@ -8,6 +8,17 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Fixed
 
+- **ObjectId 在协议边界被压成 String，孪生 `_id` 互撞丢文档**：BSON 解码
+  把 `0x07` 直接 `toString('hex')`，类型在入库前就丢了。真实 MongoDB 中
+  同一 24-hex 的 ObjectId 与 String 是两个不同的键，这里却被判为重复，
+  第二篇文档在 insert 时被静默丢弃（`ordered:false` 也不报
+  writeErrors；实测两批数据分别丢 148/4744 与 164/4824，恰等于孪生对数）。
+  现在 ObjectId 是一等 JS 值（`lib/objectid.js`）：BSON 编解码、`.jsql`
+  存储（`TYPE.OID`）、全库 `===` 判等点、`$group`/`distinct` 规范键全部
+  类型感知；真重复以 `E11000` writeErrors 显式上报；`$type: 'objectId'`
+  可用。已入库的旧数据仍是 String（类型当时已丢，无法追溯），按 String
+  查询不受影响。
+
 - **Mongo collection 重载后整表丢失**：无 schema 集合（`createTable(name, {})`）
   在刷盘时 `buildEncoders` 产出 0 个编码器，每行被写成 4 字节空桩，
   `readTableSync` 又把首个 0 长行当块尾 —— 重启后 0 行。空 schema 现在
