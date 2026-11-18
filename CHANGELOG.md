@@ -6,6 +6,18 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`LOCATE(substr, str, pos)` 忽略第 3 个参数，静默返回错误位置**（#116）：
+  `applyScalarFunction` 的 `LOCATE` 分支只把前两个参数交给
+  `codePointIndexOf(needle, haystack)`，`pos` 从未被读 —— 三参形式退化成
+  两参形式，例如 `LOCATE('b','abcabc',3)` 返回 2（应为 5）。
+  `codePointIndexOf` 现在接受 `startPos`（1-based，含起点）从该位置向右扫描，
+  返回的仍是**绝对**字符位置；`pos < 1` 按 1 处理，`pos` 超出串长返回 0，
+  任一参数为 NULL 返回 NULL，仍按 Unicode code point 计数（延续 #111 语义）。
+  两参形式 `LOCATE(substr, str)` 与 `INSTR(str, substr)` 行为不变。
+  新增回归测试 `test/issue-116.test.js`。
+
 ## [6.7.7] — 2026-11-18
 
 ### Fixed
