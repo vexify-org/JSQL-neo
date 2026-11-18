@@ -1,9 +1,22 @@
 # 变更日志
 
-> 当前版本：**6.7.6**（2026-11-17）
+> 当前版本：**6.7.7**（2026-11-18）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## 6.7.7 — 2026-11-18 (Mongo 持久化修复)
+
+### Fixed
+- **无 schema 的 Mongo 集合刷盘后整表丢失**：`createTable(name, {})` 使 `buildEncoders` 产出
+  0 个编码器，每行被写成 4 字节空桩，`readTableSync` 又把首个 0 长行当块尾 —— 重启后 0 行。
+  空 schema 现从行字段并集生成编码器；同时补 `TYPE.DATE`（此前 BSON 日期落进通用对象分支，
+  存成 `{}`）。直连 `createMongoServer({ dataDir })` 引擎改用 `mode: 'hybrid'`。
+- **ObjectId 在协议边界被压成 String，孪生 `_id` 互撞丢文档**：BSON 解码把 `0x07` 直接
+  `toString('hex')`，ObjectId 与同 24-hex 的 String 被判为重复键，第二篇文档在 insert 时
+  静默丢弃（实测两批丢 148/4744 与 164/4824，恰等于孪生对数）。ObjectId 升级为一等类型
+  （`lib/objectid.js`）：BSON 编解码、`.jsql` 存储 `TYPE.OID`、全库判等点、`$group` /
+  `distinct` 规范键全部类型感知；真重复以 `E11000` writeErrors 显式上报。
 
 ## 6.7.6 — 2026-11-17 (行级缓存)
 

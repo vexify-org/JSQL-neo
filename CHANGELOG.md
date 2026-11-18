@@ -6,6 +6,8 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.7.7] — 2026-11-18
+
 ### Fixed
 
 - **ObjectId 在协议边界被压成 String，孪生 `_id` 互撞丢文档**：BSON 解码
