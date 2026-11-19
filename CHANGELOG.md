@@ -6,6 +6,27 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+
+- **MongoDB 协议端与文档 API 的数组字段过滤语义整体缺失，`find` 静默忽略
+  `sort`**（#121）：`lib/mongo_server.js`（`_match` / `find` 命令）与 `lib/table.js`
+  （`_matchRow` / `_matchOperator` / `_compileMatcher`）此前都把数组字段当
+  整值比较 —— `{tags:"a"}` 对 `tags:["a","b"]` 永远不命中，`$in` / `$nin` /
+  `$ne` / 范围同理。现在落地 MongoDB 元素语义（标量条件在字段值或任一
+  数组元素上命中即匹配；范围操作符 null/缺失永不参与比较，数组只按元素比）；
+  补上缺失的 `$all`；`$elemMatch` 支持标量元素（此前只认对象元素，操作符
+  条件对标量元素恒不命中）。`find` 命令现在先按 `doc.sort` 排序再应用
+  skip/limit（此前排序只在 aggregate 生效，sort+分页取错页），`findAndModify`
+  同步支持 `doc.sort`；排序逻辑抽取为 `sortRows()` 供两处共用。
+  `table.js` 的编译快路径补齐与 `_matchOperator` 一致的 `valuesEqual` /
+  `arrayIncludesValue` 判等（`$ne` 用严格 `!==`，同字节 ObjectId 被误判），
+  并修复 ObjectId 查询条件被当嵌套对象编译的问题（任一侧被 `toString()`
+  缓存过 `_hex` 后等值静默失效）。索引快路径（B-Tree 等值 / `$in` / 范围、
+  hash 等值）在 schemaless 与 object/array/json 类型列上改走全表过滤——
+  索引键只存整字段值，元素命中行会被静默丢弃；范围路径同时补上与其他
+  路径一致的空命中回落。标量类型列的索引行为不变。已知限制：整数组等值
+  （`{arr:[1,2]}`）仍是引用严格相等。新增回归测试 `test/mongo-arrays.test.js`。
+
 ## [6.8.0] — 2026-11-19
 
 ### Fixed
