@@ -6,8 +6,6 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
-## [6.8.0] — 2026-11-19
-
 ### Fixed
 
 - **MongoDB 协议端与文档 API 的数组字段过滤语义整体缺失，`find` 静默忽略
@@ -28,6 +26,10 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   索引键只存整字段值，元素命中行会被静默丢弃；范围路径同时补上与其他
   路径一致的空命中回落。标量类型列的索引行为不变。已知限制：整数组等值
   （`{arr:[1,2]}`）仍是引用严格相等。新增回归测试 `test/mongo-arrays.test.js`。
+
+## [6.8.0] — 2026-11-19
+
+### Fixed
 
 - **15 个已声明的数学函数静默返回 NULL**（#117）：`LOG` / `LOG10` / `LOG2` /
   `LN` / `EXP` / `SIN` / `COS` / `TAN` / `ASIN` / `ACOS` / `ATAN` / `ATAN2` /
