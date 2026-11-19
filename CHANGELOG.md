@@ -6,6 +6,8 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.0] — 2026-11-19
+
 ### Fixed
 
 - **15 个已声明的数学函数静默返回 NULL**（#117）：`LOG` / `LOG10` / `LOG2` /

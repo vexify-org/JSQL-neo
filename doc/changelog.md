@@ -1,9 +1,24 @@
 # 变更日志
 
-> 当前版本：**6.7.7**（2026-11-18）
+> 当前版本：**6.8.0**（2026-11-19）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## 6.8.0 — 2026-11-19 (数学函数补齐 + LOCATE 定位)
+
+### Fixed
+- **15 个已声明的数学函数静默返回 NULL**：`LOG` / `LOG10` / `LOG2` / `LN` / `EXP` / `SIN` /
+  `COS` / `TAN` / `ASIN` / `ACOS` / `ATAN` / `ATAN2` / `DEGREES` / `RADIANS` / `COT`
+  在 `MATH_SCALAR_FNS` 里声明（入参会被转成 number），但 `applyScalarFunction` 的 switch
+  缺对应分支，全部落 `default: return null`，例如 `SELECT LOG2(8)` 得到 NULL。
+  现在逐个补上分支：`LOG(X)` 为自然对数、`LOG(B, X)` 以 B 为底、`ATAN(Y, X)` 等同
+  `ATAN2(Y, X)`；任一参数为 NULL 返回 NULL，定义域外经 `finiteOrNull` 返回 NULL，
+  与 `SQRT` / `POWER` 一致。
+- **`LOCATE(substr, str, pos)` 忽略第 3 个参数**：三参形式退化成两参，
+  `LOCATE('b','abcabc',3)` 返回 2（应为 5）。`codePointIndexOf` 现接受 `startPos`
+  （1-based，含起点）从该位置向右扫描，仍返回**绝对**字符位置；`pos < 1` 按 1 处理，
+  超出串长返回 0，仍按 Unicode code point 计数（延续 #111 语义）。两参形式与 `INSTR` 不变。
 
 ## 6.7.7 — 2026-11-18 (Mongo 持久化修复)
 
