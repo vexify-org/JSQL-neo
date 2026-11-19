@@ -6,6 +6,8 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.1] — 2026-11-19
+
 ### Fixed
 
 - **MongoDB 协议端与文档 API 的数组字段过滤语义整体缺失，`find` 静默忽略

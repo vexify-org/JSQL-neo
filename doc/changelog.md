@@ -1,9 +1,22 @@
 # 变更日志
 
-> 当前版本：**6.8.0**（2026-11-19）
+> 当前版本：**6.8.1**（2026-11-19）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## 6.8.1 — 2026-11-19 (Mongo 数组字段过滤 + find sort)
+
+### Fixed
+- **MongoDB 数组字段过滤语义整体缺失，`find` 静默忽略 `sort`**：`_match` / `find` 命令与
+  `_matchRow` / `_matchOperator` / `_compileMatcher` 把数组字段当整值比较，`{tags:"a"}` 对
+  `tags:["a","b"]` 永不命中，`$in`/`$nin`/`$ne`/范围同理。现落地元素语义（标量条件在字段值或
+  任一数组元素上命中即匹配；范围操作符 null/缺失永不参与比较）；补上 `$all`；`$elemMatch`
+  支持标量元素。`find` 先按 `doc.sort` 排序再应用 skip/limit（此前 sort 只在 aggregate 生效，
+  sort+分页取错页），`findAndModify` 同步支持 `doc.sort`；排序逻辑抽取为 `sortRows()`。
+  `table.js` 编译快路径补齐 `valuesEqual` / `arrayIncludesValue`（`$ne` 用严格 `!==`，同字节
+  ObjectId 被误判），并修复 ObjectId 条件被当嵌套对象编译的问题；索引快路径在 schemaless 与
+  object/array/json 列上改走全表过滤（索引键只存整字段值，元素命中行会被静默丢弃）。
 
 ## 6.8.0 — 2026-11-19 (数学函数补齐 + LOCATE 定位)
 
