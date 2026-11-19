@@ -11,7 +11,7 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 ### Fixed
 
 - **MongoDB 协议端与文档 API 的数组字段过滤语义整体缺失，`find` 静默忽略
-  `sort`**：`lib/mongo_server.js`（`_match` / `find` 命令）与 `lib/table.js`
+  `sort`**（#121）：`lib/mongo_server.js`（`_match` / `find` 命令）与 `lib/table.js`
   （`_matchRow` / `_matchOperator` / `_compileMatcher`）此前都把数组字段当
   整值比较 —— `{tags:"a"}` 对 `tags:["a","b"]` 永远不命中，`$in` / `$nin` /
   `$ne` / 范围同理。现在落地 MongoDB 元素语义（标量条件在字段值或任一
