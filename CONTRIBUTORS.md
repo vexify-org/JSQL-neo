@@ -4,7 +4,7 @@ Thank you to everyone who has contributed to making JSQL-neo better!
 This project thrives because of the open-source community and tireless automation.
 
 ## 🌟 Core Maintainers
-* **vexify-root** (Andrew) - Creator & Lead Architect
+* **vexify-root** (Vexify) - Creator & Lead Architect
 
 ## 👑 Core Area Maintainers
 * **[aqeelat](https://github.com/aqeelat)** - **MongoDB Module Lead & Core Contributor**
