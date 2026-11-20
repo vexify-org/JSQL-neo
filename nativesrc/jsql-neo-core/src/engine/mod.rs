@@ -68,6 +68,8 @@ pub trait Engine {
         Ok((json, cursor, has_more))
     }
     fn count(&self, table: &str) -> Result<usize, String>;
+    /// 按列聚合（#126），返回 JSON 数值字符串。
+    fn aggregate(&self, table: &str, op: &str, field: &str) -> Result<String, String>;
     fn update_by_id(&mut self, table: &str, id: u64, data: HashMap<String, serde_json::Value>) -> Result<bool, String>;
     fn update_by_ids(&mut self, table: &str, batch: Vec<(u64, HashMap<String, serde_json::Value>)>) -> Result<usize, String>;
     fn remove_by_id(&mut self, table: &str, id: u64) -> Result<bool, String>;

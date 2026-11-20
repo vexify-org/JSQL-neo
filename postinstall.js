@@ -328,7 +328,9 @@ async function fetchExpectedHash(asset, tag) {
 
 function buildNativeFromSource() {
   const crate = path.join(ROOT, 'nativesrc', 'jsql-neo-native');
-  if (!fs.existsSync(path.join(crate, 'Cargo.toml'))) return;
+  if (!fs.existsSync(path.join(crate, 'Cargo.toml'))) {
+    throw new Error(`native source crate not found at ${crate}; cannot build from source`);
+  }
   console.log('[jsql-neo] building native module from source...');
   try {
     execSync('cargo build --release', { cwd: crate, stdio: 'inherit' });
@@ -338,14 +340,24 @@ function buildNativeFromSource() {
       : process.platform === 'darwin'
         ? path.join(rel, 'libjsql_neo_native.dylib')
         : path.join(rel, 'libjsql_neo_native.so');
-    if (fs.existsSync(src)) {
-      fs.mkdirSync(path.dirname(NATIVE_PATH), { recursive: true });
-      fs.copyFileSync(src, NATIVE_PATH);
-      fs.chmodSync(NATIVE_PATH, 0o755);
-      console.log(`[jsql-neo] native module built: native/jsql-neo-native.node`);
-    }
+    if (!fs.existsSync(src)) throw new Error(`cargo build produced no module at ${src}`);
+    fs.mkdirSync(path.dirname(NATIVE_PATH), { recursive: true });
+    fs.copyFileSync(src, NATIVE_PATH);
+    fs.chmodSync(NATIVE_PATH, 0o755);
+    console.log(`[jsql-neo] native module built: native/jsql-neo-native.node`);
   } catch (e) {
-    console.warn('[jsql-neo] native build failed:', e.message);
+    throw new Error(`native source build failed: ${e.message}`);
+  }
+}
+
+// 源码编译失败必须出声，但不能让 npm install 整体崩掉（WASM/JS 兜底仍可用）
+function tryBuildNativeFromSource() {
+  try {
+    buildNativeFromSource();
+    return true;
+  } catch (e) {
+    console.warn(`[jsql-neo] ${e.message}; using WASM/JS engine.`);
+    return false;
   }
 }
 
@@ -529,7 +541,7 @@ async function ensureNativeNode() {
       console.log('[jsql-neo] native module ready: native/jsql-neo-native.node');
       return;
     }
-    buildNativeFromSource();
+    tryBuildNativeFromSource();
     return;
   }
 
@@ -553,7 +565,7 @@ async function ensureNativeNode() {
     return;
   }
   console.warn('[jsql-neo] could not fetch a verified native module; falling back to source build / WASM.');
-  buildNativeFromSource();
+  tryBuildNativeFromSource();
 }
 
 /**
@@ -655,28 +667,11 @@ function ensureServerBinary() {
     console.log(`[jsql-neo] binary ready: ${BP}`);
     return;
   }
-
-  // Build from source
-  const serverDir = path.join(ROOT, '..', 'jsql-neo-server');
-  if (fs.existsSync(path.join(serverDir, 'Cargo.toml'))) {
-    console.log('[jsql-neo] building Rust server from source...');
-    try {
-      execSync('cargo build --release', { cwd: serverDir, stdio: 'inherit' });
-      const src = path.join(serverDir, 'target', 'release', BIN_NAME);
-      if (fs.existsSync(src)) {
-        fs.mkdirSync(path.join(ROOT, 'bin'), { recursive: true });
-        fs.copyFileSync(src, BP);
-        fs.chmodSync(BP, 0o755);
-        console.log(`[jsql-neo] binary built: ${BP}`);
-        return;
-      }
-    } catch (e) {
-      console.warn('[jsql-neo] cargo build failed:', e.message);
-    }
-  }
-
-  console.warn(`[jsql-neo] server binary not found at ${BP}`);
-  console.warn('[jsql-neo] install Rust from https://rustup.rs and run: npm run build');
+  // HTTP 服务端二进制不随 npm release 提供，旧版本里指向的同名源码目录
+  // （ROOT/../jsql-neo-server）也早已不存在。这里给出明确指引而不是走死路径。
+  console.warn(`[jsql-neo] optional HTTP server binary not found at ${BP}`);
+  console.warn('[jsql-neo] It is not shipped in npm releases; use NativeJSQL (embedded engine) or run an external jsql-neo-server.');
+  console.warn('[jsql-neo] To build the embedded native module from source (Rust required), run: npm run build:native');
 }
 
 async function main() {

@@ -318,6 +318,14 @@ pub fn jsql_count(table: &str) -> String {
 }
 
 #[wasm_bindgen]
+pub fn jsql_aggregate(table: &str, op: &str, field: &str) -> String {
+    ENGINE.with(|eng| match eng.borrow().aggregate(table, op, field) {
+        Ok(v) => v,
+        Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+    })
+}
+
+#[wasm_bindgen]
 pub fn jsql_update_by_id(table: &str, id: u64, data_json: &str) -> String {
     ENGINE.with(|eng| {
         let data: std::collections::HashMap<String, serde_json::Value> =

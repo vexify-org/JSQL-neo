@@ -453,6 +453,13 @@ impl Engine for HybridEngine {
         r
     }
 
+    fn aggregate(&self, table: &str, op: &str, field: &str) -> Result<String, String> {
+        self.ensure_table(table);
+        let r = self.mem.borrow().aggregate(table, op, field);
+        if r.is_ok() { self.touch(table); }
+        r
+    }
+
     fn update_by_id(&mut self, table: &str, id: u64, data: HashMap<String, serde_json::Value>) -> Result<bool, String> {
         self.ensure_table(table);
         let r = self.mem.borrow_mut().update_by_id(table, id, data)?;

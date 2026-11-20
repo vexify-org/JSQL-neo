@@ -317,6 +317,11 @@ napi_engine_fn!(jsql_count, jsql_count_h, (table: String) => |eng| {
     }
 });
 
+// #126：SUM/AVG/MIN/MAX 下沉到 Rust，单遍扫描列式行缓冲区
+napi_engine_fn!(jsql_aggregate, jsql_aggregate_h, (table: String, op: String, field: String) => |eng| {
+    safe_json_result(eng.aggregate(&table, &op, &field))
+});
+
 napi_engine_fn!(jsql_update_by_id, jsql_update_by_id_h,
     (table: String, id: i64, data_json: String) => |eng| {
         let data: HashMap<String, serde_json::Value> = match serde_json::from_str(&data_json) {
