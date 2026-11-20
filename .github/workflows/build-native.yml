@@ -33,6 +33,11 @@ jobs:
             lib: lib
             ext: .dylib
             asset: jsql-neo-native.darwin-arm64.node
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            lib: lib
+            ext: .dylib
+            asset: jsql-neo-native.darwin-x64.node
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             lib: ''

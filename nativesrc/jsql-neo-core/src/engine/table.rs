@@ -906,6 +906,42 @@ impl Table {
         self.rows.len()
     }
 
+    /// 按列聚合 SUM/AVG/MIN/MAX（#126）：直接在列式行缓冲区上单遍扫描，
+    /// 避免把整表行拉回 JS 层再聚合。返回 JSON 数值，空集/未知列返回 null。
+    pub fn aggregate_json(&self, op: &str, field: &str) -> String {
+        let col = match self.field_index.get(field) {
+            Some(i) => *i,
+            None => return "null".to_string(),
+        };
+        let mut sum = 0.0f64;
+        let mut count = 0usize;
+        let mut min: Option<f64> = None;
+        let mut max: Option<f64> = None;
+        for rs in &self.rows {
+            let vals = self.get_row_values(rs);
+            let n = match vals.get(col) {
+                Some(FieldValue::Int(i)) => *i as f64,
+                Some(FieldValue::UInt(u)) => *u as f64,
+                Some(FieldValue::Float(f)) => *f,
+                Some(FieldValue::Bool(b)) => if *b { 1.0 } else { 0.0 },
+                _ => continue,
+            };
+            if !n.is_finite() { continue; }
+            count += 1;
+            sum += n;
+            min = Some(min.map_or(n, |m| m.min(n)));
+            max = Some(max.map_or(n, |m| m.max(n)));
+        }
+        match op.to_ascii_uppercase().as_str() {
+            "COUNT" => count.to_string(),
+            "SUM" => if count == 0 { "null".to_string() } else { sum.to_string() },
+            "AVG" => if count == 0 { "null".to_string() } else { (sum / count as f64).to_string() },
+            "MIN" => min.map_or_else(|| "null".to_string(), |v| v.to_string()),
+            "MAX" => max.map_or_else(|| "null".to_string(), |v| v.to_string()),
+            _ => "null".to_string(),
+        }
+    }
+
     // ============================================================
     // 磁盘持久化导出 / 导入（供 HybridEngine 使用）
     // ============================================================

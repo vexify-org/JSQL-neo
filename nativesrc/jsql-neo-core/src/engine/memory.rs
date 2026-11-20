@@ -107,6 +107,11 @@ impl Engine for MemoryEngine {
         Ok(t.count())
     }
 
+    fn aggregate(&self, table: &str, op: &str, field: &str) -> Result<String, String> {
+        let t = self.tables.get(table).ok_or_else(|| format!("table '{}' not found", table))?;
+        Ok(t.aggregate_json(op, field))
+    }
+
     fn update_by_id(&mut self, table: &str, id: u64, data: HashMap<String, serde_json::Value>) -> Result<bool, String> {
         let t = self.tables.get_mut(table).ok_or_else(|| format!("table '{}' not found", table))?;
         t.update_row(id, data)

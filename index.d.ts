@@ -140,7 +140,10 @@ declare namespace JSQLNeo {
     run(...params: unknown[]): Promise<any>;
   }
 
-  export class NativeJSQL extends JSQL {}
+  export class NativeJSQL extends JSQL {
+    /** #126：Rust 侧列式聚合，返回 SUM/AVG/MIN/MAX 的 JSON 数值（旧二进制返回 null）。 */
+    aggregate(table: string, op: 'SUM' | 'AVG' | 'MIN' | 'MAX' | 'COUNT', field: string): Promise<number | null>;
+  }
 
   export interface MysqlServerOptions {
     port?: number;
