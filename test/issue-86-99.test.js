@@ -45,12 +45,12 @@ function ok(name, cond, extra) {
     ok('#88 $regex ^al 只返回 alice', r.length === 1, r.length);
   }
 
-  // #89 lrange 负索引越界
+  // #89 / #145 lrange 负索引越界：Redis 在 start > end 时返回空数组
   {
     const c = new Cache();
     c.rpush('k', 'a', 'b', 'c');
     const out = c.lrange('k', 0, -5);
-    ok('#89 lrange(0,-5) → ["a"]', out.join(',') === 'a', out);
+    ok('#145 lrange(0,-5) → []', out.length === 0, out);
   }
 
   // #90 updater 版本比较

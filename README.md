@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.8.2** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.8.3** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -218,8 +218,9 @@ Full reference: [doc/sql-reference.md](doc/sql-reference.md).
 | Base / utility | `BIN`, `OCT`, `HEX`, `UNHEX`, `CONV`, `BIT_LENGTH`, `CRC32`, `QUOTE`, `FIND_IN_SET`, `INSERT`, `FORMAT`, `INET_ATON` / `INET_NTOA`, `MAKE_SET`, `EXPORT_SET`, `SOUNDEX` |
 | Exact integers | Values above `2^53` stay exact via BigInt; integer-math functions use exact paths, floating-point ones return DOUBLE |
 
-`JSON_TYPE` / `JSON_DEPTH` follow **this project's** documented semantics
-(lowercase type names, flat object depth 1), not MySQL's. See the SQL reference.
+`JSON_TYPE` / `JSON_DEPTH` follow **MySQL semantics**: `JSON_TYPE` returns uppercase
+names (`OBJECT`, `ARRAY`, `STRING`, `INTEGER`, …), and `JSON_DEPTH` returns 1 for a
+scalar or empty container, 2 for a non-empty object/array of scalars. See the SQL reference.
 
 ## Columnar storage (one-shot convert)
 

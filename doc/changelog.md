@@ -1,9 +1,24 @@
 # 变更日志
 
-> 当前版本：**6.8.2**（2026-11-20）
+> 当前版本：**6.8.3**（2026-11-20）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## 6.8.3 — 2026-11-20 (唯一索引 + 函数补齐 + Redis/SQLite/Mongo 兼容)
+
+### Added
+- **中缀 `MOD`**（#142）、`STRCMP` / `BIT_AND|OR|XOR` 聚合 / `JSON_ARRAY_APPEND|INSERT`（#141）。
+- **`CREATE UNIQUE INDEX` 强制唯一**（#138）：单列 + 复合唯一约束在 insert/update 生效。
+
+### Fixed
+- **JSON_TYPE/JSON_DEPTH 语义与文档对齐**（#139）、`%j` 补零（#140）、
+  `INET_NTOA` 越界 NULL（#148）、`ADDDATE/SUBDATE(date,N)` 两参数形式（#149）。
+- **Redis 整数语义**（#143–#146）：INCR* 用 BigInt 校验 int64、EXPIRE 拒绝小数、
+  LRANGE 双越界负索引、KEYS 支持 glob 字符集合。
+- **SQLite get() 遵守 pluck/raw**（#147）。
+- **MongoDB 七项**（#150–#156）：更新运算符与未知报错、点路径贯通、find projection、
+  $lookup、$unwind preserveNull、字段级 $not、$project 排除式与表达式求值。
 
 ## 6.8.2 — 2026-11-20 (SQL 语义修正 + 原生聚合 + 内存/安装修复)
 

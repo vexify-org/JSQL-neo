@@ -251,7 +251,8 @@ SELECT TIMESTAMPDIFF(HOUR, '2026-01-01 00:00:00', '2026-01-01 05:00:00');  -- 5
 ```sql
 SELECT JSON_EXTRACT('{"a":{"b":2}}', '$.a.b');   -- 2
 SELECT JSON_UNQUOTE('"hi"');                     -- 'hi'
-SELECT JSON_TYPE('{"a":1}');                     -- 'object'
+SELECT JSON_TYPE('{"a":1}');                     -- 'OBJECT'
+SELECT JSON_DEPTH('{"a":1}');                    -- 2 (MySQL：标量/空容器 1，全标量容器 2)
 SELECT JSON_VALID('{bad');                       -- 0
 SELECT JSON_ARRAY_LENGTH('[1,2,3]');             -- 3
 ```

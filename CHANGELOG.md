@@ -6,6 +6,29 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.3] — 2026-11-20
+
+### Added
+- **中缀 `MOD` 运算符**（#142）：`SELECT 5 MOD 2` 与 `%` 同优先级。
+- **`STRCMP` / `BIT_AND` / `BIT_OR` / `BIT_XOR` 聚合 / `JSON_ARRAY_APPEND` /
+  `JSON_ARRAY_INSERT`**（#141），补齐后未知函数不再静默。
+- **`CREATE UNIQUE INDEX` 真正强制唯一约束**（#138）：单列走 schema.unique 校验路径，
+  复合唯一索引在 insert/update 上统一校验。
+
+### Fixed
+- **JSON_TYPE / JSON_DEPTH 语义与文档对齐**（#139）：明确 MySQL 口径（大写类型名、
+  扁平对象深度 2），修正文档与示例。
+- **`DATE_FORMAT` 的 `%j` 补零到 3 位**（#140）。
+- **`INET_NTOA` 越界返回 NULL**（#148），不再静默按位截断伪造 IP。
+- **`ADDDATE(date,N)` / `SUBDATE(date,N)` 两参数形式**（#149），按 INTERVAL N DAY 处理。
+- **Redis 兼容层整数语义**（#143–#146）：`INCR*` 校验 int64 并用 BigInt 防溢出；
+  `EXPIRE` 拒绝小数秒；`LRANGE` 修正双越界负索引回归；`KEYS` 支持 glob 字符集合。
+- **SQLite `Statement.get()` 遵守 `pluck()` / `raw()`**（#147）。
+- **MongoDB 兼容层七项**（#150–#156）：未实现更新运算符不再当字面字段写入并对未知
+  运算符报错；点路径（dot notation）贯通 find/sort/group/set/unset；find 支持
+  projection/fields；实现 `$lookup`；`$unwind` 支持 preserveNullAndEmptyArrays；
+  字段级 `$not` 生效；`$project` 支持排除式与表达式求值。新增 `test/issue-138-156.test.js`。
+
 ## [6.8.2] — 2026-11-20
 
 ### Added
