@@ -6,6 +6,30 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.2] — 2026-11-20
+
+### Added
+
+- **Rust 侧列式聚合 `SUM` / `AVG` / `MIN` / `MAX`**（#126）：新增
+  `NativeJSQL.aggregate(table, op, field)`，直接在原生行缓冲区上单遍扫描，
+  避免把整表拉回 JS 层；native 与 WASM 两端同步导出，旧二进制回退返回 `null`。
+- **二进制整数字面量 `0b1010`**（#118）与标量函数 **`PI()`**（#125）。
+
+### Fixed
+
+- **SQL 语义修正**（#119、#129–#136）：`BINARY` / `CAST(x AS BINARY)` 现在让
+  `LIKE` / `REGEXP` 大小写敏感；`TIMESTAMPDIFF` 负差值向零截断；`MAKEDATE`
+  非正天数返回 NULL；`MOD` 大整数配小数除数不再抛除零异常；`NULLIF` 采用
+  SQL 类型等值；`STR_TO_DATE` 回读校验拒绝非法日历日期；`ROUND` / `TRUNCATE`
+  大整数快路径支持小数位；`CONV` 负数按 64 位补码转换；`TRIM(LEADING|TRAILING|BOTH FROM str)`
+  省略 remstr 可正常解析。新增 `test/issue-118-136.test.js`。
+- **未声明自增的整型主键点查退化全表扫描**（#123、#124）：`INTEGER PRIMARY KEY`
+  默认推断为自增，使 `findById` 走 O(1) 的 `jsqlFindById` 原生路径。
+- **live 新建大表不参与行级 LRU**（#127）：达到阈值后挂上 `rowCache`，
+  内存淘汰按行回退而非整表驱逐。新增 `test/issue-127.test.js`。
+- **postinstall 死路径与静默失败**（#128）：移除不存在的 server 二进制构建路径，
+  给出真实可用的错误提示，源码编译缺依赖时明确报错，并补齐 `darwin-x64` CI 资产。
+
 ## [6.8.1] — 2026-11-19
 
 ### Fixed

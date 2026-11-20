@@ -1,9 +1,27 @@
 # 变更日志
 
-> 当前版本：**6.8.1**（2026-11-19）
+> 当前版本：**6.8.2**（2026-11-20）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## 6.8.2 — 2026-11-20 (SQL 语义修正 + 原生聚合 + 内存/安装修复)
+
+### Added
+- **Rust 侧列式聚合 SUM/AVG/MIN/MAX**（#126）：新增 `db.aggregate(table, op, field)`，
+  在原生行缓冲区上单遍扫描，避免整表拉回 JS；native 与 WASM 同步导出。
+- **二进制整数字面量 `0b1010`**（#118）与标量函数 **`PI()`**（#125）。
+
+### Fixed
+- **SQL 语义修正**（#119、#129–#136）：BINARY/CAST AS BINARY 让 LIKE/REGEXP 大小写敏感；
+  TIMESTAMPDIFF 负差值向零截断；MAKEDATE 非正天数返回 NULL；MOD 大整数配小数除数不再抛异常；
+  NULLIF 按 SQL 类型等值；STR_TO_DATE 回读校验拒绝非法日历日期；ROUND/TRUNCATE 大整数快路径
+  支持小数位；CONV 负数按 64 位补码转换；TRIM 省略 remstr 可解析。
+- **整型主键 findById 全表扫描**（#123、#124）：`INTEGER PRIMARY KEY` 默认推断自增，
+  走 O(1) 的 `jsqlFindById`。
+- **live 大表不参与行级 LRU**（#127）：达到阈值后挂 rowCache，按行淘汰。
+- **postinstall 死路径与静默失败**（#128）：移除不存在的 server 构建路径，报错出声，
+  补齐 darwin-x64 CI 资产。
 
 ## 6.8.1 — 2026-11-19 (Mongo 数组字段过滤 + find sort)
 
