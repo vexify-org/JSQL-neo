@@ -6,6 +6,18 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.4] — 2026-11-20
+
+### Fixed
+- **Redis `SET` 过期时间与选项校验**（#157、#158）：`EX`/`PX` 非正值报
+  `ERR invalid expire time`；`NX`+`XX` 互斥、重复 `EX`/`PX`/`NX`/`XX` 报
+  `ERR syntax error`，不再静默接受。
+- **`EXISTS` 对重复 key 去重计数**（#159）。
+- **`PERSIST` 成功后调度快照**（#160），重启后不再复活已移除的 TTL。
+- **`ZADD`/`ZINCRBY` 严格浮点校验**（#161）：尾随非法字符（`1abc`）报
+  `ERR value is not a valid float`，`inf` 按 Redis 语义放行。新增
+  `test/issue-157-161.test.js`。
+
 ## [6.8.3] — 2026-11-20
 
 ### Added
