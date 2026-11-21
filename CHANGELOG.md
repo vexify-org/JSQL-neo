@@ -6,6 +6,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.5] - 2026-11-21
+
+### Fixed
+- **issue** #138-#179
+
 ## [6.8.4] — 2026-11-20
 
 ### Fixed
