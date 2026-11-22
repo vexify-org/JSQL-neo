@@ -6,6 +6,14 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.7] - 2026-11-21
+
+### Fixed
+- #238 `formatDate` 对重复格式符只替换第一次。
+- #239 DATE 类型拒绝合法四位年份 0001-0099。
+- #240 聚合结果 `columnTypes` 按别名误匹配表列。
+- #241 `Cache.keys` 缺少 glob 反斜杠转义。
+
 ## [6.8.6] - 2026-11-21
 
 ### Fixed
