@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.15] — 2026-11-22
+
+### Fixed
+- #259 目录模式（hybrid/disk）显式开启 `wal: true` 后重开库会回放 WAL，崩溃时尚未刷入 `.jsql` 的提交不再丢失（此前只写不读）。
+- #260 目录模式（hybrid/disk）支持 `encryptKey` 静态加密：`.jsql` 数据块与 `meta.json` 均落 AES-256-CBC 密文，与 legacy 单文件模式语义一致。
+- #262 目录模式 `.jsql` 表文件加载失败不再被静默吞掉：报 `ER_TABLE_CORRUPT`、发出 `error` 事件，`getTables()` / `hasTable()` 与实际可查询状态保持一致（不再有幽灵表）。
+- #263 WAL 追加失败不再被空 catch 吞掉：通过 `error` 事件暴露并记入 `_walError`。
+- #264 sqlite 兼容层 `db.exec()` 支持多语句（better-sqlite3 语义）；`prepare()` 单语句路径仍拦截堆叠语句。
+
 ## [6.8.14] — 2026-11-22
 
 ### Fixed
