@@ -1,8 +1,8 @@
 # 开放 ISSUE 修复进度与待办清单
 
-> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.18**
+> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.19**
 >
-> **共 80 个开放 ISSUE，已修复 50 个，剩余 30 个。**
+> **共 80 个开放 ISSUE，已修复 55 个，剩余 25 个。**
 >
 > 说明：本仓库的 GitHub App 集成只有代码写权限，没有 ISSUE 写权限
 > （`issue_write` / `add_issue_comment` 均返回 `403 Resource not accessible by integration`），
@@ -65,6 +65,11 @@
 | v6.8.18 | #280 | Mongo `count` 支持 `skip` |
 | v6.8.18 | #281 | Mongo `listIndexes` 保留索引方向 |
 | v6.8.18 | #310 | PG 密码错误回 SQLSTATE `28P01` |
+| v6.8.19 | #272 | MySQL 非法 COM_INIT_DB 回 ERR_Packet |
+| v6.8.19 | #274 | MySQL errno/SQLSTATE 回退映射 |
+| v6.8.19 | #308 | PG DDL CommandComplete tag |
+| v6.8.19 | #309 | PG 无参 Describe paramCount=0 |
+| v6.8.19 | #311 | PG BOOLEAN typlen=1 |
 
 ---
 
@@ -95,8 +100,6 @@
 |---|---|---|---|
 | #271 | P1 | `ColumnDefinition41` 的 flags 恒为 `0x0000`：PRIMARY KEY / NOT NULL / UNSIGNED / AUTO_INCREMENT 位全部未通告 | `lib/mysql_server.js` |
 | #306 | P1 | `ColumnDefinition41` 的 schema（库名）字段被填成表名 | `lib/mysql_server.js` |
-| #274 | P1 | 错误包 errno/sqlstate 缺回退映射：缺表/缺列/语法错一律 `1105/HY000` | `lib/mysql_server.js` |
-| #272 | P2 | `COM_INIT_DB` 遇到非法库名直接销毁 socket，不回 ERR_Packet | `lib/mysql_server.js` |
 | #273 | P2 | `COM_STMT_PREPARE` 的列/参数元数据是占位：列名 `col1/col2`、参数名 `?`、类型全 VAR_STRING(253) | `lib/mysql_server.js` |
 
 ### D. PostgreSQL 线协议
@@ -104,9 +107,6 @@
 | ISSUE | 严重度 | 摘要 | 涉及 |
 |---|---|---|---|
 | #307 | P2 | `COM_FIELD_LIST`(0x04) 未实现，回 `1105 Unsupported command: 4` | `lib/pg_server.js` |
-| #308 | P2 | DDL 的 CommandComplete tag 恒为 `OK`，应为 `CREATE TABLE` / `DROP TABLE` 等 | `lib/pg_server.js` |
-| #309 | P2 | 无参语句的 Describe 回 ParameterDescription `paramCount=1, OID=0`，真实应为 0 | `lib/pg_server.js` |
-| #311 | P3 | PG BOOLEAN 列 RowDescription 的 typlen 报 `-1`，真实 PG bool typlen=1 | `lib/pg_server.js` |
 | #275 | P2 | PostgreSQL CancelRequest（80877102）被当成非法协议版本，回 0A000 ErrorResponse | `lib/pg_server.js` |
 | #276 | P2 | PG Bind 不校验参数个数与 `$n` 占位符数量，0 参数绑定含 `$1` 的语句不回 08P01 | `lib/pg_server.js` |
 | #277 | P2 | PG Bind 尾部结果格式码段未解析：请求二进制结果仍回文本（RowDescription format=0） | `lib/pg_server.js` |
@@ -167,6 +167,7 @@
 | `test/issue-255-270.test.js` | #255 #256 #257 #266 #270 |
 | `test/issue-253-269.test.js` | #253 #254 #261 #268 #269 |
 | `test/issue-280-310.test.js` | #280 #281 #286 #287 #310 |
+| `test/issue-272-311.test.js` | #272 #274 #308 #309 #311 |
 
 ### 编码约定（踩坑记录）
 - **工作区是 CRLF**（`core.autocrlf=true`）：用字面量 `'\n'` 匹配文件内容的替换会静默失配。

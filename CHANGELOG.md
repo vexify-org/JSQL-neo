@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.19] — 2026-11-22
+
+### Fixed
+- #272 MySQL 非法 `COM_INIT_DB` 回 ERR_Packet，不再销毁连接。
+- #274 MySQL 错误包补常见 errno/SQLSTATE 回退映射。
+- #308 PostgreSQL DDL 的 CommandComplete tag 使用真实语句类型。
+- #309 PostgreSQL 无参语句 Describe 的 ParameterDescription 为 0 个参数。
+- #311 PostgreSQL BOOLEAN 列 typlen 改为 1。
+
 ## [6.8.18] — 2026-11-22
 
 ### Fixed
