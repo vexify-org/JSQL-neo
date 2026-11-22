@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.22] — 2026-11-22
+
+### Fixed
+- #267 `VARCHAR(n)` 长度按 Unicode code point 计数，emoji 不再被误判超长。
+- #265 sqlite 兼容层嵌套 `transaction()` 使用 SAVEPOINT，内层提交不提前提交外层。
+- #294 WASM 引擎 `stop()`/`start()` 后清理 JS 侧表元数据，不再返回幽灵表。
+- #273 MySQL `COM_STMT_PREPARE` 返回真实列名/类型元数据。
+- #307 MySQL `COM_FIELD_LIST`(0x04) 返回表的列定义。
+
 ## [6.8.21] — 2026-11-22
 
 ### Fixed
