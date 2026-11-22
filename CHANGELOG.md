@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.18] — 2026-11-22
+
+### Fixed
+- #286 Redis `SET` 同时指定 `EX` 与 `PX` 时报 syntax error。
+- #287 Redis `ZADD`/`ZREM`/`ZSCORE` 使用自有属性判断，原型链名成员（`__proto__`/`constructor`）计数与存取正确。
+- #280 MongoDB `count` 命令支持 `skip`。
+- #281 MongoDB `listIndexes` 保留索引键方向（`{a:-1}`）。
+- #310 PostgreSQL 密码错误回 SQLSTATE `28P01`。
+
 ## [6.8.17] — 2026-11-22
 
 ### Fixed

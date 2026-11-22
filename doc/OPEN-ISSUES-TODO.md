@@ -1,8 +1,8 @@
 # 开放 ISSUE 修复进度与待办清单
 
-> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.17**
+> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.18**
 >
-> **共 80 个开放 ISSUE，已修复 45 个，剩余 35 个。**
+> **共 80 个开放 ISSUE，已修复 50 个，剩余 30 个。**
 >
 > 说明：本仓库的 GitHub App 集成只有代码写权限，没有 ISSUE 写权限
 > （`issue_write` / `add_issue_comment` 均返回 `403 Resource not accessible by integration`），
@@ -60,6 +60,11 @@
 | v6.8.17 | #261 | 列存快路径 WHERE 补 SQL 三值逻辑，与行存路径逐项一致 |
 | v6.8.17 | #268 | `AUTO_INCREMENT` 列插 `0`/`NULL` 由引擎分配序列值 |
 | v6.8.17 | #269 | `INSERT IGNORE` 把可忽略错误降级为 warning，只跳过该行 |
+| v6.8.18 | #286 | Redis `SET` 同时指定 `EX`/`PX` 报 syntax error |
+| v6.8.18 | #287 | Redis ZSET 原型链名成员计数/存取正确 |
+| v6.8.18 | #280 | Mongo `count` 支持 `skip` |
+| v6.8.18 | #281 | Mongo `listIndexes` 保留索引方向 |
+| v6.8.18 | #310 | PG 密码错误回 SQLSTATE `28P01` |
 
 ---
 
@@ -74,8 +79,6 @@
 | #258 | P1 | 标量子查询返回多行时静默取首行，未报 `ER_SUBSELECT_NO_1_ROW`(1242) | `lib/sql.js` |
 | #293 | P1 | `JSON_ARRAYAGG` / `JSON_OBJECTAGG` 未按聚合求值，每组只取代表行的单个值 | `lib/sql.js` |
 | #267 | P1 | `VARCHAR(n)` 的长度限制按 UTF-16 码元计数，6 个 emoji 被判超长 1406 | `lib/table.js` |
-| #286 | P2 | Redis `SET` 同时指定 `EX` 与 `PX` 不报语法错误，静默接受并以后者覆盖 TTL | `lib/redis_server.js` |
-| #287 | P2 | Redis `ZADD`/`ZREM` 用 `in` 判存在：原型链名成员（`__proto__`/`constructor`）计数错误，`__proto__` 根本不落库 | `lib/redis_server.js` |
 
 ### B. 约束 / DDL / 生命周期
 
@@ -103,7 +106,6 @@
 | #307 | P2 | `COM_FIELD_LIST`(0x04) 未实现，回 `1105 Unsupported command: 4` | `lib/pg_server.js` |
 | #308 | P2 | DDL 的 CommandComplete tag 恒为 `OK`，应为 `CREATE TABLE` / `DROP TABLE` 等 | `lib/pg_server.js` |
 | #309 | P2 | 无参语句的 Describe 回 ParameterDescription `paramCount=1, OID=0`，真实应为 0 | `lib/pg_server.js` |
-| #310 | P2 | PG 密码错误回 SQLSTATE `28000`，`doc/postgresql.md` 承诺 `28P01` | `lib/pg_server.js` |
 | #311 | P3 | PG BOOLEAN 列 RowDescription 的 typlen 报 `-1`，真实 PG bool typlen=1 | `lib/pg_server.js` |
 | #275 | P2 | PostgreSQL CancelRequest（80877102）被当成非法协议版本，回 0A000 ErrorResponse | `lib/pg_server.js` |
 | #276 | P2 | PG Bind 不校验参数个数与 `$n` 占位符数量，0 参数绑定含 `$1` 的语句不回 08P01 | `lib/pg_server.js` |
@@ -115,8 +117,6 @@
 |---|---|---|---|
 | #278 | P2 | `find` 忽略 `batchSize`：firstBatch 全量返回、游标 id 恒 0，`getMore` 恒空批 | `lib/mongo_server.js` |
 | #279 | P2 | `$push` 只认 `$each`：`$slice` 截断与 `$position` 插入位置被静默忽略 | `lib/mongo_server.js` |
-| #280 | P2 | `count` 命令只处理 `limit`，`skip` 被忽略，跳过 N 条后计数仍为全量 | `lib/mongo_server.js` |
-| #281 | P2 | 索引键方向丢失：`createIndexes` 声明的 `{a:-1}` 在 `listIndexes` 回包里恒为 `1` | `lib/mongo_server.js` |
 | #282 | P2 | `$unwind` 把非数组的标量字段文档直接丢弃（官方语义应按单元素数组展开保留） | `lib/mongo_server.js` |
 | #283 | P2 | 聚合管道未识别的 stage（如 `$addFields`）被静默跳过，文档原样透传不报错 | `lib/mongo_server.js` |
 
@@ -166,6 +166,7 @@
 | `test/issue-259-264.test.js` | #259 #260 #262 #263 #264 |
 | `test/issue-255-270.test.js` | #255 #256 #257 #266 #270 |
 | `test/issue-253-269.test.js` | #253 #254 #261 #268 #269 |
+| `test/issue-280-310.test.js` | #280 #281 #286 #287 #310 |
 
 ### 编码约定（踩坑记录）
 - **工作区是 CRLF**（`core.autocrlf=true`）：用字面量 `'\n'` 匹配文件内容的替换会静默失配。
