@@ -1,8 +1,8 @@
 # 开放 ISSUE 修复进度与待办清单
 
-> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.22**
+> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.23**
 >
-> **共 80 个开放 ISSUE，已修复 70 个，剩余 10 个。**
+> **共 80 个开放 ISSUE，已修复 75 个，剩余 5 个。**
 >
 > 说明：本仓库的 GitHub App 集成只有代码写权限，没有 ISSUE 写权限
 > （`issue_write` / `add_issue_comment` 均返回 `403 Resource not accessible by integration`），
@@ -85,6 +85,11 @@
 | v6.8.22 | #273 | MySQL prepare 列元数据 |
 | v6.8.22 | #294 | WASM stop/start 清理元数据 |
 | v6.8.22 | #307 | MySQL COM_FIELD_LIST |
+| v6.8.23 | #258 | 标量子查询多行报 1242 |
+| v6.8.23 | #293 | JSON 聚合 |
+| v6.8.23 | #298 | TUI emoji 宽度 |
+| v6.8.23 | #299 | TUI 转义引号 |
+| v6.8.23 | #300 | TUI 历史文件 |
 
 ---
 
@@ -96,8 +101,6 @@
 |---|---|---|---|
 | #247 | P0 | WASM/JS 回退引擎下 `new JSQL({ path, mode:'disk' })` 完全不落盘：全程内存库，`stop()` 后目录为空，重开表都不存在 | `lib/client.js` |
 | #295 | P0 | 同一文件路径打开两个实例（`fileLock` 默认关闭）：后保存者用全量快照覆盖前者，已提交到磁盘的行被静默删除，无锁、无告警 | `lib/database.js` |
-| #258 | P1 | 标量子查询返回多行时静默取首行，未报 `ER_SUBSELECT_NO_1_ROW`(1242) | `lib/sql.js` |
-| #293 | P1 | `JSON_ARRAYAGG` / `JSON_OBJECTAGG` 未按聚合求值，每组只取代表行的单个值 | `lib/sql.js` |
 
 ### B. 约束 / DDL / 生命周期
 
@@ -124,9 +127,6 @@
 
 | ISSUE | 严重度 | 摘要 | 涉及 |
 |---|---|---|---|
-| #298 | P3 | 宽度计算 `wswidth` 不覆盖 emoji 与宽符号，表格错位 | `lib/tui*.js` |
-| #299 | P3 | 语句完整性检查不识别 `\'` 转义引号，平衡语句被判未闭合卡在续行 | `lib/tui*.js` |
-| #300 | P3 | 历史文件名内嵌 pid，跨会话读不回且退出后残留 | `lib/tui*.js` |
 
 ---
 
@@ -171,6 +171,7 @@
 | `test/issue-279-306.test.js` | #279 #282 #296 #297 #306 |
 | `test/issue-271-283.test.js` | #271 #275 #276 #278 #283 |
 | `test/issue-265-307.test.js` | #265 #267 #273 #294 #307 |
+| `test/issue-258-300.test.js` | #258 #293 #298 #299 #300 |
 
 ### 编码约定（踩坑记录）
 - **工作区是 CRLF**（`core.autocrlf=true`）：用字面量 `'\n'` 匹配文件内容的替换会静默失配。

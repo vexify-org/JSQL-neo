@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.23] — 2026-11-22
+
+### Fixed
+- #258 标量子查询返回多行时报 `ER_SUBSELECT_NO_1_ROW`(1242)。
+- #293 `JSON_ARRAYAGG` / `JSON_OBJECTAGG` 按聚合求值。
+- #298 TUI 宽度计算覆盖 emoji / 宽符号。
+- #299 TUI 语句完整性识别 `\'` 转义引号。
+- #300 TUI 历史文件名不再内嵌 pid。
+
 ## [6.8.22] — 2026-11-22
 
 ### Fixed
