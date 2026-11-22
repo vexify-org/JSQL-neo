@@ -1,8 +1,8 @@
 # 开放 ISSUE 修复进度与待办清单
 
-> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.20**
+> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.21**
 >
-> **共 80 个开放 ISSUE，已修复 60 个，剩余 20 个。**
+> **共 80 个开放 ISSUE，已修复 65 个，剩余 15 个。**
 >
 > 说明：本仓库的 GitHub App 集成只有代码写权限，没有 ISSUE 写权限
 > （`issue_write` / `add_issue_comment` 均返回 `403 Resource not accessible by integration`），
@@ -75,6 +75,11 @@
 | v6.8.20 | #306 | MySQL ColumnDefinition schema 字段 |
 | v6.8.20 | #279 | Mongo $push $position/$slice |
 | v6.8.20 | #282 | Mongo $unwind 标量保留 |
+| v6.8.21 | #271 | MySQL 列 flags |
+| v6.8.21 | #275 | PG CancelRequest |
+| v6.8.21 | #276 | PG Bind 参数个数校验 |
+| v6.8.21 | #278 | Mongo find batchSize/getMore |
+| v6.8.21 | #283 | Mongo 未知聚合 stage 报错 |
 
 ---
 
@@ -101,7 +106,6 @@
 
 | ISSUE | 严重度 | 摘要 | 涉及 |
 |---|---|---|---|
-| #271 | P1 | `ColumnDefinition41` 的 flags 恒为 `0x0000`：PRIMARY KEY / NOT NULL / UNSIGNED / AUTO_INCREMENT 位全部未通告 | `lib/mysql_server.js` |
 | #273 | P2 | `COM_STMT_PREPARE` 的列/参数元数据是占位：列名 `col1/col2`、参数名 `?`、类型全 VAR_STRING(253) | `lib/mysql_server.js` |
 
 ### D. PostgreSQL 线协议
@@ -109,16 +113,12 @@
 | ISSUE | 严重度 | 摘要 | 涉及 |
 |---|---|---|---|
 | #307 | P2 | `COM_FIELD_LIST`(0x04) 未实现，回 `1105 Unsupported command: 4` | `lib/pg_server.js` |
-| #275 | P2 | PostgreSQL CancelRequest（80877102）被当成非法协议版本，回 0A000 ErrorResponse | `lib/pg_server.js` |
-| #276 | P2 | PG Bind 不校验参数个数与 `$n` 占位符数量，0 参数绑定含 `$1` 的语句不回 08P01 | `lib/pg_server.js` |
 | #277 | P2 | PG Bind 尾部结果格式码段未解析：请求二进制结果仍回文本（RowDescription format=0） | `lib/pg_server.js` |
 
 ### E. MongoDB
 
 | ISSUE | 严重度 | 摘要 | 涉及 |
 |---|---|---|---|
-| #278 | P2 | `find` 忽略 `batchSize`：firstBatch 全量返回、游标 id 恒 0，`getMore` 恒空批 | `lib/mongo_server.js` |
-| #283 | P2 | 聚合管道未识别的 stage（如 `$addFields`）被静默跳过，文档原样透传不报错 | `lib/mongo_server.js` |
 
 ### F. TUI
 
@@ -169,6 +169,7 @@
 | `test/issue-280-310.test.js` | #280 #281 #286 #287 #310 |
 | `test/issue-272-311.test.js` | #272 #274 #308 #309 #311 |
 | `test/issue-279-306.test.js` | #279 #282 #296 #297 #306 |
+| `test/issue-271-283.test.js` | #271 #275 #276 #278 #283 |
 
 ### 编码约定（踩坑记录）
 - **工作区是 CRLF**（`core.autocrlf=true`）：用字面量 `'\n'` 匹配文件内容的替换会静默失配。

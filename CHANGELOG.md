@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.21] — 2026-11-22
+
+### Fixed
+- #271 MySQL ColumnDefinition41 通告 PK/NOT NULL/UNSIGNED/AUTO_INCREMENT flags。
+- #275 PostgreSQL CancelRequest 静默关闭连接，不再回 0A000。
+- #276 PostgreSQL Bind 校验参数个数与 `$n` 数量，不一致回 08P01。
+- #278 MongoDB find 尊重 batchSize，getMore 返回剩余批次。
+- #283 MongoDB 聚合未知 stage 显式报 40324。
+
 ## [6.8.20] — 2026-11-22
 
 ### Fixed
