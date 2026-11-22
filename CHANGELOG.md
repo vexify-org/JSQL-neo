@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.12] — 2026-11-22
+
+### Fixed
+- #284 Mongo BSON 编码按规范区分整数与浮点：整数编 Int32(`0x10`)，超出 int32 范围编 Int64(`0x12`)，仅真正的浮点用 Double(`0x01`)；`$type: 'int'` 查询不再永远落空。
+- #285 Mongo BSON Binary(`0x05`) 只写 1 字节 subtype（此前多写 1 字节导致字节流错位、往返数据损坏）。
+- #290 位非 `~` 改用 64 位无符号整数语义：`SELECT ~0` 返回 `18446744073709551615`（与 MySQL 一致）。
+- #291 `GROUP BY` / 窗口 `PARTITION BY` 的键按 SQL 类型归一：数字 `1` 与字符串 `'1'` 归入同一组，不再被拆成两个伪组。
+- #292 `ORDER BY` / 窗口排序在混合 number/string 时按 SQL 规则归一为数值比较，不再退化成字典序（`'10'/2/'1'` 排为 `1, 2, 10`）。
+
 ## [6.8.11] — 2026-11-22
 
 ### Fixed
