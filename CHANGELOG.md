@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.14] — 2026-11-22
+
+### Fixed
+- #248 批量 `INSERT ... ON DUPLICATE KEY UPDATE` 同一键多行时按行顺序依次应用，累加不再被折叠成一次（`n = n + VALUES(n)` 正确得到 `1+2+3=6`）。
+- #249 `UPDATE t SET col = DEFAULT` 正确重置为列默认值（无显式默认值时用类型隐式默认值）。
+- #250 `db.updateById()` 与 `db.update()` 走同一套约束校验，不再绕过 NOT NULL 把 NULL 写进 NOT NULL 列。
+- #251 JS 建表 API 的 `check: 'a > 0'` 字符串约束现在真正生效（与 `index.d.ts` 声明一致），无法编译的表达式显式报错。
+- #252 `ALTER TABLE ... ADD COLUMN x NOT NULL`（无 DEFAULT）给存量行填类型的隐式默认值，不再写 NULL 让表违反自身约束。
+
 ## [6.8.13] — 2026-11-22
 
 ### Fixed
