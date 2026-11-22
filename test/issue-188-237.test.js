@@ -235,7 +235,7 @@ async function sqlCases() {
     fs.writeFileSync(file, snap.slice(0, Math.floor(snap.length / 2)));
     const orig = console.error; console.error = () => {};
     let err = null, r = null;
-    try { const db2 = new Database(file); r = await rows(db2, 'SELECT id,v FROM t ORDER BY id'); db2.stop(); } catch (e) { err = e.message; }
+    try { const db2 = new Database(file, { fileLock: false }); r = await rows(db2, 'SELECT id,v FROM t ORDER BY id'); db2.stop(); } catch (e) { err = e.message; }
     console.error = orig;
     ok('#237 torn snapshot falls back to WAL', err === null && r.some(x => x[0] === 3), { err, r });
     db.stop();

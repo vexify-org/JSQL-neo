@@ -1,8 +1,8 @@
 # 开放 ISSUE 修复进度与待办清单
 
-> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.23**
+> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.24**
 >
-> **共 80 个开放 ISSUE，已修复 75 个，剩余 5 个。**
+> **共 80 个开放 ISSUE，已修复 78 个，剩余 2 个。**
 >
 > 说明：本仓库的 GitHub App 集成只有代码写权限，没有 ISSUE 写权限
 > （`issue_write` / `add_issue_comment` 均返回 `403 Resource not accessible by integration`），
@@ -90,6 +90,9 @@
 | v6.8.23 | #298 | TUI emoji 宽度 |
 | v6.8.23 | #299 | TUI 转义引号 |
 | v6.8.23 | #300 | TUI 历史文件 |
+| v6.8.24 | #247 | WASM 回退持久化 |
+| v6.8.24 | #277 | PG 二进制结果格式 |
+| v6.8.24 | #295 | 默认文件锁 |
 
 ---
 
@@ -99,8 +102,6 @@
 
 | ISSUE | 严重度 | 摘要 | 涉及 |
 |---|---|---|---|
-| #247 | P0 | WASM/JS 回退引擎下 `new JSQL({ path, mode:'disk' })` 完全不落盘：全程内存库，`stop()` 后目录为空，重开表都不存在 | `lib/client.js` |
-| #295 | P0 | 同一文件路径打开两个实例（`fileLock` 默认关闭）：后保存者用全量快照覆盖前者，已提交到磁盘的行被静默删除，无锁、无告警 | `lib/database.js` |
 
 ### B. 约束 / DDL / 生命周期
 
@@ -116,7 +117,6 @@
 
 | ISSUE | 严重度 | 摘要 | 涉及 |
 |---|---|---|---|
-| #277 | P2 | PG Bind 尾部结果格式码段未解析：请求二进制结果仍回文本（RowDescription format=0） | `lib/pg_server.js` |
 
 ### E. MongoDB
 
@@ -172,6 +172,7 @@
 | `test/issue-271-283.test.js` | #271 #275 #276 #278 #283 |
 | `test/issue-265-307.test.js` | #265 #267 #273 #294 #307 |
 | `test/issue-258-300.test.js` | #258 #293 #298 #299 #300 |
+| `test/issue-247-295-277.test.js` | #247 #277 #295 |
 
 ### 编码约定（踩坑记录）
 - **工作区是 CRLF**（`core.autocrlf=true`）：用字面量 `'\n'` 匹配文件内容的替换会静默失配。

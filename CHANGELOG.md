@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.24] — 2026-11-22
+
+### Fixed
+- #247 无原生模块时，带 path 的 disk 模式改由纯 JS 引擎承载，数据可持久化。
+- #295 文件锁默认开启，同路径双实例立即报错；`stop()` 释放锁。
+- #277 PostgreSQL Bind 结果格式码生效，支持二进制 RowDescription/DataRow。
+
 ## [6.8.23] — 2026-11-22
 
 ### Fixed

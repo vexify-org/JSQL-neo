@@ -44,7 +44,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         await db.insert('t', { id: 3, v: 'third' });
         await db.removeById('t', 3);
         // 模拟 kill -9：直接丢弃，不 save 不 stop
-        const db2 = new Database(file, { wal: true });
+        const db2 = new Database(file, { wal: true, fileLock: false });
         const rows = await db2.find('t', {});
         ok('崩溃后表仍存在', Object.keys(db2._tables).includes('t'));
         ok('崩溃后行数正确 (2)', rows.length === 2, rows.length);
@@ -65,7 +65,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         db.save();                       // 快照：2 行，WAL 应清空
         ok('save 后 WAL 被清空', !fs.existsSync(file + '.wal'));
         await db.insert('t', { id: 3, v: 'c-after-save' });   // 只进 WAL
-        const db2 = new Database(file, { wal: true });
+        const db2 = new Database(file, { wal: true, fileLock: false });
         const rows = await db2.find('t', {});
         ok('快照 2 行 + WAL 1 行 = 3 行', rows.length === 3, rows.length);
         ok('WAL 中的新行已恢复', rows.find(r => r.id === 3)?.v === 'c-after-save');
@@ -79,9 +79,9 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         await db.createTable('t', SCHEMA);
         await db.insert('t', { id: 1, v: 'x' });
         await db.insert('t', { id: 2, v: 'y' });
-        const db2 = new Database(file, { wal: true });
+        const db2 = new Database(file, { wal: true, fileLock: false });
         const r2 = await db2.find('t', {});
-        const db3 = new Database(file, { wal: true });
+        const db3 = new Database(file, { wal: true, fileLock: false });
         const r3 = await db3.find('t', {});
         ok('首次恢复 2 行', r2.length === 2, r2.length);
         ok('二次重开仍 2 行（不重复回放）', r3.length === 2, r3.length);
@@ -96,7 +96,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         await db.insert('t', { id: 1, v: 'ok' });
         // 模拟崩溃时最后一行只写了一半
         fs.appendFileSync(file + '.wal', '{"op":"insert","table":"t","ro');
-        const db2 = new Database(file, { wal: true });
+        const db2 = new Database(file, { wal: true, fileLock: false });
         const rows = await db2.find('t', {});
         ok('半截尾行被丢弃，完整记录仍恢复', rows.length === 1, rows.length);
         ok('数据内容正确', rows[0] && rows[0].v === 'ok', rows);
@@ -112,7 +112,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         await db.insert('t', { id: 1, v: 'a' });
         await db.insert('u', { id: 1, v: 'b' });
         await db.dropTable('u');
-        const db2 = new Database(file, { wal: true });
+        const db2 = new Database(file, { wal: true, fileLock: false });
         ok('被 drop 的表未复活', !db2._tables.u, Object.keys(db2._tables));
         ok('保留的表数据完整', (await db2.find('t', {})).length === 1);
         fs.rmSync(dir, { recursive: true, force: true });
@@ -135,7 +135,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         fs.writeFileSync(file + '.wal', JSON.stringify([
             { op: 'createTable', table: 'legacy', schema: SCHEMA },
         ]));
-        const db = new Database(file, { wal: true });
+        const db = new Database(file, { wal: true, fileLock: false });
         ok('旧格式数组 WAL 能被回放', !!db._tables.legacy, Object.keys(db._tables));
         fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -148,7 +148,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         db.createTable && 0;
         for (let i = 1; i <= 30; i++) await db.insert('t', { id: i, v: 'v' + i, n: i });
         db._tables.t.createIndex('n');
-        const db2 = new Database(file, { wal: true });
+        const db2 = new Database(file, { wal: true, fileLock: false });
         const found = await db2.find('t', { n: 17 });
         ok('回放后按索引字段查询正确', found.length === 1 && found[0].id === 17, found);
         const cnt = await db2.find('t', { n: { $gte: 25 } });
@@ -170,7 +170,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         await db.delete('np', { x: 'n1' });
         ok('写入后立即产生 .wal', fs.existsSync(file + '.wal'));
 
-        const db2 = new Database(file);   // 不传 wal，模拟进程崩溃后重启
+        const db2 = new Database(file, { fileLock: false });   // 不传 wal，模拟进程崩溃后重启
         const rows = await db2.find('t', {});
         const npRows = await db2.find('np', {});
         ok('默认 WAL 恢复主键表', rows.length === 1 && rows[0].v === 'a2', rows);

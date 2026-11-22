@@ -170,6 +170,7 @@ async function testPersistence() {
         db.big.insert({ v: 9223372036854775807n });
         db.big.insert({ v: -9223372036854775808n });
         db.save();
+        await db.stop();
 
         db = new Database(p);
         const rows = db.big.find({}).sort((a, b) => (a.v < b.v ? -1 : 1));
@@ -187,6 +188,7 @@ async function testPersistence() {
         });
         db.big.insert({ v: '9007199254740993' });
         db.save();
+        await db.stop();
 
         db = new Database(p);
         ok('#38 JSON persistence keeps >2^53 exactly', db.big.find({})[0].v === 9007199254740993n, db.big.find({}));
@@ -203,6 +205,7 @@ async function testPersistence() {
         });
         db.big.insert({ v: 9007199254740993n });
         db.save();
+        await db.stop();
 
         db = new Database(dir, { mode: 'disk' });
         ok('#38 dir-mode persistence keeps >2^53 exactly', db.big.find({})[0].v === 9007199254740993n, db.big.find({}));
