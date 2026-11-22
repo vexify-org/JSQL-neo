@@ -29,3 +29,4 @@ bin/jsql-neo-server
 nativesrc/**/native/
 # 供应链安全（issue #25）：不提交预编译二进制，只作为 release 资产发布
 nativesrc/**/*.node
+opencode.json
