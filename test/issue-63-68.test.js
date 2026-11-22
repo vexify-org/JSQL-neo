@@ -63,9 +63,9 @@ const isNull = (v) => v === null || v === undefined;
   const zint = send('ZSCORE', ['zi', 'm']);
   ok('#67 整数分数也是 bulk（不是 :10）', zint === '$2\r\n10\r\n', zint);
   ok('#67 _send 非整数 number 不产出非法 integer reply',
-    (() => { const o = []; srv._send({ write: (s) => o.push(s) }, 10.5); return o[0] === '$4\r\n10.5\r\n'; })(), null);
+    (() => { const o = []; srv._send({ write: (s) => o.push(s) }, 10.5); return String(o[0]) === '$4\r\n10.5\r\n'; })(), null);
   ok('#67 _send 整数仍是 integer reply',
-    (() => { const o = []; srv._send({ write: (s) => o.push(s) }, 3); return o[0] === ':3\r\n'; })(), null);
+    (() => { const o = []; srv._send({ write: (s) => o.push(s) }, 3); return String(o[0]) === ':3\r\n'; })(), null);
 
   // ---------- #68 XQL ORDER BY 非投影列 ----------
   const { xql } = require(path.join(ROOT, 'lib', 'plugins'));

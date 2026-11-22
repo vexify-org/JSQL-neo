@@ -14,7 +14,9 @@ const { nag, setStarred, readConfig } = require('../lib/star-nag');
 // star 提示：任何异常都不该挡住命令本身
 // version / --version 只回版本号、star 本身就是干这件事的 —— 这些不提示，其余全部提示
 const NO_NAG_ARGS = new Set(['version', '--version', '-v', 'star', 'update', 'uninstall', 'remove']);
-if (!process.env.JSQL_NO_STAR_NAG && !NO_NAG_ARGS.has(process.argv[2])) {
+// #189：--json 的 stdout 必须是纯 JSON，star 提示会污染机器可读输出
+const WANTS_JSON = process.argv.slice(2).includes('--json');
+if (!process.env.JSQL_NO_STAR_NAG && !WANTS_JSON && !NO_NAG_ARGS.has(process.argv[2])) {
   try { nag(); } catch (e) { /* 提示失败与命令无关 */ }
 }
 
@@ -378,7 +380,8 @@ const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
     sub.option('data-dir', { type: 'string', description: 'Data directory (default :memory:)' });
     sub.option('json', { type: 'boolean', description: 'Output as JSON' });
   }, async (argv) => {
-    const N = argv.n || 10000;
+    // #188：回退解析器不做类型强转，数值选项在这里归一
+    const N = Number(argv.n) || 10000;
     const dataDir = argv['data-dir'] || ':memory:';
     try {
       const db = new Database(dataDir === ':memory:' ? ':memory:' : path.join(dataDir, 'bench.json'), { autoSave: false });

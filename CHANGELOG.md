@@ -6,6 +6,24 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.6] - 2026-11-21
+
+### Fixed
+- **SQL 引擎** #197-#208：ALTER ADD COLUMN DEFAULT 回填、复合主键/表级复合
+  UNIQUE、事务内 DDL 回滚、DROP/TRUNCATE 外键检查、多行 INSERT 原子性、
+  INSERT 列数校验、READ_COMMITTED 回滚、建唯一索引存量查重、UPDATE 左到右求值。
+- **SQL 函数/列存** #229-#233：IF 真值规则、REGEXP NULL、REPLACE NULL/空串、
+  TRIM 两参顺序、列存布尔分组键归一。
+- **协议** #209-#215：MySQL BIGINT/utf8mb4/多结果集/无参 execute 二进制；
+  PG aborted 事务、NUMERIC/BIGINT OID、TIMESTAMP 秒级格式化。
+- **Redis** #225-#228：二进制安全、HSET 原型链计数、INCRBY/EXPIRE 整数校验、
+  KEYS glob 字符集合。
+- **Mongo** #216-#224：distinct 点路径、regex m/s、replacement 语义、
+  子文档深相等、$type、唯一索引、未知命令、$unset、upsert 修饰符。
+- **兼容层/工具** #188-#196、#235-#237：CLI --json 输出、NeDB projection/唯一/
+  upsert、SQLite 绑定与 readonly、CSV 空串与 BigInt、JSON BigInt 导出、
+  快照原子写与 WAL 兜底。
+
 ## [6.8.5] - 2026-11-21
 
 ### Fixed

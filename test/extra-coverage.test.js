@@ -435,15 +435,16 @@ test('CREATE TABLE 带 DEFAULT 值对新行生效', async () => {
   assert.strictEqual(r[0][0], 'x');
 });
 
-test('ALTER TABLE ADD COLUMN 带 DEFAULT 子句（DEFAULT 对新行不生效，已知限制）', async () => {
+test('ALTER TABLE ADD COLUMN 带 DEFAULT 子句（#197：DEFAULT 对新行生效）', async () => {
   const { q } = makeDb();
   await q('CREATE TABLE t (id INT PRIMARY KEY, n STRING)');
   await q("INSERT INTO t VALUES (1,'a')");
   await q("ALTER TABLE t ADD COLUMN extra STRING DEFAULT 'x'");
   await q("INSERT INTO t (id, n) VALUES (2,'b')");
   const r = await rows(q, 'SELECT id, n, extra FROM t ORDER BY id');
-  // 已知限制：ALTER TABLE ADD COLUMN 的 DEFAULT 不应用到新行
-  assert.ok(r[1][2] == null); // null 或 undefined（序列化差异）
+  // #197：ALTER ADD COLUMN 的 DEFAULT 同时回填存量行并应用到新行
+  assert.strictEqual(r[0][2], 'x');
+  assert.strictEqual(r[1][2], 'x');
 });
 
 test('ALTER TABLE DROP COLUMN', async () => {
