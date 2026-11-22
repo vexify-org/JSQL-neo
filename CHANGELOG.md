@@ -6,6 +6,18 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.11] — 2026-11-22
+
+### Fixed
+- #243 `CAST(... AS SIGNED/UNSIGNED)` 改用 BigInt 精确解析：2^53 以上的整数不再被浮点舍入丢低位，溢出钳制到 64 位边界，并支持科学计数法（`CAST('1e3' AS SIGNED)` = 1000）。
+- #245 UNIQUE / PRIMARY KEY / 复合 UNIQUE 的唯一性判定与等值比较统一为同一口径（默认 utf8mb4_general_ci 大小写不敏感）：`'a'` 与 `'A'` 不再能共存，`WHERE e='a'` 与唯一约束不再互相拆台。
+- #246 `ALTER TABLE ... RENAME TO` 后同步重写子表外键引用；外键父表解析不到时明确报错，不再静默放行坏引用或跳过级联。
+- #288 `SUBSTRING`/`SUBSTR`/`MID` 的负偏移越界时返回空串（此前返回整串或尾部片段）。
+- #289 `INSERT(str,pos,len,newstr)` 改按 code point 切分，emoji 不再被劈成孤立代理项。
+
+### Changed
+- 位运算（`&` `|` `^` `~`）统一为 64 位无符号整数语义（与 MySQL 及 `doc/sql-reference.md` 的既有承诺一致）：`SELECT ~0` 返回 `18446744073709551615`。
+
 ## [6.8.10] — 2026-11-22
 
 ### Fixed

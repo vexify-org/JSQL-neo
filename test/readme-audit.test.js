@@ -88,7 +88,10 @@ async function main() {
     ok('取模 %', JSON.stringify(await rowsOf('SELECT 10 % 3 AS r')) === '[[1]]');
     ok('左移 <<', JSON.stringify(await rowsOf('SELECT 1 << 8 AS r')) === '[[256]]');
     ok('按位与 &', JSON.stringify(await rowsOf('SELECT 255 & 15 AS r')) === '[[15]]');
-    ok('按位取反 ~', JSON.stringify(await rowsOf('SELECT ~0 AS r')) === '[[-1]]');
+    // #290：位运算结果按 64 位无符号整数语义（MySQL）。
+    // 旧实现 `~(x | 0)` 把值截成 32 位有符号整数，~0 得到 -1 —— 那是错的，
+    // MySQL 的 SELECT ~0 返回 18446744073709551615。
+    ok('按位取反 ~', JSON.stringify(await rowsOf('SELECT ~0 AS r')) === '[["18446744073709551615"]]');
     ok('WHERE 中位运算过滤',
       JSON.stringify(await rowsOf('SELECT name FROM emp WHERE flag & 1 = 1')) === '[["a"],["c"],["d"]]');
 
