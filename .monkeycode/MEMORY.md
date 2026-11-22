@@ -45,3 +45,9 @@ Entries discovered by the Agent during task execution should follow this format:
   - 本环境未预装 node/npm/git/gpg/curl，需通过 apt-get 安装；Node 版本为 v22。
   - 原生模块在 `native/jsql-neo-native.node`，缺失时可用 `JSQL_NATIVE_DOWNLOAD=1 node postinstall.js` 从 GitHub Release 下载并通过 SHA256 校验。
   - `npm test` 依赖 curl（star-nag 测试）和原生模块；完整测试应在这两项就绪后运行。
+
+[User Instruction Summary]
+- Date: 2026-11-21
+- Context: 发布节奏要求
+- Instructions:
+  - 每修复 5 个 issue 发一次 tag，版本 patch +1；不要每修 1-2 个就发版。

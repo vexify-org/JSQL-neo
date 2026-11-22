@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.8] - 2026-11-21
+
+### Fixed
+- PostgreSQL aborted 事务中 `SET` 仍被接受（应为 25P02）。
+- CSV 往返时字面量 `\N` 被误当成 NULL。
+- 带 BOM 的 CSV 首列表头未被识别。
+- Redis 合法文本以 `\u0001` 开头时被误判为二进制。
+- MongoDB 二级唯一索引在 UPDATE 路径未强制。
+
 ## [6.8.7] - 2026-11-21
 
 ### Fixed

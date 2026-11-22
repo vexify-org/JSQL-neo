@@ -39,6 +39,85 @@ function ok(name, cond, extra) {
     c.close();
   }
 
+  // CSV literal \\N must not collapse to NULL
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const { Database, migrate } = require(path.join(ROOT, 'index.js'));
+    const db = new Database(':memory:');
+    await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, s TEXT)', { safety: false });
+    await db.query("INSERT INTO t VALUES (1,'\\\\N'),(2,NULL)", { safety: false });
+    const csv = await migrate.exportTableToCSV(db, 't');
+    const db2 = new Database(':memory:');
+    await db2.query('CREATE TABLE t (id INTEGER PRIMARY KEY, s TEXT)', { safety: false });
+    await migrate.importFromCSV(db2, 't', csv);
+    const r = (await db2.query('SELECT * FROM t ORDER BY id', { safety: false })).rows;
+    ok('CSV literal \\N round-trips without becoming NULL', JSON.stringify(r) === JSON.stringify([[1, '\\N'], [2, null]]), r);
+    db.stop(); db2.stop();
+  }
+
+  // PG aborted transaction also rejects SET
+  {
+    const { Client } = (() => { try { return require(path.join(ROOT, 'node_modules', 'pg')); } catch (e) { return {}; } })();
+    if (Client) {
+      const { createPgServer } = require(path.join(ROOT, 'lib', 'pg_server.js'));
+      const srv = createPgServer({ port: 0, host: '127.0.0.1', dataDir: ':memory:', noAuth: true });
+      await new Promise((r) => srv.listen(r));
+      const c = new Client({ host: '127.0.0.1', port: srv.address.port, user: 'root', database: 'app' });
+      await c.connect();
+      await c.query('BEGIN');
+      try { await c.query('SELECT * FROM no_such_table'); } catch (e) { /* aborted */ }
+      let code = null;
+      try { await c.query('SET search_path=foo'); } catch (e) { code = e.code; }
+      ok('PG aborted transaction rejects SET too', code === '25P02', code);
+      await c.query('ROLLBACK');
+      await c.end(); srv.close();
+    } else {
+      console.log('[SKIP] PG aborted SET (pg not installed)');
+    }
+  }
+
+  // CSV BOM header
+  {
+    const { Database, migrate } = require(path.join(ROOT, 'index.js'));
+    const db = new Database(':memory:');
+    await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, s TEXT)', { safety: false });
+    await migrate.importFromCSV(db, 't', '\uFEFFid,s\n1,hi\n');
+    const r = (await db.query('SELECT * FROM t', { safety: false })).rows;
+    ok('CSV BOM header is stripped', JSON.stringify(r) === JSON.stringify([[1, 'hi']]), r);
+    db.stop();
+  }
+
+  // Redis valid text starting with the binary marker must round-trip
+  {
+    const net = require('net');
+    const { createRedisServer } = require(path.join(ROOT, 'lib', 'redis_server.js'));
+    const srv = createRedisServer({ port: 0, dataDir: null });
+    await new Promise((r) => srv.listen(r));
+    const sock = net.connect(srv.server.address().port, '127.0.0.1');
+    await new Promise((r) => sock.on('connect', r));
+    const chunks = [];
+    sock.on('data', (c) => chunks.push(c));
+    const val = Buffer.from('\u0001hello', 'utf8');
+    sock.write(Buffer.concat([Buffer.from('*3\r\n$3\r\nSET\r\n$1\r\nk\r\n$' + val.length + '\r\n'), val, Buffer.from('\r\n')]));
+    sock.write(Buffer.from('*2\r\n$3\r\nGET\r\n$1\r\nk\r\n'));
+    await new Promise((r) => setTimeout(r, 120));
+    const out = Buffer.concat(chunks);
+    const at = out.indexOf('$' + val.length + '\r\n');
+    ok('Redis leading \\u0001 text is not treated as binary', at >= 0 && out.slice(at + 3 + String(val.length).length, at + 3 + String(val.length).length + val.length).equals(val), out.toString('hex'));
+    sock.end(); srv.stop();
+  }
+
+  // Mongo unique index must also block UPDATE to a duplicate key
+  {
+    const { createMongoServer } = require(path.join(ROOT, 'lib', 'mongo_server.js'));
+    const mongo = createMongoServer({ dataDir: ':memory:' });
+    await mongo._dispatch('createIndexes', { createIndexes: 'c', indexes: [{ key: { email: 1 }, name: 'email_1', unique: true }], $db: 'test' });
+    await mongo._dispatch('insert', { insert: 'c', documents: [{ email: 'a@x.com' }, { email: 'b@x.com' }], $db: 'test' });
+    const upd = await mongo._dispatch('update', { update: 'c', updates: [{ q: { email: 'b@x.com' }, u: { $set: { email: 'a@x.com' } } }], $db: 'test' });
+    ok('Mongo unique index enforced on UPDATE', upd.ok === 0, upd);
+  }
+
   // #240
   {
     const db = new JSQL();
