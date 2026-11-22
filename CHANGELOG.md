@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.17] — 2026-11-22
+
+### Fixed
+- #253 `mysql_compat` 在 `multipleStatements: true` 下返回**全部**结果集（与 mysql2 一致），前面的结果集不再被静默丢弃。
+- #254 PostgreSQL `Describe`/`Close` 的语句名解析修正 off-by-one（`'s1'` 不再被读成 `'s'`，单字符名不再读成空串）。
+- #261 列存快路径的 WHERE 裸比较符补 SQL 三值逻辑：NULL 行不再被误命中，聚合/分组结果与行存通用路径逐项一致。
+- #268 `AUTO_INCREMENT` 列显式插入 `0`（或 `NULL`）按 MySQL 语义交由引擎分配序列值，表里不再出现 `id=0`。
+- #269 `INSERT IGNORE` 把可忽略的错误（CHECK 违反、重复键、超长、越界）降级为 warning，只跳过该行，其余行照常插入。
+
 ## [6.8.16] — 2026-11-22
 
 ### Fixed
