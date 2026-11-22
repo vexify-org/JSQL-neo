@@ -1,8 +1,8 @@
 # 开放 ISSUE 修复进度与待办清单
 
-> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.19**
+> 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.20**
 >
-> **共 80 个开放 ISSUE，已修复 55 个，剩余 25 个。**
+> **共 80 个开放 ISSUE，已修复 60 个，剩余 20 个。**
 >
 > 说明：本仓库的 GitHub App 集成只有代码写权限，没有 ISSUE 写权限
 > （`issue_write` / `add_issue_comment` 均返回 `403 Resource not accessible by integration`），
@@ -70,6 +70,11 @@
 | v6.8.19 | #308 | PG DDL CommandComplete tag |
 | v6.8.19 | #309 | PG 无参 Describe paramCount=0 |
 | v6.8.19 | #311 | PG BOOLEAN typlen=1 |
+| v6.8.20 | #296 | sqlite columns() 声明类型 |
+| v6.8.20 | #297 | sqlite 空/空白 SQL 统一 no-op |
+| v6.8.20 | #306 | MySQL ColumnDefinition schema 字段 |
+| v6.8.20 | #279 | Mongo $push $position/$slice |
+| v6.8.20 | #282 | Mongo $unwind 标量保留 |
 
 ---
 
@@ -91,15 +96,12 @@
 |---|---|---|---|
 | #265 | P1 | sqlite 兼容层 `db.transaction()` 嵌套未用 SAVEPOINT：内层提交提前提交外层，外层回滚撤不掉内层写入 | `lib/sqlite_compat.js` |
 | #294 | P1 | WASM 引擎 `stop()` 后再次 `start()`：底层已清空表，但 JS 侧 `_tableNames`/`_schemas` 残留，`getTables()` 返回幽灵表 | `lib/wasm_engine.js` |
-| #296 | P3 | sqlite 兼容层 `statement.columns()` 的 type 恒为 TEXT，不反映声明类型 | `lib/sqlite_worker.js` |
-| #297 | P3 | sqlite 兼容层纯空白 SQL 静默返回 `[]`，而空串会抛错，行为自相矛盾 | `lib/sqlite_compat.js` |
 
 ### C. MySQL 线协议
 
 | ISSUE | 严重度 | 摘要 | 涉及 |
 |---|---|---|---|
 | #271 | P1 | `ColumnDefinition41` 的 flags 恒为 `0x0000`：PRIMARY KEY / NOT NULL / UNSIGNED / AUTO_INCREMENT 位全部未通告 | `lib/mysql_server.js` |
-| #306 | P1 | `ColumnDefinition41` 的 schema（库名）字段被填成表名 | `lib/mysql_server.js` |
 | #273 | P2 | `COM_STMT_PREPARE` 的列/参数元数据是占位：列名 `col1/col2`、参数名 `?`、类型全 VAR_STRING(253) | `lib/mysql_server.js` |
 
 ### D. PostgreSQL 线协议
@@ -116,8 +118,6 @@
 | ISSUE | 严重度 | 摘要 | 涉及 |
 |---|---|---|---|
 | #278 | P2 | `find` 忽略 `batchSize`：firstBatch 全量返回、游标 id 恒 0，`getMore` 恒空批 | `lib/mongo_server.js` |
-| #279 | P2 | `$push` 只认 `$each`：`$slice` 截断与 `$position` 插入位置被静默忽略 | `lib/mongo_server.js` |
-| #282 | P2 | `$unwind` 把非数组的标量字段文档直接丢弃（官方语义应按单元素数组展开保留） | `lib/mongo_server.js` |
 | #283 | P2 | 聚合管道未识别的 stage（如 `$addFields`）被静默跳过，文档原样透传不报错 | `lib/mongo_server.js` |
 
 ### F. TUI
@@ -168,6 +168,7 @@
 | `test/issue-253-269.test.js` | #253 #254 #261 #268 #269 |
 | `test/issue-280-310.test.js` | #280 #281 #286 #287 #310 |
 | `test/issue-272-311.test.js` | #272 #274 #308 #309 #311 |
+| `test/issue-279-306.test.js` | #279 #282 #296 #297 #306 |
 
 ### 编码约定（踩坑记录）
 - **工作区是 CRLF**（`core.autocrlf=true`）：用字面量 `'\n'` 匹配文件内容的替换会静默失配。

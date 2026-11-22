@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.20] — 2026-11-22
+
+### Fixed
+- #296 sqlite 兼容层 `columns()` 的 type 反映声明类型。
+- #297 sqlite 兼容层空串与纯空白 SQL 统一为 no-op。
+- #306 MySQL `ColumnDefinition41` 的 schema 字段回库名，不再填表名。
+- #279 Mongo `$push` 支持 `$each` + `$position` + `$slice`。
+- #282 Mongo `$unwind` 对非数组标量按单元素展开保留文档。
+
 ## [6.8.19] — 2026-11-22
 
 ### Fixed
