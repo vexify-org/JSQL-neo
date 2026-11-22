@@ -37,7 +37,10 @@ async function main() {
   await executeSQL(db, "INSERT INTO t (id,v) VALUES (1,'a')", { safety: false });
   let dup = null;
   try { await executeSQL(db, "INSERT INTO t (id,v) VALUES (2,'a')", { safety: false }); } catch (e) { dup = e; }
-  ok('#138 唯一索引插入重复报错', !!dup && /DUP_ENTRY/.test(dup.message));
+  // #305：唯一冲突统一用 MySQL 的 ER_DUP_ENTRY(1062) 模板，
+  // 消息形态为 "Duplicate entry 'x' for key 'y'"（不再二次格式化）。
+  ok('#138 唯一索引插入重复报错', !!dup && dup.code === 1062 && /Duplicate entry/.test(dup.message),
+    dup && dup.message);
   await executeSQL(db, "INSERT INTO t (id,v) VALUES (2,'b')", { safety: false });
   let updErr = null;
   try { await executeSQL(db, "UPDATE t SET v='b' WHERE id=1", { safety: false }); } catch (e) { updErr = e; }

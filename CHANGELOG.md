@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.13] — 2026-11-22
+
+### Fixed
+- #301 HTTP 客户端（`lib/client.js`）的数据请求补可配置超时（默认 30s）：服务端挂起 / 网络半开时请求会超时失败，不再永久 pending。
+- #302 NeDB 兼容层补齐 `removeIndex(fieldName, cb)` 与 `getIndexes(cb)`，迁移应用不再因调用即 `TypeError` 崩溃。
+- #303 插件钩子返回值按 `PLUGINS.md` 契约写回参数：`beforeInsert` 返回的改写后 data 数组、`beforeUpdate` 返回的改写后 data 对象均生效（此前只识别 `false` 中止）。
+- #304 `Cache.expire` 对负数秒报 `invalid expire time`，不再静默把键置为立即失效。
+- #305 唯一冲突错误消息统一用 `ER_DUP_ENTRY` 模板拼装，不再二次格式化（`Duplicate entry 'x' for key 'y'`）。
+
 ## [6.8.12] — 2026-11-22
 
 ### Fixed

@@ -45,9 +45,9 @@ db.use({
 
 | Hook | 参数 | 返回值 | 支持引擎 |
 |------|------|--------|---------|
-| `beforeInsert` | `(table, data[])` | 修改后 data / `false` 中止 | N/W/D |
+| `beforeInsert` | `(table, data[])` | 修改后 data（写回）/ `false` 中止 | N/W/D |
 | `afterInsert` | `(table, data[], ids)` | — | N/W/D |
-| `beforeUpdate` | `(table, id, data)` | `true`/`false` | N/W/D |
+| `beforeUpdate` | `(table, id, data)` | 修改后 data（写回）/ `false` 中止 | N/W/D |
 | `afterUpdate` | `(table, id, data, result)` | — | N/W/D |
 | `beforeDelete` | `(table, id)` | `true`/`false` | N/W/D |
 | `afterDelete` | `(table, id, result)` | — | N/W/D |

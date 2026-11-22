@@ -429,12 +429,19 @@ async function main() {
       const dupErrMsg = async (sql) => {
         try { await run(sql); return null; } catch (e) { return e.message; }
       };
+      const dupErrCode = async (sql) => {
+        try { await run(sql); return null; } catch (e) { return e.code; }
+      };
       await run('CREATE TABLE u (id SERIAL PRIMARY KEY, email TEXT UNIQUE, nick TEXT UNIQUE)');
       await run("INSERT INTO u (email, nick) VALUES ('a@x.com', 'a')");
+      // #305：唯一冲突统一用 MySQL 的 ER_DUP_ENTRY(1062) 模板，
+      // 消息形态为 "Duplicate entry 'x' for key 'y'"（不再二次格式化）。
       ok('唯一列重复 → ER_DUP_ENTRY',
-        /ER_DUP_ENTRY/.test(await dupErrMsg("INSERT INTO u (email, nick) VALUES ('a@x.com', 'z')") || ''));
+        await dupErrCode("INSERT INTO u (email, nick) VALUES ('a@x.com', 'z')") === 1062);
+      ok('唯一列重复消息形态正确',
+        /Duplicate entry 'a@x\.com' for key 'email'/.test(await dupErrMsg("INSERT INTO u (email, nick) VALUES ('a@x.com', 'z')") || ''));
       ok('批内唯一重复 → ER_DUP_ENTRY',
-        /ER_DUP_ENTRY/.test(await dupErrMsg("INSERT INTO u (email, nick) VALUES ('b@x.com', 'n1'), ('c@x.com', 'n1')") || ''));
+        await dupErrCode("INSERT INTO u (email, nick) VALUES ('b@x.com', 'n1'), ('c@x.com', 'n1')") === 1062);
       const r1 = await run('SELECT id FROM u');
       ok('冲突后仍只有 1 行', r1.rows.length === 1, r1.rows);
       await run("INSERT INTO u (email, nick) VALUES (NULL, 'x'), (NULL, 'y')");
