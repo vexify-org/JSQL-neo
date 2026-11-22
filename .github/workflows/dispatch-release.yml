@@ -1,0 +1,31 @@
+name: Dispatch Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repository: jsql-neo/go
+            secret: JSQL_GO_GH_TOKEN
+          - repository: vexify-org/jsql-python
+            secret: JSQL_PY_GH_TOKEN
+    steps:
+      - name: Dispatch to ${{ matrix.repository }}
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets[matrix.secret] }}
+          repository: ${{ matrix.repository }}
+          event-type: release
+          client-payload: |
+            {
+              "tag": "${{ github.ref_name }}",
+              "sha": "${{ github.sha }}",
+              "source_repo": "${{ github.repository }}"
+            }
