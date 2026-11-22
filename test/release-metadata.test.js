@@ -73,8 +73,12 @@ try {
   ok('非法版本号 → FAIL', r4.ok === false, r4.checks.filter(c => !c.ok));
 
   // 开发中往 Unreleased 累积内容不应让门禁变红（只给软提示）
+  // 注意：工作区可能是 CRLF（core.autocrlf=true），用字面量 '\n' 匹配会静默失配，
+  // 反例没构造出来 → 断言变成假红/假绿。这里用 \r?\n 且必须真的替换成功。
   const wip = fixture('wip-unreleased', (c) => {
-    c['CHANGELOG.md'] = c['CHANGELOG.md'].replace('## [Unreleased]\n', '## [Unreleased]\n\n### Added\n\n- 开发中\n');
+    const re = /## \[Unreleased\]\r?\n/;
+    if (!re.test(c['CHANGELOG.md'])) throw new Error('反例构造失败：CHANGELOG 缺 [Unreleased] 段');
+    c['CHANGELOG.md'] = c['CHANGELOG.md'].replace(re, '## [Unreleased]\r\n\r\n### Added\r\n\r\n- 开发中\r\n');
   });
   const r5 = checkReleaseMetadata(wip);
   ok('开发中 Unreleased 有内容仍通过', r5.ok === true, r5.checks.filter(c => !c.ok));

@@ -6,6 +6,18 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.9] — 2026-11-22
+
+### Fixed
+- #314 Redis `LPOP`/`RPOP` 的 count 参数改用严格十进制校验（`1.5`、`2abc` 不再被静默截断接受）。
+- #317 `REGEXP`/`RLIKE` 非法正则模式串归一为 MySQL 错误 `ER_REGEXP_ERROR`(1139) / SQLSTATE 42000，不再抛裸 JS `SyntaxError`。
+- #318 `LPAD`/`RPAD` 的填充串为 `NULL` 时整体返回 `NULL`（MySQL 三值逻辑），不再退化为空格填充。
+- #319 `Cache` 的 TTL 清理定时器与自动保存定时器补 `unref()`，漏调 `close()` 时不再挂住 Node 事件循环。
+- #321 legacy 单文件模式的自动保存定时器补 `unref()`，与同文件 `_flushTimer`/`_monitorTimer` 处理一致。
+
+### Changed
+- 发版门禁回归测试的 fixture 改为行尾符不敏感（工作区 CRLF 下反例此前静默失配，断言变成假红）。
+
 ## [6.8.8] - 2026-11-21
 
 ### Fixed
