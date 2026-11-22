@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.10] — 2026-11-22
+
+### Fixed
+- #312 Mongo `$group` 的 `$push` / `$addToSet` 累加器补齐：输出文档不再缺整列（`$push` 按组内顺序收集，`$addToSet` 深相等去重）。
+- #313 Redis `EXPIRE` 支持 `NX`/`XX`/`GT`/`LT` 条件选项：条件不满足返回 `0` 且不改动 TTL，未知选项报 `ERR syntax error`。
+- #315 Mongo `listIndexes` 对不存在的集合按协议报 `nsNotFound`(26)，不再伪造 `_id_` 索引并回 `ok:1`。
+- #316 Mongo `find` 的负 `limit` 按绝对值取单批（`limit:-2` 返回 2 条），不再返回全部文档。
+- #320 `encryptKey` 长度按字节校验，只接受 16/24/32 字节；短密钥不再被空格补齐，长密钥不再被静默截断。
+
 ## [6.8.9] — 2026-11-22
 
 ### Fixed
