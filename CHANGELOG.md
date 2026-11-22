@@ -6,6 +6,15 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.16] — 2026-11-22
+
+### Fixed
+- #255 Mongo `insert` 尊重 `ordered` 选项：默认 `ordered: true` 时首个写入失败即中止本批，后续文档不再插入，`n` 只统计实际写入条数。
+- #256 `FROM_UNIXTIME(NULL)` 返回 `NULL`（此前 `Number(null) === 0` 被当成时间戳 0）。
+- #257 `UNIX_TIMESTAMP(NULL)` 返回 `NULL`（此前与「无参」共用分支，返回执行时刻的时间戳）。
+- #266 列级 `DECIMAL(p, s)` 的标度生效：写入时按标度精确四舍五入（`1.005 → 1.01`、`2.675 → 2.68`），运算不再出现 IEEE754 浮点误差。
+- #270 向整型列写入带小数部分的值按 MySQL 语义四舍五入（`1.9 → 2`、`-1.5 → -2`），不再抛 1292。
+
 ## [6.8.15] — 2026-11-22
 
 ### Fixed

@@ -84,9 +84,12 @@ async function testApi() {
     ok('#38 API filter with BigInt matches', hit.length === 1 && hit[0].id === r1.id, hit);
 
     // 8. 非法值仍然报错
-    threw = null;
-    try { t.insert({ v: 1.5 }); } catch (e) { threw = e; }
-    ok('#38 API float into bigint column throws 1292', threw && codeOf(threw) === 1292);
+    // #270：MySQL 向整型列写带小数部分的值是**四舍五入**而不是报错
+    // （1.5 → 2）。这里改为验证舍入结果；布尔仍是非法值。
+    let floatRow = null;
+    try { floatRow = t.insert({ v: 1.5 }); } catch (e) { floatRow = null; }
+    ok('#38 API float into bigint column rounds half away from zero',
+        floatRow && Number(floatRow.v) === 2, floatRow);
     threw = null;
     try { t.insert({ v: true }); } catch (e) { threw = e; }
     ok('#38 API boolean into bigint column throws 1292', threw && codeOf(threw) === 1292);
@@ -258,8 +261,10 @@ async function testNoRegression() {
     const rows = db.t.find({});
     ok('#38 regression integer/float/string coercion intact',
         rows.length === 2 && rows[0].n === 42 && rows[1].n === 43 && rows[1].f === 2.5 && rows[1].s === '7', rows);
-    ok('#38 regression integer still rejects 1.5', (() => {
-        try { db.t.insert({ n: 1.5 }); return false; } catch (e) { return codeOf(e) === 1292; }
+    // #270：MySQL 语义 —— 整数列对带小数部分的值做四舍五入（1.5 → 2），
+    // 不再报 1292。
+    ok('#38 regression integer rounds 1.5 to 2', (() => {
+        try { const r = db.t.insert({ n: 1.5 }); return r.n === 2; } catch (e) { return false; }
     })());
 }
 
