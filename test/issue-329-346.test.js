@@ -64,14 +64,29 @@ function opMsg(doc) {
   {
     const srv = createMongoServer({ dataDir: ':memory:' });
     await new Promise((r) => srv.listen(r));
+    const port = srv._server.address().port;
     const call = (doc) => new Promise((res) => {
-      const s = net.connect(srv._server.address().port, '127.0.0.1', () => s.write(opMsg(doc)));
+      const s = net.connect(port, '127.0.0.1', () => s.write(opMsg(doc)));
       const c = [];
       s.on('data', (d) => {
         c.push(d);
         const b = Buffer.concat(c);
         if (b.length >= 16 && b.length >= b.readInt32LE(0)) { res(bsonReadDocument(b.slice(21), 0).value); s.end(); }
       });
+    });
+    // #459：游标绑定创建连接，find/getMore 必须走同一条 socket
+    const callOn = (sock, doc) => new Promise((res) => {
+      const c = [];
+      const onData = (d) => {
+        c.push(d);
+        const b = Buffer.concat(c);
+        if (b.length >= 16 && b.length >= b.readInt32LE(0)) {
+          sock.removeListener('data', onData);
+          res(bsonReadDocument(b.slice(21), 0).value);
+        }
+      };
+      sock.on('data', onData);
+      sock.write(opMsg(doc));
     });
     await call({ insert: 'af', documents: [{ n: 1 }, { n: 2 }], $db: 'test' });
     const add = await call({ aggregate: 'af', pipeline: [{ $addFields: { z: 5 } }], cursor: {}, $db: 'test' });
@@ -83,14 +98,16 @@ function opMsg(doc) {
     const bogus = await call({ aggregate: 'af', pipeline: [{ $bogus: {} }], cursor: {}, $db: 'test' });
     ok('#328 未知 stage 仍报 40324', bogus.ok === 0 && bogus.code === 40324, bogus);
 
-    // #339 getMore 支持扩展 JSON 的 $numberLong 游标 id
-    await call({ insert: 'cur', documents: [{ n: 1 }, { n: 2 }, { n: 3 }], $db: 'test' });
-    const find = await call({ find: 'cur', batchSize: 2, $db: 'test' });
+    // #339 getMore 支持扩展 JSON 的 $numberLong 游标 id（find/getMore 同一连接）
+    const sock = net.connect(port, '127.0.0.1');
+    await callOn(sock, { insert: 'cur', documents: [{ n: 1 }, { n: 2 }, { n: 3 }], $db: 'test' });
+    const find = await callOn(sock, { find: 'cur', batchSize: 2, $db: 'test' });
     const rawId = find.cursor.id;
     const id = rawId && typeof rawId === 'object' ? (rawId.$long ?? rawId.$numberLong) : rawId;
-    const more = await call({ getMore: { $numberLong: String(id) }, collection: 'cur', batchSize: 2, $db: 'test' });
+    const more = await callOn(sock, { getMore: { $numberLong: String(id) }, collection: 'cur', batchSize: 2, $db: 'test' });
     ok('#339 getMore 接受 $numberLong 形态游标 id',
       more.ok === 1 && more.cursor && more.cursor.nextBatch.length === 1, more);
+    sock.end();
     srv.close();
   }
 

@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+- #455 `Database#importCSV` 第二条 CSV 路径不再把非数值整数静默置 0、非真值布尔静默置 false；不可解析的值记入 `warnings`（`strict: true` 时抛错），合法值与空值语义不变。**行为变化**：返回值由此前的导入行数（number）改为 `{ count, warnings }`。
+- #456 MultiServer 收满前 16 字节（或嗅探超时）前不提交路由，MongoDB 16 字节 opCode 签名校验不再被跳过，分片/短首包不再误判到 Redis。
+- #457 MySQL `COM_RESET_CONNECTION`(0x1f) 释放全部预处理语句句柄并复位会话状态，旧 stmtId 再 EXECUTE 回 `1243 Unknown prepared statement handler`。
+- #458 Redis `INCR`/`DECR`/`INCRBY`/`DECRBY` 对 hash/list/set/zset 键回 `WRONGTYPE`；键存在但值非整数字符串仍回 `ERR value is not an integer or out of range`。
+- #459 MongoDB 查询游标绑定创建它的连接，另一连接 `getMore` 同一游标回 `43 cursorNotFound`，原连接仍可取完剩余批次。
+
 ## [6.8.26] — 2026-11-23
 
 ### Fixed
