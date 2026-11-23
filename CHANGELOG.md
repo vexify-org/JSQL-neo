@@ -22,6 +22,17 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #343 `NTILE(n)` 按「前 len % n 桶各多一行」分桶，`n` 大于行数时不再跳号。
 - #345 纯注释语句返回空结果，不再抛裸 `TypeError`。
 - #346 反引号标识符内的 `` 转义（MySQL 语义）在 tokenizer 中生效。
+- #355 `jsql import` / `jsql export` 结束关闭 Database，不再残留 `.lock`。
+- #360 `WITH` 中同名 CTE 报错，不再后定义静默遮蔽前一个。
+- #363 WebUI `/api/query` SQL 失败回 500，不再用 200 掩盖。
+- #364 WebUI 请求体非法 JSON 回 400，不再落到 500。
+- #366 WebUI `/api/tables` 缺 `db` 回 400、库不存在回 404。
+- #357 `RENAME COLUMN` / `CHANGE COLUMN` 后 CHECK 表达式里的旧列名被改写并重编译。
+- #358 `RENAME TABLE` 同步 `_indexRegistry`，改名后 `DROP INDEX` 仍能反查到表。
+- #359 `ALTER TABLE ... MODIFY/CHANGE COLUMN` 同步 `_defaults`，删掉的 DEFAULT 不再残留。
+- #362 CSV 导入行宽与表头不一致时产出 `warnings`，`strictRows` 可中止。
+- #365 WebUI `GET /api/databases` 改为完整解析文件，表数不再用引号估算。
+
 
 ## [6.8.25] — 2026-11-23
 
