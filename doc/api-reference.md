@@ -131,7 +131,7 @@ const r = await db.query("SELECT name FROM users");
 
 > `executeSQL` 默认拒绝 SQL 注释（`--`、`#`、`/* */`），需要时传 `{ safety: false }` 或 `{ allowComments: true }`。
 >
-> 自 v6.5.16 起，安全模式还默认**单语句**（`maxStatements: 1`），并拒绝无 WHERE 的 `DROP` / `TRUNCATE` / `DELETE` / `UPDATE`（含 `WITH ... DELETE`）。需要写入时显式传 `{ allowWrites: true }`（服务端协议层已默认放行写入），或 `{ safety: false }` 关闭全部安全检查。
+> 自 v6.5.16 起，安全模式默认**单语句**：一次调用的语句条数超过 `maxStatements`（默认 `1`）即拦截；需要一次执行多条语句时显式传 `{ maxStatements: <n> }`，或等价的 `{ allowStacked: true }`。同时拒绝无 WHERE 的 `DROP` / `TRUNCATE` / `DELETE` / `UPDATE`（含 `WITH ... DELETE`）。需要写入时显式传 `{ allowWrites: true }`（服务端协议层已默认放行写入），或 `{ safety: false }` 关闭全部安全检查。
 
 ### 链式查询（Query）
 

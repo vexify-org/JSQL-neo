@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+- #460 `index.d.ts` 的 `Database` 构造签名更正为 `(filePath?, options?)`，选项字段对齐运行时真实构造参数（删除错位的 `dataDir`/`persist`/`inMemoryOnly`）。
+- #461 事务隔离级别默认值改为 `READ_COMMITTED`，与 `doc/api-reference.md` 及构造注释口径一致。
+- #462 多语句门禁对齐：`maxStatements` 既是条数上限也是放行多条语句的开关，`allowStacked: true` 为等价显式放行；文档同步说明两道口径。
+- #463 OP_COMPRESSED 按规范修正字段顺序与 compressorId 映射，仅支持 zlib（compressorId 2）解压；snappy/zstd 明确回 `compression not supported`，文档不再宣称双压缩支持。
+- #464 MongoDB 服务端补 `countDocuments`（转 count 语义，读 `filter`）、`serverStatus`（最小字段集）、`getCmdLineOpts`（`argv`/`parsed`）三个命令分支，文档命令表条目均有真实应答。
+
 ## [6.8.26] — 2026-11-23
 
 ### Fixed

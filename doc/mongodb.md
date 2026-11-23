@@ -30,10 +30,10 @@ await client.close();
 |---|---|---|
 | `2004` | OP_QUERY | 遗留查询（`$query` 包装，skip/return） |
 | `2005` | OP_REPLY | 响应：flags, cursorID, startingFrom, numberReturned |
-| `2012` | OP_COMPRESSED | snappy/zlib 压缩载荷，解压后分发 |
+| `2012` | OP_COMPRESSED | 仅接受 zlib（compressorId 2）压缩载荷，解压后分发；snappy/zstd 不支持 |
 | `2013` | OP_MSG | 现代格式：flags, section kind 0/1, checksum |
 
-**握手说明：** 驱动首先发送 `hello`/`ismaster`；服务器返回 `helloOk: true`、`maxWireVersion`/`minWireVersion`、`maxBsonObjectSize`。OP_QUERY 响应通过 `{ $long: 0 }` 编码游标 ID。OP_COMPRESSED 解压（compressorId 0=snappy, 1=zlib）后正常分发。
+**握手说明：** 驱动首先发送 `hello`/`ismaster`；服务器返回 `helloOk: true`、`maxWireVersion`/`minWireVersion`、`maxBsonObjectSize`。OP_QUERY 响应通过 `{ $long: 0 }` 编码游标 ID。OP_COMPRESSED 仅支持 zlib 解压（compressorId 2；1=snappy、3=zstd 回 `compression not supported`），解压后按 OP_MSG 正常分发；服务器回复恒为未压缩 OP_MSG。
 
 ## BSON 支持
 
