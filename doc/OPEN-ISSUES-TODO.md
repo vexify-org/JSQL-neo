@@ -2,12 +2,9 @@
 
 > 仓库：vexify-org/JSQL-neo · 统计时间：2026-11-22 · 当前版本：**v6.8.25**
 >
-> **GitHub 当前共 84 个开放 ISSUE，已修复 82 个，剩余 2 个（#242 / #244，见第三节）。**
+> **GitHub 当前开放 ISSUE 为 0。** 84 个 issue 中 82 个已修复并关闭，2 个（#242 / #244）经 MySQL 8.0 官方语义确认属“非缺陷”，已注明理由后按 not planned 关闭。
 >
-> 说明：本仓库的 GitHub App 集成只有代码写权限，没有 ISSUE 写权限
-> （`issue_write` / `add_issue_comment` 均返回 `403 Resource not accessible by integration`），
-> 因此**已修复的 ISSUE 无法由机器人关闭**，只能在此文档中登记状态。
-> 请维护者按此表手工关闭对应 ISSUE。
+> 说明：2026-11-23 起机器人已具备 issue 写权限，全部已修复 ISSUE 已通过 API 关闭。
 
 ---
 
