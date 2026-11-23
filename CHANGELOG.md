@@ -32,6 +32,10 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #359 `ALTER TABLE ... MODIFY/CHANGE COLUMN` 同步 `_defaults`，删掉的 DEFAULT 不再残留。
 - #362 CSV 导入行宽与表头不一致时产出 `warnings`，`strictRows` 可中止。
 - #365 WebUI `GET /api/databases` 改为完整解析文件，表数不再用引号估算。
+- #341 `--` 行注释 opener 按 MySQL 口径要求后跟空白/控制字符或行尾，`1--5` 不再被整段吞成注释。
+- #344 窗口帧简写（仅给起始 bound）缺省结束 bound 为 CURRENT ROW，累计求和不再恒为全分区总和。
+- #390 `INSERT ... SELECT` 无目标列清单时按位置映射到目标表列，表达式投影列不再静默写 NULL；列数不符报 1136。
+- #419 限定星号 `tbl.*` 只展开该表（或别名）的列，JOIN 中不再把右表列一并投影。
 
 
 ## [6.8.25] — 2026-11-23
