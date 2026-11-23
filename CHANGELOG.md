@@ -6,6 +6,14 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.25] — 2026-11-23
+
+### Fixed
+- #322 `CASE` 的基表达式、`WHEN` 比较值与 `THEN`/`ELSE` 结果值支持二元表达式。
+- #323 窗口函数 `OVER` 的 `PARTITION BY` / `ORDER BY` 支持二元表达式。
+- #324 `YEARWEEK` 默认 `mode=0`，周数与 `WEEK(...,0)` 一致。
+- #325 `CAST(... AS DECIMAL(p,s))` 负数半值按“半远离零”舍入。
+
 ## [6.8.24] — 2026-11-22
 
 ### Fixed

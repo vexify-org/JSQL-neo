@@ -101,7 +101,7 @@ async function csvRoundTrip() {
 async function scalarFunctions() {
   const db = new Database(':memory:');
   const val = async (sql) => (await q(db, sql)).rows[0][0];
-  ok('#185 YEARWEEK', await val("SELECT YEARWEEK('2026-11-21')") === 202647);
+  ok('#185 YEARWEEK', await val("SELECT YEARWEEK('2026-11-21')") === 202646);
   ok('#185 WEEKOFYEAR', await val("SELECT WEEKOFYEAR('2026-11-21')") === 47);
   ok('#185 MID alias', await val("SELECT MID('abcdef',2,3)") === 'bcd');
   ok('#185 PERIOD_ADD', await val('SELECT PERIOD_ADD(202601,3)') === 202604);
