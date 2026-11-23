@@ -12,6 +12,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #452 目录模式事务内 `CREATE TABLE` 回滚时同步清除 meta 登记与对应 `.jsql` 文件，被回滚的表重开后不复活。
 - #453 `meta.json` 改为临时文件 + fsync + rename 原子写；解析/解密失败时备份损坏文件、上报 error 并从 `.jsql` 文件重建表登记。
 - #454 CSV/JSON 导入按目标 schema 白名单投影，schema 外未知列不写入存储行并记入 `warnings`。
+- #445 递归 CTE 递归项内 JOIN 自引用按别名加前缀副本，层级遍历不再只返回锚点行（LEFT JOIN 不再重复累积）。
+- #446 WAL 记录 begin/commit/rollback 事务帧并按事务标签回放，崩溃后未闭合事务的行变更整体丢弃，未提交脏写不再复活。
+- #447 活动 `beginTx` 事务期间自动 checkpoint 不再固化未提交行；`inTransaction()` 同时识别两条事务实现路径。
+- #448 窗口聚合 `COUNT(DISTINCT)` / `SUM(DISTINCT)` / `AVG(DISTINCT)` 正确按分区去重，不再混入重复值。
+- #449 disk/hybrid 目录模式打开时获取目录级文件锁，close/stop 释放，崩溃残留锁按 30s 过期接管；legacy 单文件与 `:memory:` 模式不受影响。
 
 ## [6.8.26] — 2026-11-23
 

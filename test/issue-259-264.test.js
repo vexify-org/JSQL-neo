@@ -36,7 +36,10 @@ function tmpdir(prefix) {
         await db.insert('t', { id: 1, v: 'hello-wal' });
         const wal = dir + '.wal';
         ok('目录模式 WAL 文件已落盘', fs.existsSync(wal), wal);
-        // 不 flush/close —— 模拟后台刷盘前进程崩溃
+        // 不 flush/close —— 模拟后台刷盘前进程崩溃。
+        // #449：目录模式现在持有目录级文件锁，进程崩溃后由 OS 释放锁；
+        // 同进程内重开前需显式释放首个实例持有的锁，模拟崩溃后的锁清理。
+        db._releaseLock();
         const db2 = new Database(dir, { mode: 'disk', wal: true, flushInterval: 1e9 });
         ok('重开后 WAL 被回放（replayed > 0）',
             db2._walReplaySummary && db2._walReplaySummary.replayed > 0, db2._walReplaySummary);
@@ -52,6 +55,7 @@ function tmpdir(prefix) {
         const db = new Database(dir, { mode: 'hybrid', wal: true, flushInterval: 1e9 });
         await db.createTable('h', { id: { type: 'integer', primaryKey: true }, v: { type: 'string' } });
         await db.insert('h', { id: 1, v: 'hyb' });
+        db._releaseLock();
         const db2 = new Database(dir, { mode: 'hybrid', wal: true, flushInterval: 1e9 });
         const rows = await db2.find('h', {});
         ok('hybrid 模式 WAL 回放同样生效',
