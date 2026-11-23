@@ -295,6 +295,7 @@ declare namespace JSQLNeo {
     allowComments?: boolean;
     safety?: boolean;
     maxStatements?: number;
+    allowStacked?: boolean;
     session?: Record<string, unknown>;
     /** 5.5.0+：原生 `?` 占位符绑定值（与 applyParams 的数组入参二选一） */
     params?: unknown[];
@@ -334,13 +335,29 @@ declare namespace JSQLNeo {
   export function transform(ast: unknown, fn: (node: unknown) => unknown): unknown;
 
   export interface DatabaseOptions {
-    dataDir?: string;
-    persist?: boolean;
-    inMemoryOnly?: boolean;
+    mode?: 'memory' | 'hybrid' | 'disk';
+    autoSave?: boolean;
+    autoSaveInterval?: number;
+    memReserveMB?: number;
+    flushInterval?: number;
+    evictInterval?: number;
+    encryptKey?: string;
+    versioning?: boolean;
+    wal?: boolean;
+    walCheckpointOps?: number;
+    isolationLevel?: 'READ_COMMITTED' | 'REPEATABLE_READ';
+    slowQueryThreshold?: number;
+    fileLock?: boolean;
+  }
+
+  export interface DatastoreOptions {
+    filename?: string;
+    database?: unknown;
+    engine?: unknown;
   }
 
   export class Database {
-    constructor(options?: DatabaseOptions);
+    constructor(filePath?: string, options?: DatabaseOptions);
     createTable(name: string, schema: Schema): Promise<unknown>;
     insert(table: string, data: Record<string, unknown>): Promise<unknown>;
     find(table: string, filter?: Record<string, unknown>): Promise<Row[]>;
@@ -424,7 +441,7 @@ declare namespace JSQLNeo {
   }
 
   export class Datastore {
-    constructor(options?: DatabaseOptions);
+    constructor(options?: DatastoreOptions);
     insert(docs: unknown): Promise<unknown>;
     find(query?: unknown): Promise<unknown[]>;
     update(query: unknown, update: unknown): Promise<number>;
