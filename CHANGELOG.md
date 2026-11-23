@@ -29,6 +29,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
     `_coerceCondition` 零键路由全部恢复。
   - `test/mongo-arrays.test.js` 从 29 断言扩到 42 —— 这些断言不回 main，
     下次重构还会回归。
+- **drop 不存在的集合会杀死整个服务器进程**：`case 'drop'` 里
+  `engine.dropTable(...)` 没有 `await`，async rejection 逃出同步 try/catch
+  变成 unhandled rejection（Node 15+ 默认致命），`db.collection('missing')
+  .drop()` 直接打挂进程。同类三处全部修掉：`drop`、`_ensureCollection` 的
+  `createTable`（并发首写同一集合触发 ER_TABLE_EXISTS 即崩）、
+  `dropDatabase` 的逐表 drop。测试进程本身作为哨兵：回归再现时 node 会
+  在断言中途崩掉（非零退出）。
 
 ## [6.10.1] — 2026-11-24
 

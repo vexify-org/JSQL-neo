@@ -204,6 +204,30 @@ const ids = (batch) => batch.map((d) => d._id).sort((a, b) => a - b);
       const schemalessDate = await db.find('sd', { at: new Date('2026-01-01T00:00:00Z') });
       ok('table schemaless Date 等值（valuesEqual getTime）', JSON.stringify(schemalessDate.map((r) => r._id)) === '[1]', schemalessDate.map((r) => r._id));
     }
+
+    /* ---------- drop 不存在的集合不得杀死进程（unhandled rejection） ---------- */
+    {
+      const srv = createMongoServer({ port: 0, noAuth: true, dataDir: ':memory:' });
+      // 本测试进程就是哨兵：drop 的 rejection 若再变成 unhandled，node 会
+      // 在下面的 await 点直接崩掉整个测试（非零退出）。
+      const miss = await srv._dispatch('drop', { drop: 'missing', $db: 'test' });
+      ok('drop 不存在的集合返回 ok（Mongo 语义）', miss.ok === 1, miss);
+
+      await insert(srv, [{ _id: 1, x: 1 }]);
+      const after = await find(srv, { x: 1 });
+      ok('drop 缺失集合后服务器仍存活可查询', after.length === 1, after);
+
+      const gone = await srv._dispatch('drop', { drop: 'c', $db: 'test' });
+      ok('drop 已存在集合返回 ok', gone.ok === 1, gone);
+      const emptied = await find(srv, {});
+      ok('drop 后集合为空', emptied.length === 0, emptied);
+
+      await insert(srv, [{ _id: 2, y: 2 }]);
+      const dd = await srv._dispatch('dropDatabase', { dropDatabase: 1, $db: 'test' });
+      ok('dropDatabase 存活返回 ok', dd.ok === 1, dd);
+      const reempty = await find(srv, {});
+      ok('dropDatabase 后集合为空', reempty.length === 0, reempty);
+    }
   } catch (e) {
     fail++;
     console.log('[FAIL] unexpected exception:', e && e.stack || e);
