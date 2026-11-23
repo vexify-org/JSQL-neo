@@ -6,12 +6,16 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.26] — 2026-11-23
+
 ### Fixed
 - #372 MySQL `BEGIN`/`COMMIT` 正确置/清 `SERVER_STATUS_IN_TRANS` 状态位。
 - #377 PG `ErrorResponse` 补 `P`（位置）字段，语法错误可定位。
 - #381 扩展协议报错不再于 `Sync` 前提前发 `ReadyForQuery`（消除双 Z）。
 - #382 Redis `SET` 清除既有 TTL，已过期键不会被普通写入“复活”。
 - #387 仅空白/分号/注释的简单查询回 `EmptyQueryResponse`。
+
+以下条目经 PR #439 #440 #441 #442 #443 引入，合并顺序见 PR 说明。
 - #328 聚合管道实现 `$addFields` / `$set`（文档早已列出支持，实现缺失导致 40324）。
 - #329 sqlite 兼容层 `prepare()` 的空串/纯空白与 `exec()` 对齐，统一 no-op。
 - #331 `PLUGINS.md` 按 `lib/mod.js` 的 vm 沙箱实现更正模块装载说明。
@@ -27,12 +31,33 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #363 WebUI `/api/query` SQL 失败回 500，不再用 200 掩盖。
 - #364 WebUI 请求体非法 JSON 回 400，不再落到 500。
 - #366 WebUI `/api/tables` 缺 `db` 回 400、库不存在回 404。
-- #357 `RENAME COLUMN` / `CHANGE COLUMN` 后 CHECK 表达式里的旧列名被改写并重编译。
+- #357 `RENAME COLUMN` / `CHANGE COLUMN` 后 CHECK 表达式旧列名改写并重编译，列 DEFAULT 登记随列迁移，默认值不再静默丢失、CHECK 不再被旁路。
 - #358 `RENAME TABLE` 同步 `_indexRegistry`，改名后 `DROP INDEX` 仍能反查到表。
-- #359 `ALTER TABLE ... MODIFY/CHANGE COLUMN` 同步 `_defaults`，删掉的 DEFAULT 不再残留。
+- #359 `ALTER TABLE ... MODIFY/CHANGE COLUMN` 同步 `_defaults` 并按新定义重建 CHECK，旧 DEFAULT 不再残留、已撤销的 CHECK 不再拦截新写入。
 - #362 CSV 导入行宽与表头不一致时产出 `warnings`，`strictRows` 可中止。
 - #365 WebUI `GET /api/databases` 改为完整解析文件，表数不再用引号估算。
-
+- #369 预处理语句参数按无符号标志位解码，TINY/SHORT/LONG 越界值不再被解释成负数。
+- #389 `COM_STMT_SEND_LONG_DATA` 分片按序累积到预处理参数，EXECUTE 时拼接落库。
+- #391 `COM_STMT_RESET` 清空参数绑定类型与长数据缓冲，旧类型不再被下一次 EXECUTE 复用。
+- #393 `SET NAMES <charset>` 切换会话字符集，结果集列定义 charsetNr 与 `character_set_connection` 同步生效。
+- #394 握手登录不存在的数据库回 `1049 Unknown database`，不再隐式建库。
+- #352 PG `Describe(statement)` 对返回行集的 SELECT 回 RowDescription，不再恒回 NoData。
+- #371 PG RowDescription 按 `pg_type.h` 通告 smallint/timestamptz/json/bytea/uuid/real/array 等类型 OID 与 typlen。
+- #375 PG `SET` 已知 GUC 后广播 ParameterStatus，未识别配置参数回 42704。
+- #376 PG 启动包携带的 `application_name`/`search_path` 等会话参数认证后回填 ParameterStatus。
+- #386 PG bytea 文本结果按 hex 口径输出 `\x` + 小写十六进制。
+- #395 Redis `MGET` 遇 hash/list/set/zset 类型键整条回 `WRONGTYPE`，不再静默回 nil 与缺失键混淆。
+- #396 BSON Int64 无损往返（`$numberLong`/`$long` 保留 64 位精度，不再降级 Number 丢精度），越界给明确错误。
+- #413 `$rename` 源/目路径重叠（如 `a` → `a.b`）时报规范错误，不再先写目标再删源导致整棵子树丢失。
+- #428 实现 `killCursors` 命令并按 `cursorsKilled/NotFound/Alive/Unknown` 回复；游标增加 10 分钟空闲超时清扫。
+- #430 insert 文档缺省 `_id` 时服务端兜底生成 ObjectId，重复 `_id` 走 duplicate key 语义。
+- #341 `--` 行注释 opener 按 MySQL 口径要求后跟空白/控制字符或行尾，`1--5` 不再被整段吞成注释。
+- #344 窗口帧简写（仅给起始 bound）缺省结束 bound 为 CURRENT ROW，累计求和不再恒为全分区总和。
+- #390 `INSERT ... SELECT` 无目标列清单时按位置映射到目标表列，表达式投影列不再静默写 NULL；列数不符报 1136。
+- #419 限定星号 `tbl.*` 只展开该表（或别名）的列，JOIN 中不再把右表列一并投影。
+- #327 公共导出 `JSQL` 在 disk 模式路由到带落盘能力的回退实现，`path`/`mode` 不再被静默丢弃。
+- #418 `updateByIds` 批量更新复用单条校验与索引同步，主键/唯一索引与行保持一致，并拦截 NULL、唯一冲突与外键破坏。
+- #406 XQL 全局编译缓存键纳入索引集合身份，同名集合重载后不再复用旧索引闭包导致范围查询漏行。
 
 ## [6.8.25] — 2026-11-23
 
