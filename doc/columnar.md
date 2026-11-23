@@ -7,7 +7,7 @@
 ```js
 const { Database } = require('jsql-neo');
 const db = new Database('./data/app.json');
-await db.loadDatabase();
+await db.start();          // Database 打开时即加载，没有 loadDatabase()
 
 db.convertToColumnar('events');
 // → { table: 'events', engine: 'columnar', rows: 100000, columns: 4 }

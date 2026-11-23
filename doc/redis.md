@@ -139,7 +139,7 @@ redis-cli -p 5432 ZREVRANGE leaderboard 0 2 WITHSCORES
 
 **Q: `redis-cli` 报 `NOAUTH` 错误？**
 
-A：服务器默认需要认证。开发环境使用 `--no-auth` 启动，生产环境请配置强密码。
+A：服务器默认**不**要求认证（`password` 选项为 null，客户端不发 `AUTH` 即可直连）；需要认证时在 `createRedisServer({ password })` 里配置，此时未认证连接除 `AUTH` / `QUIT` 外的命令一律回 `NOAUTH`。没有 `--no-auth` 启动选项。
 
 **Q: 支持 Redis Cluster 或 Sentinel 吗？**
 

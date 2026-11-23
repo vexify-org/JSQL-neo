@@ -348,8 +348,7 @@ declare namespace JSQLNeo {
     prepare(sql: string): PreparedStatement;
     query(sql: string, paramsOrOpts?: unknown[] | SQLOptions, opts?: SQLOptions): Promise<SQLResult>;
     update(table: string, filter: Record<string, unknown>, data: Record<string, unknown>): Promise<number>;
-    remove(table: string, filter: Record<string, unknown>): Promise<number>;
-    findOne(table: string, filter?: Record<string, unknown>): Promise<Row | null>;
+    removeWhere(table: string, filter: Record<string, unknown>): Promise<number>;
     count(table: string): Promise<number>;
     getTables(): Promise<string[]>;
     dropTable(name: string): Promise<void>;

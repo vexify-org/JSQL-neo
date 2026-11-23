@@ -28,8 +28,8 @@ JSQL-NEO 让三者兼得：
 
 核心亮点：
 
-- **一套引擎，三种形态** — `native`（Rust N-API）、`wasm`（同一 Rust 核心编译为 WebAssembly）、`js`（纯 JS 实现）。三者功能等价，**但没有自动降级**：用哪种要在构造时显式指定 `new Database(path, { engine: 'native' | 'wasm' | 'js' })`。
-  直接 `require('./lib/native_client')` 而机器上没有预编译的 `.node` 时会**抛错**，不会悄悄退回纯 JS —— 这是刻意选择：静默降级会让「为什么突然慢了十倍」变得无法排查。需要无 native 环境时，请显式用 `lib/database` 的 `engine: 'js'`。
+- **一套引擎，三种形态** — `native`（Rust N-API，`NativeJSQL`）、`wasm`（同一 Rust 核心编译为 WebAssembly，`JSQL`）、`js`（纯 JS 实现，`Database`）。三者功能等价，**但没有自动降级**：用哪种由入口决定（`NativeJSQL` / `JSQL` / `Database`），不存在 `engine` 构造选项。
+  直接 `require('./lib/native_client')` 而机器上没有预编译的 `.node` 时会**抛错**，不会悄悄退回纯 JS —— 这是刻意选择：静默降级会让「为什么突然慢了十倍」变得无法排查。需要无 native 环境时，请显式用 `require('jsql-neo').Database`（纯 JS 实现）。
 - **Wire Protocol 栈，不是模拟器** — 手写的 MySQL 4.1+、PostgreSQL Wire Protocol v3（SCRAM-SHA-256）、MongoDB OP_MSG/OP_QUERY、Redis RESP2。
   自 v6.5.1 起，`jsql serve` 单端口即可按首包嗅探同时服务四种客户端，MongoDB 官方 driver 的握手与 `insertMany` 已打通；MySQL 路径验证最久，PG / Redis / Mongo 也已有端到端测试（`test/multiprotocol.test.js`），但相较 MySQL 仍属较新路径。
 - **一个端口，四种协议** — `jsql serve --port 3306` 默认启动 `lib/multiserver.js` 嗅探网关，MySQL / PostgreSQL / MongoDB / Redis 客户端共用同一端口、读写同一个 `Database`（Redis 为独立 key 命名空间）；`--mysql-only` 可退回只服务 MySQL。也可在代码里用 `createMultiServer(...)` 装配。

@@ -50,7 +50,7 @@ createMysqlServer({
 
 服务端响应 ORMs 和 GUI 工具连接时发送的系统探测：
 
-- `SELECT VERSION()` → `8.0.1-jsql-neo`
+- `SELECT VERSION()` → `8.0.0-jsql-neo`（版本号固定，不随 package.json 变动）
 - 系统变量：`@@version`、`@@version_comment`、……
 - `SHOW DATABASES / SHOW TABLES / SHOW COLUMNS / SHOW CREATE TABLE`
 - `information_schema.tables / columns / statistics`
