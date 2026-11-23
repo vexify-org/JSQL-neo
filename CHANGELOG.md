@@ -32,6 +32,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #359 `ALTER TABLE ... MODIFY/CHANGE COLUMN` 同步 `_defaults`，删掉的 DEFAULT 不再残留。
 - #362 CSV 导入行宽与表头不一致时产出 `warnings`，`strictRows` 可中止。
 - #365 WebUI `GET /api/databases` 改为完整解析文件，表数不再用引号估算。
+- #352 PG `Describe(statement)` 对返回行集的 SELECT 回 RowDescription，不再恒回 NoData。
+- #371 PG RowDescription 按 `pg_type.h` 通告 smallint/timestamptz/json/bytea/uuid/real/array 等类型 OID 与 typlen。
+- #375 PG `SET` 已知 GUC 后广播 ParameterStatus，未识别配置参数回 42704。
+- #376 PG 启动包携带的 `application_name`/`search_path` 等会话参数认证后回填 ParameterStatus。
+- #386 PG bytea 文本结果按 hex 口径输出 `\x` + 小写十六进制。
 
 
 ## [6.8.25] — 2026-11-23
