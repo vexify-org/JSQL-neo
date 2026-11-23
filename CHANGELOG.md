@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+- #465 PG 状态码映射补齐：缺列（`no such column`）回 `42703`（undefined_column），非法日期/时间值回 `22007`（invalid_datetime_format），日期时间越界回 `22008`；与 `doc/postgresql.md` SQLSTATE 表一致。
+- #466 `GROUP_CONCAT(...) OVER (PARTITION BY ...)` 纳入窗口聚合路由，按分区逐行返回该分区拼接值，不再塌缩成整表单行拼接；`SEPARATOR`/内部 `ORDER BY` 行为保持。
+- #467 `INTERSECT ALL` / `EXCEPT ALL` 按多重集多重数运算：交集取 `min(nl, nr)`，差集取 `max(nl - nr, 0)`；非 ALL 版本仍按集合去重。
+- #468 `NATURAL JOIN` 解析 `NATURAL` 关键字，按两侧同名公共列构造等值连接并合并公共列（不重复输出），不再退化为笛卡尔积；无同名公共列时按标准退化为 CROSS JOIN。
+- #469 列存快路径聚合输出列名与行存一致：`COUNT(v)`/`COUNT(*)`/`MIN(s)`/`MAX(s)`/`SUM(v)` 保留实参与 `*`，不再退化为 `COUNT()` 这类无参形式。
+
 ## [6.8.26] — 2026-11-23
 
 ### Fixed

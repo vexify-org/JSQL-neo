@@ -121,7 +121,8 @@ const norm = (rows) => JSON.stringify(
   const a1 = await db.query('SELECT SUM(score) AS total FROM t');
   ok('聚合别名保留', a1.columns[0] === 'total', a1.columns);
   const a2 = await db.query('SELECT COUNT(*) FROM t');
-  ok('无别名时列名保持 FN() 形式', a2.columns[0] === 'COUNT()', a2.columns);
+  // #469：列存快路径列名与行存一致 —— 保留 `*`，不再退化为 COUNT()。
+  ok('无别名时列名与行存一致（COUNT(*)）', a2.columns[0] === 'COUNT(*)', a2.columns);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
