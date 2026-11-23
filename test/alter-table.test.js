@@ -269,7 +269,7 @@ async function t(name, fn) {
       await exec('ALTER TABLE t2 RENAME COLUMN a TO name');
       await db.save();
 
-      const db2 = new Database(file, { wal: true });
+      const db2 = new Database(file, { wal: true, fileLock: false });
       const exec2 = (sql) => executeSQL(db2, sql, OPTS);
       const tables = (await db2.getTables()).slice().sort();
       const cols = (await exec2('SELECT * FROM t2')).columns;

@@ -17,7 +17,8 @@ function ok(name, cond, extra) {
     const { createMysqlServer } = require(path.join(ROOT, 'lib', 'mysql_server.js'));
     const srv = createMysqlServer({ port: 0, host: '127.0.0.1', dataDir: ':memory:', noAuth: true });
     await new Promise((r) => srv.listen(r));
-    const conn = await mysql.createConnection({ host: '127.0.0.1', port: srv.address.port, user: 'root', database: 'app' });
+    const conn = await mysql.createConnection({ host: '127.0.0.1', port: srv.address.port, user: 'root' });
+    await conn.query('CREATE DATABASE IF NOT EXISTS app'); await conn.query('USE app');
     // #274
     let missing = null;
     try { await conn.query('SELECT * FROM no_such_table'); } catch (e) { missing = e; }

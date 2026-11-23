@@ -21,7 +21,8 @@ function ok(name, cond, extra) {
       const { createMysqlServer } = require(path.join(ROOT, 'lib', 'mysql_server.js'));
       const srv = createMysqlServer({ port: 0, host: '127.0.0.1', dataDir: ':memory:', noAuth: true });
       await new Promise((r) => srv.listen(r));
-      const c = await mysql.createConnection({ host: '127.0.0.1', port: srv.address.port, user: 'root', database: 'app' });
+      const c = await mysql.createConnection({ host: '127.0.0.1', port: srv.address.port, user: 'root' });
+      await c.query('CREATE DATABASE IF NOT EXISTS app'); await c.query('USE app');
       await c.query('CREATE TABLE t (id INT PRIMARY KEY AUTO_INCREMENT, v VARCHAR(10) NOT NULL)');
       const [, f] = await c.query('SELECT id, v FROM t');
       ok('#271 column flags expose PK/NOT NULL/AUTO_INCREMENT', (f[0].flags & 0x0002) !== 0 && (f[0].flags & 0x0200) !== 0 && (f[1].flags & 0x0001) !== 0, f.map(x => x.flags));

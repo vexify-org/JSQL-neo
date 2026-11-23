@@ -39,7 +39,8 @@ function ok(name, cond, extra) {
       const { createMysqlServer } = require(path.join(ROOT, 'lib', 'mysql_server.js'));
       const srv = createMysqlServer({ port: 0, host: '127.0.0.1', dataDir: ':memory:', noAuth: true });
       await new Promise((r) => srv.listen(r));
-      const conn = await mysql.createConnection({ host: '127.0.0.1', port: srv.address.port, user: 'root', database: 'app' });
+      const conn = await mysql.createConnection({ host: '127.0.0.1', port: srv.address.port, user: 'root' });
+    await conn.query('CREATE DATABASE IF NOT EXISTS app'); await conn.query('USE app');
       await conn.query('CREATE TABLE t (id INT)');
       const [, fields] = await conn.query('SELECT id FROM t');
       ok('#306 ColumnDefinition schema is database name', fields[0].schema === 'app' && fields[0].table === 't', { schema: fields[0].schema, table: fields[0].table });

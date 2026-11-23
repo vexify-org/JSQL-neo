@@ -6,6 +6,8 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.26] — 2026-11-23
+
 ### Fixed
 - #372 MySQL `BEGIN`/`COMMIT` 正确置/清 `SERVER_STATUS_IN_TRANS` 状态位。
 - #377 PG `ErrorResponse` 补 `P`（位置）字段，语法错误可定位。
@@ -61,7 +63,6 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #344 窗口帧简写（仅给起始 bound）缺省结束 bound 为 CURRENT ROW，累计求和不再恒为全分区总和。
 - #390 `INSERT ... SELECT` 无目标列清单时按位置映射到目标表列，表达式投影列不再静默写 NULL；列数不符报 1136。
 - #419 限定星号 `tbl.*` 只展开该表（或别名）的列，JOIN 中不再把右表列一并投影。
-
 
 ## [6.8.25] — 2026-11-23
 

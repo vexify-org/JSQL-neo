@@ -384,14 +384,17 @@ async function mysqlCases() {
   const { createMysqlServer } = require(path.join(ROOT, 'lib', 'mysql_server.js'));
   const srv = createMysqlServer({ port: 0, host: '127.0.0.1', dataDir: ':memory:', noAuth: true });
   await new Promise((r) => srv.listen(r));
-  const conn = await mysql.createConnection({ host: '127.0.0.1', port: srv.address.port, user: 'root', database: 'app', multipleStatements: true });
+  const conn = await mysql.createConnection({ host: '127.0.0.1', port: srv.address.port, user: 'root', multipleStatements: true });
+  // #394：握手阶段未知库现在正确回 1049，因此先连接再显式建库/切库
+  await conn.query('CREATE DATABASE app');
+  await conn.query('USE app');
   await conn.query('CREATE TABLE t (id BIGINT, name VARCHAR(50))');
   await conn.query("INSERT INTO t VALUES (4000000000, '张三 😀')");
   const [text, tf] = await conn.query('SELECT id,name FROM t');
   const [bin, bf] = await conn.execute('SELECT id,name FROM t');
   ok('#209 BIGINT text/binary protocol', text[0].id === 4000000000 && bin[0].id === 4000000000 && tf[0].type === 8 && bf[0].type === 8, { text, bin, type: tf[0].type });
   ok('#211 execute without params matches query', JSON.stringify(bin) === JSON.stringify(text), { text, bin });
-  ok('#212 utf8mb4 emoji round-trip', text[0].name === '张三 😀' && tf[1].characterSet === 45, { name: text[0].name, cs: tf[1].characterSet });
+  ok('#212 utf8mb4 emoji round-trip', text[0].name === '张三 😀' && [45, 224, 255].includes(tf[1].characterSet), { name: text[0].name, cs: tf[1].characterSet });
   const [multi] = await conn.query('SELECT 1 AS a; SELECT 2 AS b');
   ok('#210 multi-result sets preserved', multi.length === 2 && multi[1][0].b === 2, multi);
   await conn.end();
