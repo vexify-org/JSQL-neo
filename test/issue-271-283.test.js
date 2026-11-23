@@ -66,8 +66,11 @@ function ok(name, cond, extra) {
   {
     const mongo = createMongoServer({ dataDir: ':memory:' });
     await mongo._dispatch('insert', { insert: 'c', documents: [{ a: 1 }], $db: 'test' });
-    const r = await mongo._dispatch('aggregate', { aggregate: 'c', pipeline: [{ $addFields: { b: 2 } }], cursor: {}, $db: 'test' });
+    // #328 起 $addFields/$set 已是文档承诺的受支持 stage，未知 stage 改用真正不存在的名字
+    const r = await mongo._dispatch('aggregate', { aggregate: 'c', pipeline: [{ $bogusStage: { b: 2 } }], cursor: {}, $db: 'test' });
     ok('#283 unknown pipeline stage errors', r.ok === 0 && r.code === 40324, r);
+    const okAdd = await mongo._dispatch('aggregate', { aggregate: 'c', pipeline: [{ $addFields: { b: 2 } }], cursor: {}, $db: 'test' });
+    ok('#283 $addFields 受支持（#328）', okAdd.ok === 1 && okAdd.cursor.firstBatch[0].b === 2, okAdd);
   }
 
   // #278 batchSize + getMore
