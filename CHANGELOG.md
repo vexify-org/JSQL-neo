@@ -47,6 +47,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #375 PG `SET` 已知 GUC 后广播 ParameterStatus，未识别配置参数回 42704。
 - #376 PG 启动包携带的 `application_name`/`search_path` 等会话参数认证后回填 ParameterStatus。
 - #386 PG bytea 文本结果按 hex 口径输出 `\x` + 小写十六进制。
+- #395 Redis `MGET` 遇 hash/list/set/zset 类型键整条回 `WRONGTYPE`，不再静默回 nil 与缺失键混淆。
+- #396 BSON Int64 无损往返（`$numberLong`/`$long` 保留 64 位精度，不再降级 Number 丢精度），越界给明确错误。
+- #413 `$rename` 源/目路径重叠（如 `a` → `a.b`）时报规范错误，不再先写目标再删源导致整棵子树丢失。
+- #428 实现 `killCursors` 命令并按 `cursorsKilled/NotFound/Alive/Unknown` 回复；游标增加 10 分钟空闲超时清扫。
+- #430 insert 文档缺省 `_id` 时服务端兜底生成 ObjectId，重复 `_id` 走 duplicate key 语义。
 
 
 ## [6.8.25] — 2026-11-23
