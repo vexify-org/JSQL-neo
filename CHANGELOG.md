@@ -12,6 +12,24 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - Release 产物扩展到 WASM 包、`index.d.ts`、package 快照，并统一进 SHA256SUMS。
 - 预发布 tag 约定 `vX.Y.Z-fix.xxx`：发布到 npm `fix` dist-tag、GitHub 标为 pre-release，且强制校验 tag 与 `package.json` 版本一致，绝不动 `latest`。
 
+### Fixed
+
+- **PR #122 的尾部提交（`86fb5ee`）未随合并进入 main，六处守卫在 6.8.25 上回归**：
+  - `{field: {$all: []}}` 又匹配全表（`[].every()` vacuous true 陷阱），wire 与
+    table 双侧；现恢复「空 target 恒不匹配」。
+  - wire 端零枚举键条件（`{d: <Date>}`）再次 vacuous 匹配全表（update/delete
+    同路径）——`_fieldMatch` 现按值相等处理；#219 的 `deepEqualMongo` 只覆盖
+    非空键子文档。
+  - `valuesEqual` 恢复 Date（`getTime`）分支，新增 Buffer（字节内容）与数组
+    （逐元素递归）分支：整数组等值 `{a: [1,2]}`、`$in: [[1,2]]`、`$ne` 在两个
+    引擎一次修好；`arrayIncludesValue` 未命中 `includes` 后统一走 `valuesEqual`
+    （原先只特判 ObjectId）。shortcut: 数组内嵌套普通对象仍是引用严格相等。
+  - table.js：`$type: 'array'`（typeof 陷阱）、`plainObj` 的 Date/Buffer 守卫、
+    日期列 Date 查询值经 `validateDateType` 归一（`_coerceQueryValue`）与
+    `_coerceCondition` 零键路由全部恢复。
+  - `test/mongo-arrays.test.js` 从 29 断言扩到 42 —— 这些断言不回 main，
+    下次重构还会回归。
+
 ## [6.10.1] — 2026-11-24
 
 ### Fixed
