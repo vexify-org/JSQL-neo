@@ -232,10 +232,11 @@ db.use(timestampPlugin);
 | 装载方式 | 实际行为 |
 |---|---|
 | `db.use(plugin)` | 插件对象直接挂进核心，与核心同权 |
-| `jsql mod add <dir>` | 模块文件走普通 `require()`，与核心同权 |
+| `jsql mod add <dir>` | 模块文件在 `vm.createContext` 受限沙箱中执行；默认不注入 `require` / `process` / `Buffer`，设 `JSQL_ALLOW_UNSAFE_MODULES=1` 才放开 |
 
 也就是说插件代码能访问 `fs`、`child_process` 等全部 Node API，也能改核心内部状态。
 模块文件可 `require` 本地依赖，但**不会被隔离**。
 
-> 本文档此前写"模块文件在 vm 沙箱中执行（不污染全局）"——代码中并不存在 vm 隔离，
-> 已更正。需要隔离请在进程级解决（容器 / 子进程 / 限制运行用户与权限）。
+> 沙箱只约束模块脚本可见的全局对象（`lib/mod.js:292-305` 的 `vm.createContext` + 注入白名单），
+> 不是安全边界：`JSQL_ALLOW_UNSAFE_MODULES=1` 下与普通 `require` 同权。插件对象（`db.use`）
+> 始终与核心同权，需要强隔离请在进程级解决（容器 / 子进程 / 限制运行用户与权限）。
