@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+- #445 递归 CTE 递归项内 JOIN 自引用按别名加前缀副本，层级遍历不再只返回锚点行（LEFT JOIN 不再重复累积）。
+- #446 WAL 记录 begin/commit/rollback 事务帧并按事务标签回放，崩溃后未闭合事务的行变更整体丢弃，未提交脏写不再复活。
+- #447 活动 `beginTx` 事务期间自动 checkpoint 不再固化未提交行；`inTransaction()` 同时识别两条事务实现路径。
+- #448 窗口聚合 `COUNT(DISTINCT)` / `SUM(DISTINCT)` / `AVG(DISTINCT)` 正确按分区去重，不再混入重复值。
+- #449 disk/hybrid 目录模式打开时获取目录级文件锁，close/stop 释放，崩溃残留锁按 30s 过期接管；legacy 单文件与 `:memory:` 模式不受影响。
+
 ## [6.8.26] — 2026-11-23
 
 ### Fixed
