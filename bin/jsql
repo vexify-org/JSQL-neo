@@ -241,7 +241,13 @@ const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
       if (!table || !outFile) throw new Error('Usage: jsql export <table> <file.json|csv> [--db <path>]');
       const db = new Database(argv.db || './db.json', { autoSave: false });
       await db.loadDatabase ? db.loadDatabase() : null;
-      const bytes = await migrate.exportToFile(db, table, outFile);
+      let bytes;
+      try {
+        bytes = await migrate.exportToFile(db, table, outFile);
+      } finally {
+        // #355：CLI 是一次性进程，不 close 会留下 .lock，30 秒内第二条命令直接撞锁。
+        if (typeof db.close === 'function') await db.close();
+      }
       if (argv.json) console.log(JSON.stringify({ ok: true, table, file: outFile, bytes }));
       else console.log(`Exported '${table}' (${bytes} bytes) to ${outFile}`);
     } catch (e) { fail(e); }
@@ -260,6 +266,7 @@ const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
       await db.loadDatabase ? db.loadDatabase() : null;
       const ext = path.extname(file).toLowerCase();
       let result;
+      try {
       if (ext === '.sql') {
         result = await migrate.importDumpFile(db, file, { strict: !!argv.strict });
       } else if (ext === '.json') {
@@ -272,6 +279,10 @@ const cli = (yaggs || require('./yaggs-fallback').buildYaggsFallback(_pkg))({
         result = await migrate.importFromCSV(db, argv.table, fs.readFileSync(file, 'utf8'), { schema });
       } else {
         throw new Error('Unsupported file type: ' + ext);
+      }
+      } finally {
+        // #355：导入完成即释放锁，否则连续两条 CLI 命令会互相撞 .lock。
+        if (typeof db.close === 'function') await db.close();
       }
       if (argv.json) {
         console.log(JSON.stringify({ ok: true, ...result }));
