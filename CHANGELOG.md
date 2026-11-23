@@ -27,6 +27,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #457 MySQL `COM_RESET_CONNECTION`(0x1f) 释放全部预处理语句句柄并复位会话状态，旧 stmtId 再 EXECUTE 回 `1243 Unknown prepared statement handler`。
 - #458 Redis `INCR`/`DECR`/`INCRBY`/`DECRBY` 对 hash/list/set/zset 键回 `WRONGTYPE`；键存在但值非整数字符串仍回 `ERR value is not an integer or out of range`。
 - #459 MongoDB 查询游标绑定创建它的连接，另一连接 `getMore` 同一游标回 `43 cursorNotFound`，原连接仍可取完剩余批次。
+- #465 PG 状态码映射补齐：缺列（`no such column`）回 `42703`（undefined_column），非法日期/时间值回 `22007`（invalid_datetime_format），日期时间越界回 `22008`；与 `doc/postgresql.md` SQLSTATE 表一致。
+- #466 `GROUP_CONCAT(...) OVER (PARTITION BY ...)` 纳入窗口聚合路由，按分区逐行返回该分区拼接值，不再塌缩成整表单行拼接；`SEPARATOR`/内部 `ORDER BY` 行为保持。
+- #467 `INTERSECT ALL` / `EXCEPT ALL` 按多重集多重数运算：交集取 `min(nl, nr)`，差集取 `max(nl - nr, 0)`；非 ALL 版本仍按集合去重。
+- #468 `NATURAL JOIN` 解析 `NATURAL` 关键字，按两侧同名公共列构造等值连接并合并公共列（不重复输出），不再退化为笛卡尔积；无同名公共列时按标准退化为 CROSS JOIN。
+- #469 列存快路径聚合输出列名与行存一致：`COUNT(v)`/`COUNT(*)`/`MIN(s)`/`MAX(s)`/`SUM(v)` 保留实参与 `*`，不再退化为 `COUNT()` 这类无参形式。
 
 ## [6.8.26] — 2026-11-23
 
