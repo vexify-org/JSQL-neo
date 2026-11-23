@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+- #328 聚合管道实现 `$addFields` / `$set`（文档早已列出支持，实现缺失导致 40324）。
+- #329 sqlite 兼容层 `prepare()` 的空串/纯空白与 `exec()` 对齐，统一 no-op。
+- #339 MongoDB `getMore` 接受扩展 JSON 的 `$numberLong` 游标 id。
+- #343 `NTILE(n)` 按「前 len % n 桶各多一行」分桶，`n` 大于行数时不再跳号。
+- #346 反引号标识符内的 `` 转义（MySQL 语义）在 tokenizer 中生效。
+
 ## [6.8.25] — 2026-11-23
 
 ### Fixed
