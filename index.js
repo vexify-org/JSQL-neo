@@ -129,8 +129,23 @@ function injectMySQLCompat(mod) {
   return touched;
 }
 
+// #327：公共导出的 JSQL 此前直接挂纯内存的 WasmClient.JSQL，`path`/`mode`
+// 被静默丢弃 —— README 主推的 `new JSQL({ path, mode: 'disk' })` 进程退出即全丢。
+// 这里保持构造签名与 API 不变：disk/持久化模式且存在带落盘能力的回退实现时，
+// 转交该实现；其余情况仍走原 WASM/JS 引擎，不统一两套引擎。
+function JSQL(opts) {
+    const o = (typeof opts === 'string') ? { path: opts } : (opts || {});
+    const wantDisk = !!o.path && o.path !== ':memory:' && (o.mode || 'disk') !== 'memory';
+    if (wantDisk && NativeClient._DiskFallbackJSQL) {
+        return new NativeClient._DiskFallbackJSQL(opts);
+    }
+    return new WasmClient.JSQL(opts);
+}
+// 保留原型引用习惯（instanceof 链与原 WASM 实现一致）
+JSQL.prototype = WasmClient.JSQL.prototype;
+
 module.exports = {
-    JSQL: WasmClient.JSQL,
+    JSQL,
     // jsql 1.0.0 怀旧兼容层（同步 createTable/dropTable + db.<表名> 属性）
     // 用法：const { Database } = require('jsql-neo/compat/v1');
     compatV1: require('./lib/compat/v1'),

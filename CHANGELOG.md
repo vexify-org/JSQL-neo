@@ -32,6 +32,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #359 `ALTER TABLE ... MODIFY/CHANGE COLUMN` 同步 `_defaults`，删掉的 DEFAULT 不再残留。
 - #362 CSV 导入行宽与表头不一致时产出 `warnings`，`strictRows` 可中止。
 - #365 WebUI `GET /api/databases` 改为完整解析文件，表数不再用引号估算。
+- #327 公共导出 `JSQL` 在 disk 模式路由到带落盘能力的回退实现，`path`/`mode` 不再被静默丢弃。
+- #357 `RENAME COLUMN` 后列 DEFAULT 登记随列迁移，新行不再静默取 NULL。
+- #359 `MODIFY COLUMN` 去掉列定义上的 CHECK 后清除旧约束登记并按新定义重建，已撤销的 CHECK 不再拦截新写入。
+- #418 `updateByIds` 批量更新复用单条校验与索引同步，主键/唯一索引与行保持一致，并拦截 NULL、唯一冲突与外键破坏。
+- #406 XQL 全局编译缓存键纳入索引集合身份，同名集合重载后不再复用旧索引闭包导致范围查询漏行。
 
 
 ## [6.8.25] — 2026-11-23
