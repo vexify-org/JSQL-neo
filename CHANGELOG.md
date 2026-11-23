@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+- #331 `PLUGINS.md` 按 `lib/mod.js` 的 vm 沙箱实现更正模块装载说明。
+- #334 `db.count(table, filter)` 按过滤条件计数（此前第二参数被丢弃）。
+- #337 `doc/redis.md` 更正默认认证口径（默认无密码，无 `--no-auth` 选项）。
+- #340 未闭合块注释 `/*` 显式报错，不再静默吞掉剩余 SQL。
+- #345 纯注释语句返回空结果，不再抛裸 `TypeError`。
+
 ## [6.8.25] — 2026-11-23
 
 ### Fixed
