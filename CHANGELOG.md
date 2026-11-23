@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+- #355 `jsql import` / `jsql export` 结束关闭 Database，不再残留 `.lock`。
+- #360 `WITH` 中同名 CTE 报错，不再后定义静默遮蔽前一个。
+- #363 WebUI `/api/query` SQL 失败回 500，不再用 200 掩盖。
+- #364 WebUI 请求体非法 JSON 回 400，不再落到 500。
+- #366 WebUI `/api/tables` 缺 `db` 回 400、库不存在回 404。
+
 ## [6.8.25] — 2026-11-23
 
 ### Fixed
