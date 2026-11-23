@@ -42,6 +42,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #391 `COM_STMT_RESET` 清空参数绑定类型与长数据缓冲，旧类型不再被下一次 EXECUTE 复用。
 - #393 `SET NAMES <charset>` 切换会话字符集，结果集列定义 charsetNr 与 `character_set_connection` 同步生效。
 - #394 握手登录不存在的数据库回 `1049 Unknown database`，不再隐式建库。
+- #352 PG `Describe(statement)` 对返回行集的 SELECT 回 RowDescription，不再恒回 NoData。
+- #371 PG RowDescription 按 `pg_type.h` 通告 smallint/timestamptz/json/bytea/uuid/real/array 等类型 OID 与 typlen。
+- #375 PG `SET` 已知 GUC 后广播 ParameterStatus，未识别配置参数回 42704。
+- #376 PG 启动包携带的 `application_name`/`search_path` 等会话参数认证后回填 ParameterStatus。
+- #386 PG bytea 文本结果按 hex 口径输出 `\x` + 小写十六进制。
 
 
 ## [6.8.25] — 2026-11-23
