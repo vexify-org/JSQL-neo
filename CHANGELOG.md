@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+- #372 MySQL `BEGIN`/`COMMIT` 正确置/清 `SERVER_STATUS_IN_TRANS` 状态位。
+- #377 PG `ErrorResponse` 补 `P`（位置）字段，语法错误可定位。
+- #381 扩展协议报错不再于 `Sync` 前提前发 `ReadyForQuery`（消除双 Z）。
+- #382 Redis `SET` 清除既有 TTL，已过期键不会被普通写入“复活”。
+- #387 仅空白/分号/注释的简单查询回 `EmptyQueryResponse`。
+
 ## [6.8.25] — 2026-11-23
 
 ### Fixed
