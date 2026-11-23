@@ -32,6 +32,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - #359 `ALTER TABLE ... MODIFY/CHANGE COLUMN` 同步 `_defaults`，删掉的 DEFAULT 不再残留。
 - #362 CSV 导入行宽与表头不一致时产出 `warnings`，`strictRows` 可中止。
 - #365 WebUI `GET /api/databases` 改为完整解析文件，表数不再用引号估算。
+- #369 预处理语句参数按无符号标志位解码，TINY/SHORT/LONG 越界值不再被解释成负数。
+- #389 `COM_STMT_SEND_LONG_DATA` 分片按序累积到预处理参数，EXECUTE 时拼接落库。
+- #391 `COM_STMT_RESET` 清空参数绑定类型与长数据缓冲，旧类型不再被下一次 EXECUTE 复用。
+- #393 `SET NAMES <charset>` 切换会话字符集，结果集列定义 charsetNr 与 `character_set_connection` 同步生效。
+- #394 握手登录不存在的数据库回 `1049 Unknown database`，不再隐式建库。
 
 
 ## [6.8.25] — 2026-11-23
