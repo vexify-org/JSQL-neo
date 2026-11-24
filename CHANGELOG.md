@@ -6,6 +6,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.10.1] — 2026-11-24
+
+### Fixed
+- #477 无主键表的 WAL 批量插入不再每次写整表镜像（100 万行会产出 ~210MB 的 O(n²) 日志）。改为只追加本批行，100 万行 WAL 从 210MB 降到 20MB，写入吞吐 217k → 722k 行/秒，`stop()` 后重开完整恢复 100 万行。
+
 ## [6.10.0] — 2026-11-24
 
 ### Changed
