@@ -6,6 +6,13 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Fixed
+- #450 `Table.restore()` 绕过可见性过滤直接匹配软删除行，恢复后清除 `_deleted`/`_deletedAt` 并按主键/索引重新登记。
+- #451 复合 `CREATE UNIQUE INDEX (a,b)` 随 schema 落盘（`__uniqueGroups__`），重启后唯一组重建，重复组合键仍报 `ER_DUP_ENTRY`。
+- #452 目录模式事务内 `CREATE TABLE` 回滚时同步清除 meta 登记与对应 `.jsql` 文件，被回滚的表重开后不复活。
+- #453 `meta.json` 改为临时文件 + fsync + rename 原子写；解析/解密失败时备份损坏文件、上报 error 并从 `.jsql` 文件重建表登记。
+- #454 CSV/JSON 导入按目标 schema 白名单投影，schema 外未知列不写入存储行并记入 `warnings`。
+
 ## [6.8.26] — 2026-11-23
 
 ### Fixed
