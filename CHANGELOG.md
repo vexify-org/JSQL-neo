@@ -6,6 +6,8 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.8.27] — 2026-11-24
+
 ### Fixed
 - #450 `Table.restore()` 绕过可见性过滤直接匹配软删除行，恢复后清除 `_deleted`/`_deletedAt` 并按主键/索引重新登记。
 - #451 复合 `CREATE UNIQUE INDEX (a,b)` 随 schema 落盘（`__uniqueGroups__`），重启后唯一组重建，重复组合键仍报 `ER_DUP_ENTRY`。
