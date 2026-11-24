@@ -6,6 +6,14 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.10.0] — 2026-11-24
+
+### Changed
+- #475 批量写入热路径提速：`bigintJson.stringify` 增加无 replacer 快路径（仅在出现 `__jsql_bigint__` 标记或 BigInt 时回退）、`insertMany` 将 defaults/computed/btree/类型计划提到循环外、类型归一直接就地完成、WAL 不再复制整批行对象、B-Tree 增加顺序追加快路径。100 万行 `insertMany`（20×5 万）内存模式约 940k 行/秒（无唯一主键索引约 1.8M 行/秒），WAL 模式约 650k 行/秒。
+
+### Fixed
+- #476 WAL 回放改为按表缓存主键→行下标映射，修复批量 `upsertRows` 回放每行 `findIndex` 全表扫描导致的 O(n²) 恢复。20 万行 WAL 恢复从「几乎挂死」降到约 2.4 秒；`kill -9` 后 20 万行完整恢复（实测 KILL-SAFE OK）。
+
 ## [6.9.1] — 2026-11-24
 
 ### Added
