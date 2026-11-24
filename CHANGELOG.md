@@ -6,6 +6,12 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+### Changed
+- CI 矩阵覆盖 Node 18/20/22/24 × Linux/macOS/Windows，并支持 PR 与手动触发。
+- 原生构建矩阵新增 `windows-arm64` 与 `linux-armv7`（`jsql-neo-native.linux-arm-gnu.node` / `win32-arm64-msvc.node`），与 `postinstall` 的 target 后缀对齐。
+- Release 产物扩展到 WASM 包、`index.d.ts`、package 快照，并统一进 SHA256SUMS。
+- 预发布 tag 约定 `vX.Y.Z-fix.xxx`：发布到 npm `fix` dist-tag、GitHub 标为 pre-release，且强制校验 tag 与 `package.json` 版本一致，绝不动 `latest`。
+
 ## [6.10.1] — 2026-11-24
 
 ### Fixed

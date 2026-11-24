@@ -43,6 +43,17 @@ jobs:
             lib: ''
             ext: .dll
             asset: jsql-neo-native.win32-x64-msvc.node
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            lib: ''
+            ext: .dll
+            asset: jsql-neo-native.win32-arm64-msvc.node
+          - os: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            lib: lib
+            ext: .so
+            asset: jsql-neo-native.linux-arm-gnu.node
+            cross: armv7
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             asset: jsql-neo-native.linux-x64-musl.node
@@ -95,8 +106,28 @@ jobs:
             cp target/release/libjsql_neo_native.so "/w/${{ matrix.asset }}"
           '
 
+      - name: Install armv7 cross toolchain
+        if: ${{ matrix.cross == 'armv7' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
+
+      - name: Build (armv7 cross)
+        if: ${{ matrix.cross == 'armv7' }}
+        shell: bash
+        env:
+          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
+        run: |
+          set -euo pipefail
+          cd nativesrc/jsql-neo-native
+          cargo build --release --target "${{ matrix.target }}"
+          cp "target/${{ matrix.target }}/release/${{ matrix.lib }}jsql_neo_native${{ matrix.ext }}" \
+             "../../${{ matrix.asset }}"
+
       - name: Smoke load test
-        if: ${{ !matrix.musl }}
+        if: ${{ !matrix.musl && matrix.cross != 'armv7' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -133,18 +164,33 @@ jobs:
       - name: List files
         run: ls -lh artifacts/
 
+      # release 产物不只 .node：WASM 引擎、类型定义、CLI 也一起发，方便离线/浏览器用户。
+      - name: Package extra assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip -q -r artifacts/jsql-neo-wasm.zip wasm -x '*.map'
+          cp index.d.ts artifacts/jsql-neo.d.ts
+          cp -r bin/jsql-neo-server* artifacts/ 2>/dev/null || true
+          cp package.json artifacts/jsql-neo-package.json
+
       - name: Generate SHA256SUMS
+        shell: bash
         run: |
           set -euo pipefail
           cd artifacts
-          sha256sum *.node > SHA256SUMS
+          sha256sum *.node *.zip jsql-neo.d.ts jsql-neo-package.json > SHA256SUMS
           cat SHA256SUMS
 
       # 一个 job 一次性上传，不会再有 race condition
       - name: Upload release
         uses: softprops/action-gh-release@v3
         with:
+          prerelease: ${{ contains(github.ref_name, '-fix.') }}
           files: |
             artifacts/*.node
+            artifacts/*.zip
+            artifacts/jsql-neo.d.ts
+            artifacts/jsql-neo-package.json
             artifacts/SHA256SUMS
           fail_on_unmatched_files: true

@@ -3,23 +3,36 @@ name: Test
 on:
   push:
     branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: Test ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 20, 22, 24]
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22.14.0
+          node-version: ${{ matrix.node }}
 
       - name: 缓存 node_modules
         id: cache-node-modules
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package.json') }}
+          key: ${{ runner.os }}-node${{ matrix.node }}-node-modules-${{ hashFiles('**/package.json') }}
 
       - name: 安装依赖
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -32,7 +45,12 @@ jobs:
         env:
           JSQL_NATIVE_DOWNLOAD: '1'
           JSQL_AUTO_DOWNLOAD_NATIVE: '1'
+          JSQL_GHPROXY: ${{ secrets.JSQL_GHPROXY }}
         run: node postinstall.js
 
       - name: 跑测试
+        env:
+          JSQL_NATIVE_DOWNLOAD: '1'
+          JSQL_AUTO_DOWNLOAD_NATIVE: '1'
+          JSQL_GHPROXY: ${{ secrets.JSQL_GHPROXY }}
         run: npm test

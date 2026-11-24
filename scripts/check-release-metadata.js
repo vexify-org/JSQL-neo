@@ -50,7 +50,7 @@ function checkReleaseMetadata(root) {
   // 预发布版本不能把横幅标成 stable —— 那是明确的虚标。
   if (banner) {
     const line = (readme.match(/^> \*\*v[^*]+\*\*[^\n]*/m) || [''])[0];
-    const isPre = /-(?:alpha|beta|rc)\./.test(version);
+    const isPre = /-(?:alpha|beta|rc|fix)\./.test(version);
     add('预发布版本未标注为 stable', !(isPre && /—\s*stable release/.test(line)),
       line.slice(0, 80));
   }

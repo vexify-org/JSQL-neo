@@ -97,7 +97,12 @@ chore: release vX.Y.Z
 4. Keep the pull request small and describe any breaking changes or security impact.
 5. A maintainer will review. Address review comments with new commits; do not force-push unless asked.
 
-CI runs the test suite and, for tagged releases, builds native modules for Linux (glibc and musl), macOS, and Windows.
+CI runs the test suite on Linux, macOS, and Windows across Node 18/20/22/24. For tagged releases it builds native modules for Linux x64/arm64/armv7 (glibc and musl), macOS x64/arm64, and Windows x64/arm64.
+
+### Release tags
+
+- Stable: `vX.Y.Z` → publishes to npm `latest` and creates a normal GitHub release.
+- Pre-release: `vX.Y.Z-fix.xxx` (e.g. `v6.10.2-fix.1`) → publishes to npm `fix`, creates a GitHub **pre-release**, and never moves `latest`. `package.json` must match the tag exactly.
 
 ## License
 

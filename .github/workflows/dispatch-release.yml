@@ -27,5 +27,6 @@ jobs:
             {
               "tag": "${{ github.ref_name }}",
               "sha": "${{ github.sha }}",
-              "source_repo": "${{ github.repository }}"
+              "source_repo": "${{ github.repository }}",
+              "prerelease": ${{ contains(github.ref_name, '-fix.') }}
             }

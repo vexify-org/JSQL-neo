@@ -14,10 +14,15 @@ on:
         options:
           - latest
           - beta
+          - fix
 
 permissions:
   id-token: write   # npm provenance（OIDC，无需 NPM_TOKEN）
   contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -42,11 +47,33 @@ jobs:
       - name: 冒烟测试
         run: npm test
 
+      # 预发布 tag 约定：vX.Y.Z-fix.xxx（major.minor.patch-fix.xxx）
+      - name: 校验 tag 与 package.json 版本
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          # 只允许 vX.Y.Z 或预发布 vX.Y.Z-fix.xxx；别的形状直接拒绝，避免把野 tag 发上 npm。
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc|fix)\.[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "::error::非法 tag: $TAG（应为 vX.Y.Z 或 vX.Y.Z-fix.xxx）"
+            exit 1
+          fi
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "::error::tag $TAG 与 package.json 版本 v$VERSION 不一致"
+            exit 1
+          fi
+
       - name: 判断 dist-tag
         id: dist
+        shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == *-fix.* ]]; then
+            # vX.Y.Z-fix.xxx 是预发布：发到 fix dist-tag，绝不覆盖 latest
+            echo "tag=fix" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref_name }}" == *beta* ]]; then
             echo "tag=beta" >> $GITHUB_OUTPUT
           else
