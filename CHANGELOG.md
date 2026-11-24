@@ -6,6 +6,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.9.1] — 2026-11-24
+
+### Added
+- #474 `Database#syncWAL()`：轻量持久化屏障，只对已写入的 WAL 记录执行 fsync，不写全量快照。需要「此刻就必须抗掉电」时可显式调用；配合默认 20ms 的 fsync 合并，既保留逐条 append，又能按业务点强制落盘。
+
 ## [6.9.0] — 2026-11-24
 
 ### Changed

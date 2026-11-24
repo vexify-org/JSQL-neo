@@ -361,6 +361,8 @@ declare namespace JSQLNeo {
     constructor(filePath?: string, options?: DatabaseOptions);
     createTable(name: string, schema: Schema): Promise<unknown>;
     insert(table: string, data: Record<string, unknown>): Promise<unknown>;
+    /** 轻量持久化屏障：只 fsync 已写入的 WAL 记录，不写全量快照。 */
+    syncWAL(): this;
     find(table: string, filter?: Record<string, unknown>): Promise<Row[]>;
     exists(table: string, filter?: Record<string, unknown>): boolean;
     prepare(sql: string): PreparedStatement;

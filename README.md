@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.9.0** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.9.1** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -175,7 +175,9 @@ writes on exit. Every `insert` / `insertMany` / `update` / `updateById` / `remov
 writes it to the kernel before returning, so a `kill -9` loses nothing that already
 committed. `fsync` is coalesced into a short window (`walSyncInterval`, default 20 ms)
 so bulk single-row writes no longer pay one disk flush per row — set it to `0` for the
-strictest per-write `fsync` behaviour (roughly an order of magnitude slower).
+strictest per-write `fsync` behaviour (roughly an order of magnitude slower). Each insert
+still appends its own record; `db.syncWAL()` forces an immediate lightweight `fsync`
+(no snapshot) when you need a durability barrier at an exact point.
 `save()` / `close()` / `stop()` checkpoint the WAL (write a full snapshot, `fsync`, then
 truncate) and always flush any pending window first.
 WAL is on by default for file mode — pass `wal: false` for the old semantics, or tune

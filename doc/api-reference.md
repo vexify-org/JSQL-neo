@@ -59,7 +59,9 @@ db.close();                         // 保存并清理定时器
 覆盖 `insert` / `insertMany` / `update` / `updateById` / `remove` / `removeById` /
 `softDelete` / `truncate`，所以进程被 `kill -9` 也不会丢已完成的写入。
 `fsync` 默认按 `walSyncInterval`（20ms）窗口合并，避免逐条刷盘；传 `0` 恢复逐条同步
-（最严格，约为合并模式的 1/10 吞吐）。`save()` / `close()` / `stop()` 会先补齐窗口内未刷写的数据。
+（最严格，约为合并模式的 1/10 吞吐）。每条记录仍是单独 append 的；需要在某个精确时刻
+保证抗掉电，调用 `db.syncWAL()`（只 fsync WAL，不写快照），比 `save()` 轻得多。
+`save()` / `close()` / `stop()` 会先补齐窗口内未刷写的数据。
 
 - **检查点**：`save()` / `close()` / `stop()` / 目录模式 `flush()` 会把当前全量数据写成快照，
   然后清空 WAL。这只影响恢复速度，不影响数据是否已经落盘。
