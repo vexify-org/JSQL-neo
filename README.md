@@ -3,7 +3,7 @@
 > **One engine to rule them all** — a Rust-powered embedded database that speaks your language:
 > MySQL, PostgreSQL, MongoDB, Redis, SQL, TypeScript, **and the browser**.
 
-> **v6.8.27** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
+> **v6.9.0** — stable release · [github.com/vexify-org/JSQL-neo](https://github.com/vexify-org/JSQL-neo) · [jsql.vexify.top](https://jsql.vexify.top)
 
 ![Engines](https://img.shields.io/badge/engines-Native%20%7C%20WASM%20%7C%20Pure%20JS-7ee787)
 ![MySQL](https://img.shields.io/badge/protocol-MySQL%20compatible-1f6feb)
@@ -172,9 +172,12 @@ await db.start();
 File mode (`new Database('./data/db.json')`) is **not** an in-memory store that only
 writes on exit. Every `insert` / `insertMany` / `update` / `updateById` / `remove` /
 `removeById` / `softDelete` / `truncate` appends one JSONL record to `<file>.wal` and
-`fsync`s it before returning, so a `kill -9` loses nothing that already committed.
-`save()` / `close()` / `stop()` only checkpoint (write a full snapshot, then truncate
-the WAL); they are no longer the moment data first reaches disk.
+writes it to the kernel before returning, so a `kill -9` loses nothing that already
+committed. `fsync` is coalesced into a short window (`walSyncInterval`, default 20 ms)
+so bulk single-row writes no longer pay one disk flush per row — set it to `0` for the
+strictest per-write `fsync` behaviour (roughly an order of magnitude slower).
+`save()` / `close()` / `stop()` checkpoint the WAL (write a full snapshot, `fsync`, then
+truncate) and always flush any pending window first.
 WAL is on by default for file mode — pass `wal: false` for the old semantics, or tune
 auto-checkpointing with `walCheckpointOps` (default 1000, `0` disables). Directory
 (`mode: 'disk' | 'hybrid'`) and encrypted (`encryptKey`) databases keep it off unless

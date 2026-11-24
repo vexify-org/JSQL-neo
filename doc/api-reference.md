@@ -14,7 +14,7 @@ const disk = new Database('./data/app', { mode: 'disk' });
 // 混合模式（LRU + 异步刷盘）
 const hybrid = new Database('./data', { mode: 'hybrid', autoSave: true, autoSaveInterval: 3000 });
 
-// 旧版单文件 JSON 模式（每次写入即 append 到 .wal 并 fsync，save()/close() 只做检查点）
+// 旧版单文件 JSON 模式（每次写入即 append 到 .wal，fsync 按窗口合并，save()/close() 只做检查点）
 const legacy = new Database('./data/db.json');
 
 // 下面各节示例统一使用这个内存库
@@ -55,9 +55,11 @@ db.close();                         // 保存并清理定时器
 ### 持久化与 WAL
 
 单文件模式（`new Database('./data/db.json')`）不是「内存中改完、退出时才落盘」。
-每次写入都会在处理该次变更时立刻往 `<file>.wal` 追加一条 JSONL 并 `fsync`，
+每次写入都会在处理该次变更时立刻往 `<file>.wal` 追加一条 JSONL 并 `write()` 到内核，
 覆盖 `insert` / `insertMany` / `update` / `updateById` / `remove` / `removeById` /
 `softDelete` / `truncate`，所以进程被 `kill -9` 也不会丢已完成的写入。
+`fsync` 默认按 `walSyncInterval`（20ms）窗口合并，避免逐条刷盘；传 `0` 恢复逐条同步
+（最严格，约为合并模式的 1/10 吞吐）。`save()` / `close()` / `stop()` 会先补齐窗口内未刷写的数据。
 
 - **检查点**：`save()` / `close()` / `stop()` / 目录模式 `flush()` 会把当前全量数据写成快照，
   然后清空 WAL。这只影响恢复速度，不影响数据是否已经落盘。

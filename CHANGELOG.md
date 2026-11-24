@@ -6,6 +6,14 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ## [Unreleased]
 
+## [6.9.0] — 2026-11-24
+
+### Changed
+- #472 WAL 落盘从「每条写入 open+write+fsync+close」改为「常驻追加句柄 + 批量 write + fsync 窗口合并」：新增 `walSyncInterval`（默认 20ms）把 fsync 摊薄，写入仍立即进入内核页缓存，`kill -9` 不丢已提交写入；传 `0` 可恢复逐条 fsync 的最严格模式。单条 `insert` 循环吞吐由 ~1k/s 提升至 ~25k/s（约 25×）。
+
+### Fixed
+- #473 检查点前先 fsync 并关闭常驻 WAL 句柄，避免 `unlink` 后继续写入已被删除的旧 inode；`_walPath` 变化时自动重开句柄。
+
 ## [6.8.27] — 2026-11-24
 
 ### Fixed

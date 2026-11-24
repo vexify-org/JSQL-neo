@@ -345,6 +345,7 @@ declare namespace JSQLNeo {
     versioning?: boolean;
     wal?: boolean;
     walCheckpointOps?: number;
+    walSyncInterval?: number;
     isolationLevel?: 'READ_COMMITTED' | 'REPEATABLE_READ';
     slowQueryThreshold?: number;
     fileLock?: boolean;

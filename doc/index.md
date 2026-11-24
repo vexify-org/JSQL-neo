@@ -29,7 +29,7 @@
 | 轻依赖 | 核心引擎零运行时依赖；仅 CLI 参数解析用 `@vexify-org/yaggs`（可降级） |
 | 三引擎 | Native (N-API) / WASM / Pure JS |
 | 存储模式 | 内存 / 混合 / 磁盘 |
-| 崩溃安全 | 单文件模式一步一个 WAL：每次写入就 append + `fsync`，`save()`/`close()` 只做检查点 |
+| 崩溃安全 | 单文件模式一步一个 WAL：每次写入 append 到内核，fsync 按窗口合并，`save()`/`close()` 只做检查点 |
 | 内置 UI | 零依赖 Web 管理界面 + HTTP API |
 | TUI | 交互式终端，Tab 补全、CJK 对齐 |
 | XQL 插件 | 内置 `xql`，hash / range 索引 + 管道式查询 |
