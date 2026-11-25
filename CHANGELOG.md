@@ -14,6 +14,12 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Fixed
 
+- **`_releaseLock` 只 unlink 不 close 锁 fd**：Windows 上被 unlink 的锁文件停留
+  在 delete-pending（目录项残留，任何后续 `rmSync`/`lstat` 都 EPERM，CI 的
+  Node 18/20 整片挂掉，wal-recovery 等测试无法清理临时目录）；POSIX 上则是
+  每次打开/关闭泄漏一枚 fd。现在先 unlink 再 `closeSync`（Node 的
+  FILE_SHARE_DELETE 语义允许打开中 unlink，close 才真正完成删除）。
+  这是产品代码修复，不是测试修复。
 - **CI 矩阵的 Node 18（三平台）与 Windows（Node 20/22/24）自矩阵引入起全红，
   均为测试自身问题**（main 同一提交的 CI 同样挂这六个 job）：
   - `test/extra-coverage.test.js` 把 ESM 语法写进 `.js`（`import` /
@@ -34,6 +40,9 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
     / WAL 句柄，`EPERM`），POSIX 则无感。改为先 close 全部实例再带重试删除
     （断言均已跑完，不影响崩溃模拟语义；alter-table 本地的锁超时抖动也随之
     消失）。同样是被链条截断掩盖的下一层失败。
+  - `test/issue-312-320.test.js` 的 TTL 断言是秒级精确等值（`:100`）：EXPIRE
+    与 TTL 两条命令之间隔着 rsend 的 100ms sleep，慢 runner 上跨秒边界返回
+    99 即挂（macOS Node 20 在本轮 CI 实际触发）。改为 ±2 区间断言。
 
 ## [6.10.1] — 2026-11-24
 

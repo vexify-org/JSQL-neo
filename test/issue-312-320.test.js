@@ -104,25 +104,32 @@ async function main() {
     await rsend(['SET', 'e', 'x']);
     ok('SET 返回 +OK', (await rsend(['SET', 'e', 'x'])) === '+OK\r\n', null);
 
+    // TTL 是秒级倒计时：EXPIRE 与 TTL 两条命令之间隔着 rsend 的 100ms sleep，
+    // 慢 runner 上会跨秒边界（100 → 99）。用 ±2 的区间断言防抖。
+    const ttlCloseTo = (reply, n) => {
+        const m = /^:(-?\d+)\r\n$/.exec(reply);
+        return m !== null && Number(m[1]) >= n - 2 && Number(m[1]) <= n;
+    };
+
     // XX：键无 TTL 时应返回 0 且不设置
     ok('EXPIRE e 100 XX（无 TTL）返回 0', (await rsend(['EXPIRE', 'e', '100', 'XX'])) === ':0\r\n', null);
     ok('EXPIRE e 100 XX 后 TTL 仍为 -1', (await rsend(['TTL', 'e'])) === ':-1\r\n', null);
 
     // NX：键无 TTL 时应成功
     ok('EXPIRE e 100 NX（无 TTL）返回 1', (await rsend(['EXPIRE', 'e', '100', 'NX'])) === ':1\r\n', null);
-    ok('EXPIRE e 100 NX 后 TTL = 100', (await rsend(['TTL', 'e'])) === ':100\r\n', null);
+    ok('EXPIRE e 100 NX 后 TTL = 100', ttlCloseTo(await rsend(['TTL', 'e']), 100), null);
 
     // NX：键已有 TTL 时应返回 0
     ok('EXPIRE e 200 NX（已有 TTL）返回 0', (await rsend(['EXPIRE', 'e', '200', 'NX'])) === ':0\r\n', null);
-    ok('EXPIRE e 200 NX 后 TTL 未变', (await rsend(['TTL', 'e'])) === ':100\r\n', null);
+    ok('EXPIRE e 200 NX 后 TTL 未变', ttlCloseTo(await rsend(['TTL', 'e']), 100), null);
 
     // XX：键已有 TTL 时应成功
     ok('EXPIRE e 300 XX（已有 TTL）返回 1', (await rsend(['EXPIRE', 'e', '300', 'XX'])) === ':1\r\n', null);
-    ok('EXPIRE e 300 XX 后 TTL = 300', (await rsend(['TTL', 'e'])) === ':300\r\n', null);
+    ok('EXPIRE e 300 XX 后 TTL = 300', ttlCloseTo(await rsend(['TTL', 'e']), 300), null);
 
     // GT：新 TTL 不大于现有 → 返回 0
     ok('EXPIRE e 100 GT（新 TTL 更小）返回 0', (await rsend(['EXPIRE', 'e', '100', 'GT'])) === ':0\r\n', null);
-    ok('EXPIRE e 100 GT 后 TTL 未变', (await rsend(['TTL', 'e'])) === ':300\r\n', null);
+    ok('EXPIRE e 100 GT 后 TTL 未变', ttlCloseTo(await rsend(['TTL', 'e']), 300), null);
 
     // GT：新 TTL 大于现有 → 返回 1
     ok('EXPIRE e 400 GT（新 TTL 更大）返回 1', (await rsend(['EXPIRE', 'e', '400', 'GT'])) === ':1\r\n', null);
