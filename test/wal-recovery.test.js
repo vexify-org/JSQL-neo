@@ -30,6 +30,14 @@ function tmpFile(tag) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsql-wal-' + tag + '-'));
     return { dir, file: path.join(dir, 'db.jsql') };
 }
+
+// Windows：实例仍握着 db.jsql.lock / WAL 句柄时 rmSync 会 EPERM（POSIX 允许
+// unlink 打开中的文件，Windows 不允许）。删目录前先 close 掉本块打开的全部
+// 实例（断言均已跑完，close 只做收尾、不影响崩溃模拟语义），再带重试删除。
+function cleanup(dir, dbs) {
+    for (const d of dbs) { try { d.close(); } catch (_) {} }
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+}
 const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' }, n: { type: 'integer' } };
 
 (async () => {
@@ -52,7 +60,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         ok('崩溃后第二行存在', rows.find(r => r.id === 2)?.v === 'second');
         ok('崩溃后 delete 已回放', !rows.find(r => r.id === 3));
         ok('回放后 WAL 已检查点', !fs.existsSync(file + '.wal'));
-        fs.rmSync(dir, { recursive: true, force: true });
+        cleanup(dir, [db, db2]);
     }
 
     console.log('--- 2. 快照 + WAL 叠加：save 后的新写入也要恢复 ---');
@@ -69,7 +77,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         const rows = await db2.find('t', {});
         ok('快照 2 行 + WAL 1 行 = 3 行', rows.length === 3, rows.length);
         ok('WAL 中的新行已恢复', rows.find(r => r.id === 3)?.v === 'c-after-save');
-        fs.rmSync(dir, { recursive: true, force: true });
+        cleanup(dir, [db, db2]);
     }
 
     console.log('--- 3. 幂等：二次重开不得重复回放 ---');
@@ -85,7 +93,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         const r3 = await db3.find('t', {});
         ok('首次恢复 2 行', r2.length === 2, r2.length);
         ok('二次重开仍 2 行（不重复回放）', r3.length === 2, r3.length);
-        fs.rmSync(dir, { recursive: true, force: true });
+        cleanup(dir, [db, db2, db3]);
     }
 
     console.log('--- 4. WAL 为 append-only JSONL，崩溃写半的尾行可容错 ---');
@@ -100,7 +108,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         const rows = await db2.find('t', {});
         ok('半截尾行被丢弃，完整记录仍恢复', rows.length === 1, rows.length);
         ok('数据内容正确', rows[0] && rows[0].v === 'ok', rows);
-        fs.rmSync(dir, { recursive: true, force: true });
+        cleanup(dir, [db, db2]);
     }
 
     console.log('--- 5. deleteById / dropTable 也进 WAL ---');
@@ -115,7 +123,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         const db2 = new Database(file, { wal: true, fileLock: false });
         ok('被 drop 的表未复活', !db2._tables.u, Object.keys(db2._tables));
         ok('保留的表数据完整', (await db2.find('t', {})).length === 1);
-        fs.rmSync(dir, { recursive: true, force: true });
+        cleanup(dir, [db, db2]);
     }
 
     console.log('--- 6. 未开启 wal 时不应产生 .wal 文件 ---');
@@ -125,7 +133,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         await db.createTable('t', SCHEMA);
         await db.insert('t', { id: 1, v: 'a' });
         ok('未开启 wal 时无 .wal 文件', !fs.existsSync(file + '.wal'));
-        fs.rmSync(dir, { recursive: true, force: true });
+        cleanup(dir, [db]);
     }
 
     console.log('--- 6b. 兼容 6.3.3 的旧格式 WAL（单行 JSON 数组）---');
@@ -137,7 +145,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         ]));
         const db = new Database(file, { wal: true, fileLock: false });
         ok('旧格式数组 WAL 能被回放', !!db._tables.legacy, Object.keys(db._tables));
-        fs.rmSync(dir, { recursive: true, force: true });
+        cleanup(dir, [db]);
     }
 
     console.log('--- 7. 回放后索引仍可用（B-Tree 重建）---');
@@ -153,7 +161,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         ok('回放后按索引字段查询正确', found.length === 1 && found[0].id === 17, found);
         const cnt = await db2.find('t', { n: { $gte: 25 } });
         ok('回放后范围查询正确', cnt.length === 6, cnt.length);
-        fs.rmSync(dir, { recursive: true, force: true });
+        cleanup(dir, [db, db2]);
     }
 
     console.log('--- 8. 默认即 WAL：不传 wal、也不调用 save() 也必须恢复 ---');
@@ -175,7 +183,7 @@ const SCHEMA = { id: { type: 'integer', primaryKey: true }, v: { type: 'string' 
         const npRows = await db2.find('np', {});
         ok('默认 WAL 恢复主键表', rows.length === 1 && rows[0].v === 'a2', rows);
         ok('默认 WAL 恢复无主键表', npRows.length === 1 && npRows[0].x === 'n2', npRows);
-        fs.rmSync(dir, { recursive: true, force: true });
+        cleanup(dir, [db, db2]);
     }
 
     console.log(`\n${pass} passed, ${fail} failed`);

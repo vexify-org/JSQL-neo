@@ -57,7 +57,7 @@ function ok(name, cond, extra) {
       rows.length === 1 && rows[0]._id instanceof ObjectId && rows[0]._id.toString() === '507f1f77bcf86cd799439011', rows[0] && rows[0]._id);
     ok('storage: reloaded ObjectId equals original', rows[0]._id.equals(oid));
     await db2.stop();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 
   // --- Layer 1: e2e —— 用户实际场景（孪生 _id 不再互撞） ---
@@ -151,7 +151,7 @@ function ok(name, cond, extra) {
     ok('e2e: string twin still present after oid delete', remain.length === 3 && remain.some(r => r._id === HEX), remain.map(r => r._id));
 
     await new Promise((res) => srv2.close(res));
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 
   console.log(fail === 0 ? `\nALL ${pass} TESTS PASSED` : `\n${fail} FAILURES (${pass} passed)`);

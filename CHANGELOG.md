@@ -14,6 +14,49 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Fixed
 
+- **`stop()` / `close()` 不关闭懒加载行缓存持有的 `.jsql` 句柄**：目录模式下
+  行数 ≥1000 的表在 flush 后会保留表文件句柄（`keepHandleOpen`，供后续逐行
+  懒读），但两条退出路径都不回收——Windows 上 stop/close 后目录无法删除
+  （delete-pending 残留，CI 上 `rmSync` 重试 10 次仍 `ENOTEMPTY`/`EPERM`），
+  POSIX 上每次泄漏一枚 fd（实测：1100 行 hybrid 表 stop 前后句柄 1 → 0）。
+  现在 `stop()`/`close()` 统一走 `_closeRowCaches()`；重开与查询行为不变。
+- **`_releaseLock` 只 unlink 不 close 锁 fd**：Windows 上被 unlink 的锁文件停留
+  在 delete-pending（目录项残留，任何后续 `rmSync`/`lstat` 都 EPERM，CI 的
+  Node 18/20 整片挂掉，wal-recovery 等测试无法清理临时目录）；POSIX 上则是
+  每次打开/关闭泄漏一枚 fd。现在先 unlink 再 `closeSync`（Node 的
+  FILE_SHARE_DELETE 语义允许打开中 unlink，close 才真正完成删除）。
+  这是产品代码修复，不是测试修复。
+- **CI 矩阵的 Node 18（三平台）与 Windows（Node 20/22/24）自矩阵引入起全红，
+  均为测试自身问题**（main 同一提交的 CI 同样挂这六个 job）：
+  - `test/extra-coverage.test.js` 把 ESM 语法写进 `.js`（`import` /
+    `import.meta.url` / `createRequire` 垫片）——Node 22+ 的模块探测能跑，
+    Node 18 一律按 CJS 解析直接 `SyntaxError`。改回与其它测试一致的
+    `require` 形态，垫片删除。
+  - `test/issue-258-300.test.js` 的 #300 用例只设置 `HOME`；`tui.js` 的
+    历史文件路径走 `os.homedir()`，Windows 上读的是 `%USERPROFILE%` ——
+    历史写进真实用户目录，临时目录 readdir 为空断言失败。测试现在同时
+    设置并还原 `HOME` 与 `USERPROFILE`。
+  - `test/issue-445-449.test.js` 的 #446 用例断言子进程 `signal === 'SIGKILL'`：
+    Windows 没有 POSIX 信号，`process.kill(pid, 'SIGKILL')` 走
+    TerminateProcess，父进程看到 `status:1 / signal:null`（崩溃照常发生，
+    后续 WAL 恢复断言在 Windows 本来就是通过的）。改为平台感知判定。
+    该失败此前被 && 链条在 #300 处截断所掩盖。
+  - `test/wal-recovery.test.js` 与 `test/alter-table.test.js`：块结束时实例
+    未 close 就 `fs.rmSync` —— Windows 不允许删除被打开的文件（`db.jsql.lock`
+    / WAL 句柄，`EPERM`），POSIX 则无感。改为先 close 全部实例再带重试删除
+    （断言均已跑完，不影响崩溃模拟语义；alter-table 本地的锁超时抖动也随之
+    消失）。同样是被链条截断掩盖的下一层失败。
+  - `test/issue-312-320.test.js` 的 TTL 断言是秒级精确等值（`:100`）：EXPIRE
+    与 TTL 两条命令之间隔着 rsend 的 100ms sleep，慢 runner 上跨秒边界返回
+    99 即挂（macOS Node 20 在本轮 CI 实际触发）。改为 ±2 区间断言。
+  - 带 Database 句柄的测试清理统一给 `fs.rmSync` 加 `maxRetries`：Windows 上
+    unlink 后的 delete-pending 目录项会让紧随的 rmdir 报 `ENOTEMPTY`（Node
+    18/20 的 rimraf 默认不重试，`mongo-persistence` 等据此 FATAL）。这正是
+    `maxRetries` 选项存在的场景。
+  - `test/issue-455-459.test.js` 的 #456 嗅探竞态：默认 200ms `sniffTimeout`
+    下，慢 runner 上 7 字节 `PING\r\n` 的 data 事件可能迟到，空超时按
+    `idleProtocol`(mysql) 兜底误路由、回复握手包（macOS Node 18 实测一次）。
+    用例改用 400ms 超时 + 2s 读窗口；按内容路由的语义不变。
 - **PR #122 的尾部提交（`86fb5ee`）未随合并进入 main，六处守卫在 6.8.25 上回归**：
   - `{field: {$all: []}}` 又匹配全表（`[].every()` vacuous true 陷阱），wire 与
     table 双侧；现恢复「空 target 恒不匹配」。

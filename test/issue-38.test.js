@@ -25,12 +25,12 @@ function ok(name, cond, extra) {
 
 // 所有测试共用独立临时目录，结束后清理
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'jsql-i38-'));
-process.on('exit', () => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (_) { } });
+process.on('exit', () => { try { fs.rmSync(TMP, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch (_) { } });
 
 function tmpPath(name) { return path.join(TMP, name); }
 function fresh(name, opts) {
     const p = tmpPath(name);
-    try { fs.rmSync(p, { recursive: true, force: true }); } catch (_) { }
+    try { fs.rmSync(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch (_) { }
     return p;
 }
 

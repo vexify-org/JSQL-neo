@@ -123,7 +123,7 @@ async function testCheckpointDuringTx() {
     ok('事务 checkpoint 用例未抛错', false, String(e && e.message).slice(0, 120));
   } finally {
     db.close();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 
@@ -170,6 +170,13 @@ async function seedFile(file) {
   seed.close();
 }
 
+// Windows 没有 POSIX 信号：process.kill(pid, 'SIGKILL') 走 TerminateProcess，
+// 父进程看到的是 status:1 / signal:null（子进程确实死了，崩溃本身照常发生，
+// 后续 WAL 恢复断言不受影响）。用「非零退出且没走错误路径（stderr 无 ERR）」
+// 证明是被 kill 终止而非异常退出。
+const killedBySignal = (ch) => ch.signal === 'SIGKILL'
+  || (process.platform === 'win32' && ch.status === 1 && !String(ch.stderr || '').includes('ERR'));
+
 async function testUncommittedTxNoResurrect() {
   console.log('\n--- #446 SIGKILL 后未提交事务不复活 ---');
   const dir = tmpDir('midtx');
@@ -178,7 +185,7 @@ async function testUncommittedTxNoResurrect() {
 
   const childScript = writeChildCrashScript();
   const ch = spawnSync('node', [childScript, file], { encoding: 'utf8' });
-  ok('子进程被 SIGKILL 终止', ch.signal === 'SIGKILL', { status: ch.status, signal: ch.signal });
+  ok('子进程被 SIGKILL 终止', killedBySignal(ch), { status: ch.status, signal: ch.signal });
 
   try { fs.unlinkSync(file + '.lock'); } catch (_) { /* 崩溃残留锁由测试侧清理 */ }
 
@@ -187,7 +194,7 @@ async function testUncommittedTxNoResurrect() {
   ok('崩溃重开后只剩已提交行（未提交行不复活）',
     rows.length === 1 && rows[0].id === 1 && rows[0].v === 'committed', rows);
   db2.close();
-  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
 async function testCommittedTxSurvivesCrash() {
@@ -198,7 +205,7 @@ async function testCommittedTxSurvivesCrash() {
 
   const childScript = writeChildCommitScript();
   const ch = spawnSync('node', [childScript, file], { encoding: 'utf8' });
-  ok('提交事务子进程被 SIGKILL 终止', ch.signal === 'SIGKILL', { status: ch.status, signal: ch.signal });
+  ok('提交事务子进程被 SIGKILL 终止', killedBySignal(ch), { status: ch.status, signal: ch.signal });
 
   try { fs.unlinkSync(file + '.lock'); } catch (_) { /* ignore */ }
 
@@ -207,7 +214,7 @@ async function testCommittedTxSurvivesCrash() {
   ok('崩溃重开后已提交事务的行仍然存在',
     rows.length === 2 && rows[0].id === 1 && rows[1].id === 2, rows);
   db2.close();
-  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
 // ---------------------------------------------------------------------------
@@ -250,11 +257,11 @@ async function testDirModeFileLock() {
     await dbD.flush();
     ok('过期残留锁被新实例接管', (await dbD.find('t')).length === 1);
     dbD.close();
-    fs.rmSync(staleDir, { recursive: true, force: true });
+    fs.rmSync(staleDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   } catch (e) {
     ok('目录锁用例未抛错', false, String(e && e.message).slice(0, 120));
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 

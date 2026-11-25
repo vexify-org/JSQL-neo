@@ -260,8 +260,9 @@ async function t(name, fn) {
   {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsql-alter-'));
     const file = path.join(dir, 'db.jsql');
+    let db, db2;
     try {
-      const db = new Database(file, { wal: true, autoSave: false });
+      db = new Database(file, { wal: true, autoSave: false });
       const exec = (sql) => executeSQL(db, sql, OPTS);
       await exec('CREATE TABLE t (id INT PRIMARY KEY, a TEXT)');
       await exec("INSERT INTO t VALUES (1,'x')");
@@ -269,7 +270,7 @@ async function t(name, fn) {
       await exec('ALTER TABLE t2 RENAME COLUMN a TO name');
       await db.save();
 
-      const db2 = new Database(file, { wal: true, fileLock: false });
+      db2 = new Database(file, { wal: true, fileLock: false });
       const exec2 = (sql) => executeSQL(db2, sql, OPTS);
       const tables = (await db2.getTables()).slice().sort();
       const cols = (await exec2('SELECT * FROM t2')).columns;
@@ -279,15 +280,18 @@ async function t(name, fn) {
     } catch (e) {
       ok('重开后表名与列名都保住', false, e.message);
     } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
+      // Windows：仍握着 lock/WAL 句柄时 rmSync 会 EPERM，先 close 再删
+      for (const d of [db, db2]) { if (d) { try { d.close(); } catch (_) {} } }
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   }
 
   console.log('\n--- 目录模式（改名的物理文件也要跟着挪）---');
   {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsql-alterdir-'));
+    let db;
     try {
-      const db = new Database(dir, { mode: 'disk', autoSave: false });
+      db = new Database(dir, { mode: 'disk', autoSave: false });
       const exec = (sql) => executeSQL(db, sql, OPTS);
       await exec('CREATE TABLE t (id INT PRIMARY KEY, a TEXT)');
       await exec("INSERT INTO t VALUES (1,'x')");
@@ -299,7 +303,9 @@ async function t(name, fn) {
     } catch (e) {
       ok('目录模式改名', false, e.message);
     } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
+      // 同上：磁盘模式握着目录级文件锁，必须先释放
+      if (db) { try { db.close(); } catch (_) {} }
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   }
 

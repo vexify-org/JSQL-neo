@@ -47,7 +47,12 @@ const q = (db, sql) => executeSQL(db, sql, { safety: false });
   {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jsql-home-'));
     const oldHome = process.env.HOME;
+    const oldProfile = process.env.USERPROFILE;
     process.env.HOME = home;
+    // tui.js 用 os.homedir() 定位历史文件：POSIX 读 $HOME，Windows 读
+    // %USERPROFILE% —— 只设 HOME 的话，Windows 上历史写进真实用户目录，
+    // 临时目录 readdirSync 为空（CI 三平台全挂）。两个都设、都还原。
+    if (oldProfile !== undefined) process.env.USERPROFILE = home;
     const tuiPath = path.join(ROOT, 'lib', 'tui.js');
     delete require.cache[require.resolve(tuiPath)];
     const tui = require(tuiPath);
@@ -57,6 +62,7 @@ const q = (db, sql) => executeSQL(db, sql, { safety: false });
     const files = fs.readdirSync(home);
     ok('#300 history file is session-independent', files.includes('.jsql-history'), files);
     process.env.HOME = oldHome;
+    if (oldProfile !== undefined) process.env.USERPROFILE = oldProfile;
     delete require.cache[require.resolve(tuiPath)];
   }
   console.log(`\n${passed} passed, ${failed} failed`);
