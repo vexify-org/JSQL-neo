@@ -12,6 +12,19 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 - Release 产物扩展到 WASM 包、`index.d.ts`、package 快照，并统一进 SHA256SUMS。
 - 预发布 tag 约定 `vX.Y.Z-fix.xxx`：发布到 npm `fix` dist-tag、GitHub 标为 pre-release，且强制校验 tag 与 `package.json` 版本一致，绝不动 `latest`。
 
+### Fixed
+
+- **CI 矩阵的 Node 18（三平台）与 Windows（Node 20/22/24）自矩阵引入起全红，
+  均为测试自身问题**（main 同一提交的 CI 同样挂这六个 job）：
+  - `test/extra-coverage.test.js` 把 ESM 语法写进 `.js`（`import` /
+    `import.meta.url` / `createRequire` 垫片）——Node 22+ 的模块探测能跑，
+    Node 18 一律按 CJS 解析直接 `SyntaxError`。改回与其它测试一致的
+    `require` 形态，垫片删除。
+  - `test/issue-258-300.test.js` 的 #300 用例只设置 `HOME`；`tui.js` 的
+    历史文件路径走 `os.homedir()`，Windows 上读的是 `%USERPROFILE%` ——
+    历史写进真实用户目录，临时目录 readdir 为空断言失败。测试现在同时
+    设置并还原 `HOME` 与 `USERPROFILE`。
+
 ## [6.10.1] — 2026-11-24
 
 ### Fixed

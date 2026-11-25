@@ -10,10 +10,8 @@
  *   4. DDL 和表操作（ALTER、TRUNCATE、RENAME、约束）
  *   5. 表达式和函数（CASE、COALESCE、字符串/数学函数、嵌套）
  */
-import path from 'path';
-import { fileURLToPath } from 'url';
-import assert from 'assert';
-import { createRequire } from 'module';
+const path = require('path');
+const assert = require('assert');
 
 /*
  * 原先这里是 `import { test } from 'vitest'`。但 vitest 既不在 package.json 的
@@ -27,9 +25,10 @@ import { createRequire } from 'module';
 const _tests = [];
 const test = (name, fn) => { _tests.push({ name, fn }); };
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const require = createRequire(import.meta.url);
+// CommonJS：文件曾在 ESM 语法下写就（import / import.meta.url / createRequire
+// 垫片），Node 22+ 的模块探测能跑，Node 18 把 .js 一律当 CJS 解析直接
+// SyntaxError —— CI 矩阵的 Node 18 三个平台全挂在这。改回与其它测试
+// 一致的 require 形态，垫片全部删除。
 const ROOT = path.join(__dirname, '..');
 const Database = require(path.join(ROOT, 'lib/database'));
 const { executeSQL } = require(path.join(ROOT, 'lib/sql'));
