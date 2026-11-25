@@ -53,6 +53,10 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
     unlink 后的 delete-pending 目录项会让紧随的 rmdir 报 `ENOTEMPTY`（Node
     18/20 的 rimraf 默认不重试，`mongo-persistence` 等据此 FATAL）。这正是
     `maxRetries` 选项存在的场景。
+  - `test/issue-455-459.test.js` 的 #456 嗅探竞态：默认 200ms `sniffTimeout`
+    下，慢 runner 上 7 字节 `PING\r\n` 的 data 事件可能迟到，空超时按
+    `idleProtocol`(mysql) 兜底误路由、回复握手包（macOS Node 18 实测一次）。
+    用例改用 400ms 超时 + 2s 读窗口；按内容路由的语义不变。
 
 ## [6.10.1] — 2026-11-24
 

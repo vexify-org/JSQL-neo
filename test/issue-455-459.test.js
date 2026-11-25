@@ -173,7 +173,10 @@ class RawMysql {
   // ================= #456 MultiServer 16 字节嗅探 =================
   await t('#456 Mongo 分片首包（4 字节前缀）不误判到 Redis；RESP 连接仍落 Redis', async () => {
     const calls = { mongo: 0, redis: 0 };
-    const srv = createMultiServer({ port: 0, host: '127.0.0.1', dataDir: ':memory:', noAuth: true });
+    // sniffTimeout 放宽到 400ms：默认 200ms 下，慢 runner 上 7 字节 PING 的
+    // data 事件可能迟到，超时分支按 idleProtocol(mysql) 误路由、回复握手包
+    // （CI 实测一次）。路由靠内容（'PING' → redis）仍即时，只有空超时才兜底。
+    const srv = createMultiServer({ port: 0, host: '127.0.0.1', dataDir: ':memory:', noAuth: true, sniffTimeout: 400 });
     await new Promise((r) => srv.listen(r));
     try {
       const origMongo = srv.mongo._handleSocket.bind(srv.mongo);
@@ -194,10 +197,10 @@ class RawMysql {
       assert.strictEqual(calls.redis, 0, '不得误判到 redis 处理器');
       assert.ok(reply1.length >= 16 && reply1.readInt32LE(12) === 2013, 'Mongo hello 应回 OP_MSG');
 
-      // 对照：真实 RESP PING 连接仍走 Redis
+      // 对照：真实 RESP PING 连接仍走 Redis（读窗口盖住 400ms 嗅探超时 + 应答）
       const s2 = await connect(srv.address.port);
       s2.write(Buffer.from('PING\r\n'));
-      const reply2 = await readSome(s2, 1000);
+      const reply2 = await readSome(s2, 2000);
       s2.end();
       assert.ok(reply2.toString('utf8').startsWith('+PONG'), reply2.toString());
       assert.strictEqual(calls.redis, 1, 'RESP 连接应落到 redis 处理器');
