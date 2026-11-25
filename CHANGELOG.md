@@ -24,6 +24,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
     历史文件路径走 `os.homedir()`，Windows 上读的是 `%USERPROFILE%` ——
     历史写进真实用户目录，临时目录 readdir 为空断言失败。测试现在同时
     设置并还原 `HOME` 与 `USERPROFILE`。
+  - `test/issue-445-449.test.js` 的 #446 用例断言子进程 `signal === 'SIGKILL'`：
+    Windows 没有 POSIX 信号，`process.kill(pid, 'SIGKILL')` 走
+    TerminateProcess，父进程看到 `status:1 / signal:null`（崩溃照常发生，
+    后续 WAL 恢复断言在 Windows 本来就是通过的）。改为平台感知判定。
+    该失败此前被 && 链条在 #300 处截断所掩盖。
 
 ## [6.10.1] — 2026-11-24
 
