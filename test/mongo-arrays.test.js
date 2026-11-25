@@ -165,6 +165,69 @@ const ids = (batch) => batch.map((d) => d._id).sort((a, b) => a - b);
       const upd = await db.update('t', { tags: 'a' }, { $set: { hit: true } });
       ok('update 按数组语义命中所有行', upd === 2, upd);
     }
+    /* ---------- 6.8.25 回归：PR #122 尾部提交（86fb5ee）未随合并进入 main ---------- */
+    {
+      const srv = createMongoServer({ port: 0, noAuth: true, dataDir: ':memory:' });
+      await (await srv._getEngine('test')).createTable('c', {});
+      await insert(srv, [
+        { _id: 1, a: [1], d: new Date('2026-01-01T00:00:00Z'), user: { name: 'x' } },
+        { _id: 2, b: 1, d: new Date('2026-06-01T00:00:00Z'), user: { name: 'y' } },
+      ]);
+
+      ok('wire {$all:[]} 恒不匹配（[].every vacuous true 陷阱）', (await find(srv, { a: { $all: [] } })).length === 0);
+      ok('wire {d: <Date>} 不再 vacuous 匹配全表（getTime 等值）', JSON.stringify(ids(await find(srv, { d: new Date('2026-01-01T00:00:00Z') }))) === '[1]');
+      ok('wire 整数组等值 {a: [1]}（valuesEqual 数组分支）', JSON.stringify(ids(await find(srv, { a: [1] }))) === '[1]');
+      ok('wire {a: {$in: [[1]]}} 命中整数组', JSON.stringify(ids(await find(srv, { a: { $in: [[1]] } }))) === '[1]');
+      ok('wire {a: {$ne: [2]}} 整数组取反', JSON.stringify(ids(await find(srv, { a: { $ne: [2] } }))) === '[1,2]');
+      ok('wire 子文档条件（#219 deepEqualMongo）不 vacuous', JSON.stringify(ids(await find(srv, { user: { name: 'x' } }))) === '[1]');
+      ok('wire {$type: "array"}（#220 bsonTypeOf）', JSON.stringify(ids(await find(srv, { a: { $type: 'array' } }))) === '[1]');
+
+      const db = new Database(':memory:');
+      await db.createTable('t', { id: { type: 'integer', primaryKey: true }, a: { type: 'object' }, d: { type: 'date' }, bin: { type: 'object' } });
+      await db.insert('t', { id: 1, a: [1] });
+      await db.insert('t', { id: 2, d: new Date('2026-01-01T00:00:00Z'), bin: Buffer.from([1, 2]) });
+
+      ok('table {$all:[]} 恒不匹配', (await db.find('t', { a: { $all: [] } })).length === 0);
+      ok('table {$type: "array"}（typeof 陷阱）', JSON.stringify((await db.find('t', { a: { $type: 'array' } })).map((r) => r.id)) === '[1]');
+      const byDate = await db.find('t', { d: new Date('2026-01-01T00:00:00Z') });
+      ok('table 日期列 find({d: Date}) 归一后命中', JSON.stringify(byDate.map((r) => r.id)) === '[2]', byDate.map((r) => r.id));
+      const gtDate = await db.find('t', { d: { $gt: new Date('2020-01-01T00:00:00Z') } });
+      ok('table 日期列范围查询（Date 归一成存储字符串后比较）', JSON.stringify(gtDate.map((r) => r.id)) === '[2]', gtDate.map((r) => r.id));
+      const byBin = await db.find('t', { bin: Buffer.from([1, 2]) });
+      ok('table Buffer 等值（内容相等而非引用）', JSON.stringify(byBin.map((r) => r.id)) === '[2]', byBin.map((r) => r.id));
+      const wholeArr = await db.find('t', { a: [1] });
+      ok('table 整数组等值 {a: [1]}', JSON.stringify(wholeArr.map((r) => r.id)) === '[1]', wholeArr.map((r) => r.id));
+
+      await db.createTable('sd', {});
+      await db.insert('sd', { _id: 1, at: new Date('2026-01-01T00:00:00Z') });
+      await db.insert('sd', { _id: 2, at: new Date('2026-06-01T00:00:00Z') });
+      const schemalessDate = await db.find('sd', { at: new Date('2026-01-01T00:00:00Z') });
+      ok('table schemaless Date 等值（valuesEqual getTime）', JSON.stringify(schemalessDate.map((r) => r._id)) === '[1]', schemalessDate.map((r) => r._id));
+    }
+
+    /* ---------- drop 不存在的集合不得杀死进程（unhandled rejection） ---------- */
+    {
+      const srv = createMongoServer({ port: 0, noAuth: true, dataDir: ':memory:' });
+      // 本测试进程就是哨兵：drop 的 rejection 若再变成 unhandled，node 会
+      // 在下面的 await 点直接崩掉整个测试（非零退出）。
+      const miss = await srv._dispatch('drop', { drop: 'missing', $db: 'test' });
+      ok('drop 不存在的集合返回 ok（Mongo 语义）', miss.ok === 1, miss);
+
+      await insert(srv, [{ _id: 1, x: 1 }]);
+      const after = await find(srv, { x: 1 });
+      ok('drop 缺失集合后服务器仍存活可查询', after.length === 1, after);
+
+      const gone = await srv._dispatch('drop', { drop: 'c', $db: 'test' });
+      ok('drop 已存在集合返回 ok', gone.ok === 1, gone);
+      const emptied = await find(srv, {});
+      ok('drop 后集合为空', emptied.length === 0, emptied);
+
+      await insert(srv, [{ _id: 2, y: 2 }]);
+      const dd = await srv._dispatch('dropDatabase', { dropDatabase: 1, $db: 'test' });
+      ok('dropDatabase 存活返回 ok', dd.ok === 1, dd);
+      const reempty = await find(srv, {});
+      ok('dropDatabase 后集合为空', reempty.length === 0, reempty);
+    }
   } catch (e) {
     fail++;
     console.log('[FAIL] unexpected exception:', e && e.stack || e);
