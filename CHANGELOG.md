@@ -29,6 +29,11 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
     TerminateProcess，父进程看到 `status:1 / signal:null`（崩溃照常发生，
     后续 WAL 恢复断言在 Windows 本来就是通过的）。改为平台感知判定。
     该失败此前被 && 链条在 #300 处截断所掩盖。
+  - `test/wal-recovery.test.js` 与 `test/alter-table.test.js`：块结束时实例
+    未 close 就 `fs.rmSync` —— Windows 不允许删除被打开的文件（`db.jsql.lock`
+    / WAL 句柄，`EPERM`），POSIX 则无感。改为先 close 全部实例再带重试删除
+    （断言均已跑完，不影响崩溃模拟语义；alter-table 本地的锁超时抖动也随之
+    消失）。同样是被链条截断掩盖的下一层失败。
 
 ## [6.10.1] — 2026-11-24
 
