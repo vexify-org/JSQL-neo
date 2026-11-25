@@ -14,6 +14,12 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
 
 ### Fixed
 
+- **`stop()` / `close()` 不关闭懒加载行缓存持有的 `.jsql` 句柄**：目录模式下
+  行数 ≥1000 的表在 flush 后会保留表文件句柄（`keepHandleOpen`，供后续逐行
+  懒读），但两条退出路径都不回收——Windows 上 stop/close 后目录无法删除
+  （delete-pending 残留，CI 上 `rmSync` 重试 10 次仍 `ENOTEMPTY`/`EPERM`），
+  POSIX 上每次泄漏一枚 fd（实测：1100 行 hybrid 表 stop 前后句柄 1 → 0）。
+  现在 `stop()`/`close()` 统一走 `_closeRowCaches()`；重开与查询行为不变。
 - **`_releaseLock` 只 unlink 不 close 锁 fd**：Windows 上被 unlink 的锁文件停留
   在 delete-pending（目录项残留，任何后续 `rmSync`/`lstat` 都 EPERM，CI 的
   Node 18/20 整片挂掉，wal-recovery 等测试无法清理临时目录）；POSIX 上则是
