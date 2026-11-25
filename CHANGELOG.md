@@ -43,6 +43,10 @@ SemVer applies: versions 0.x/3.x-beta are pre-1.0; from 4.0.0 onward the public 
   - `test/issue-312-320.test.js` 的 TTL 断言是秒级精确等值（`:100`）：EXPIRE
     与 TTL 两条命令之间隔着 rsend 的 100ms sleep，慢 runner 上跨秒边界返回
     99 即挂（macOS Node 20 在本轮 CI 实际触发）。改为 ±2 区间断言。
+  - 带 Database 句柄的测试清理统一给 `fs.rmSync` 加 `maxRetries`：Windows 上
+    unlink 后的 delete-pending 目录项会让紧随的 rmdir 报 `ENOTEMPTY`（Node
+    18/20 的 rimraf 默认不重试，`mongo-persistence` 等据此 FATAL）。这正是
+    `maxRetries` 选项存在的场景。
 
 ## [6.10.1] — 2026-11-24
 

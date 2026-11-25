@@ -81,7 +81,7 @@ async function t(name, fn) {
     const ui = new WebUI({ dataDir: dir, noAuth: true });
     const list = ui.listDatabases();
     assert.deepStrictEqual(list, [{ name: 'one', tables: 1 }]);
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

@@ -123,7 +123,7 @@ async function testCheckpointDuringTx() {
     ok('事务 checkpoint 用例未抛错', false, String(e && e.message).slice(0, 120));
   } finally {
     db.close();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 
@@ -194,7 +194,7 @@ async function testUncommittedTxNoResurrect() {
   ok('崩溃重开后只剩已提交行（未提交行不复活）',
     rows.length === 1 && rows[0].id === 1 && rows[0].v === 'committed', rows);
   db2.close();
-  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
 async function testCommittedTxSurvivesCrash() {
@@ -214,7 +214,7 @@ async function testCommittedTxSurvivesCrash() {
   ok('崩溃重开后已提交事务的行仍然存在',
     rows.length === 2 && rows[0].id === 1 && rows[1].id === 2, rows);
   db2.close();
-  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
 // ---------------------------------------------------------------------------
@@ -257,11 +257,11 @@ async function testDirModeFileLock() {
     await dbD.flush();
     ok('过期残留锁被新实例接管', (await dbD.find('t')).length === 1);
     dbD.close();
-    fs.rmSync(staleDir, { recursive: true, force: true });
+    fs.rmSync(staleDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   } catch (e) {
     ok('目录锁用例未抛错', false, String(e && e.message).slice(0, 120));
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 

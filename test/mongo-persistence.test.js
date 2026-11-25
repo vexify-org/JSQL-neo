@@ -59,7 +59,7 @@ function ok(name, cond, extra) {
     const rows3 = await db3.find('c', {});
     ok('schemaless: second write→reload cycle keeps all rows', rows3.length === 4 && rows3.some(r => r._id === 4 && r.extra === true), rows3.length);
     await db3.stop();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 
   // --- Layer 2: Mongo 服务器级 e2e —— 用户实际场景 ---
@@ -97,7 +97,7 @@ function ok(name, cond, extra) {
     const dup = await srv2._dispatch('insert', { insert: 'docs', $db: 'test', documents: [{ _id: 'a1', x: 9 }] });
     ok('mongo e2e: duplicate _id rejected after reload', dup.n === 0, dup);
     await new Promise((res) => srv2.close(res));
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 
   // --- Layer 3: 兼容旧版单文件库 —— dataDir 下已有同名文件时必须走 legacy 模式 ---
@@ -121,7 +121,7 @@ function ok(name, cond, extra) {
     const batch = found.cursor ? found.cursor.firstBatch : [];
     ok('legacy: mongo server reads legacy single-file db', batch.length === 1 && batch[0].name === 'old', batch);
     await new Promise((res) => srv.close(res));
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 
   console.log(fail === 0 ? `\nALL ${pass} TESTS PASSED` : `\n${fail} FAILURES (${pass} passed)`);

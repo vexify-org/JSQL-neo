@@ -144,7 +144,7 @@ async function throwsCode(fn, code) {
     ok('#70 重开后表级 CHECK 生效', await throwsCode(() => db.insert('p', { id: 3, age: 200 }), 'ER_CHECK_CONSTRAINT'), null);
     ok('#70 重开后合法数据可插入', await throwsCode(async () => db.insert('p', { id: 4, age: 8 }), null) === false, null);
     await db.close();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

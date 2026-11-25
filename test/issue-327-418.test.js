@@ -38,7 +38,7 @@ async function t(name, fn) {
     assert.strictEqual(rows.length, 1);
     assert.strictEqual(rows[0].name, 'x');
     await db2.stop();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   // #357：RENAME COLUMN 后列 DEFAULT 必须随列迁移，新行拿到默认值而非 NULL。

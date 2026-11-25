@@ -190,7 +190,7 @@ function fileSuite() {
       try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch (e) {}
     }
   }
-  try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
+  try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch (e) {}
 }
 
 function entrySuite() {
