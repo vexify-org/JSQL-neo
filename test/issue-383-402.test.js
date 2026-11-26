@@ -72,10 +72,11 @@ async function t(name, fn) {
     const srv = createRedisServer({ dataDir: null });
     assert.strictEqual(srv.execute('PING', []), 'PONG');
     assert.strictEqual(srv.execute('PING', ['hi']), 'hi');
-    assert.throws(() => srv.execute('PING', ['a', 'b']), /wrong number of arguments for 'PING' command/);
+    // #572: arity 错误统一使用规范小写命令名
+    assert.throws(() => srv.execute('PING', ['a', 'b']), /wrong number of arguments for 'ping' command/);
     assert.strictEqual(srv.execute('ECHO', ['hi']), 'hi');
-    assert.throws(() => srv.execute('ECHO', ['a', 'b']), /wrong number of arguments for 'ECHO' command/);
-    assert.throws(() => srv.execute('ECHO', []), /wrong number of arguments for 'ECHO' command/);
+    assert.throws(() => srv.execute('ECHO', ['a', 'b']), /wrong number of arguments for 'echo' command/);
+    assert.throws(() => srv.execute('ECHO', []), /wrong number of arguments for 'echo' command/);
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);
