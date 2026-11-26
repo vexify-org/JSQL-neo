@@ -79,7 +79,7 @@ SELECT TABLE_NAME, TABLE_ROWS FROM information_schema.tables WHERE TABLE_SCHEMA 
 ## FAQ
 
 **Q: MySQL 客户端在握手前会等待约 200ms？**
-A: 多协议探测需要根据第一个字节判断协议类型或等待超时。单协议模式（`createMysqlServer` / `jsql serve`）会立即响应。
+A: `jsql serve` 默认走多协议嗅探：对连接后不主动发字节的 MySQL 客户端，需等 `sniffTimeout`（默认 200ms）后才按 `idleProtocol` 路由并发送 greeting，可用 `--mysql-only` 或 `createMysqlServer` 切到单协议模式以立即响应；也可通过 `idleProtocol` / `sniffTimeout` 调整默认行为。
 
 **Q: Sequelize/TypeORM 查询 `information_schema` 返回空？**
 A: 表必须先存在才会返回真实元数据。用 `SHOW TABLES` 确认表状态。

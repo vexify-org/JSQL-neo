@@ -5,6 +5,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 
 const STATE_DIR = path.join(os.homedir(), '.jsql');
@@ -16,13 +17,33 @@ function ensureStateDir() {
   fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
 }
 
-function readPid() {
+// #537：PID 文件同时保存启动令牌。仅凭数字 PID 判活会在 PID 被复用后
+// 误把无关进程当成 jsql server 并 SIGTERM。
+function readPidInfo() {
   try {
-    const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim(), 10);
-    return Number.isInteger(pid) && pid > 0 ? pid : null;
+    const raw = fs.readFileSync(PID_FILE, 'utf8').trim();
+    let pid = null, token = null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        pid = parsed.pid;
+        if (typeof parsed.token === 'string' && parsed.token) token = parsed.token;
+      } else {
+        pid = parseInt(raw, 10);
+      }
+    } catch (_) {
+      pid = parseInt(raw, 10);
+    }
+    if (!Number.isInteger(pid) || pid <= 0) return null;
+    return { pid, token };
   } catch (e) {
     return null;
   }
+}
+
+function readPid() {
+  const info = readPidInfo();
+  return info ? info.pid : null;
 }
 
 function isAlive(pid) {
@@ -33,6 +54,26 @@ function isAlive(pid) {
   } catch (e) {
     return e.code === 'EPERM';
   }
+}
+
+// 令牌通过环境变量注入子进程；/proc/<pid>/environ 反映进程启动时的环境。
+function hasIdentity(pid, token) {
+  if (!token) return false; // 旧格式 PID 文件无法校验身份，保守视为非本服务
+  const marker = 'JSQL_SERVER_TOKEN=' + token;
+  try {
+    return fs.readFileSync('/proc/' + pid + '/environ', 'utf8').split('\0').includes(marker);
+  } catch (e) {
+    // 非 Linux 环境退而校验命令行是否指向本服务的启动入口
+    try {
+      const { execFileSync } = require('child_process');
+      const cmd = execFileSync('ps', ['-p', String(pid), '-o', 'command='], { encoding: 'utf8' });
+      return cmd.includes(path.join(__dirname, 'jsql-server'));
+    } catch (_) { return false; }
+  }
+}
+
+function isOurServer(info) {
+  return !!(info && isAlive(info.pid) && hasIdentity(info.pid, info.token));
 }
 
 function isPortOpen(port, host) {
@@ -68,9 +109,9 @@ function parseAuthSpecs(list) {
 
 async function start(opts = {}) {
   ensureStateDir();
-  const existing = readPid();
-  if (existing && isAlive(existing)) {
-    return `jsql server is already running (pid ${existing}).`;
+  const existing = readPidInfo();
+  if (isOurServer(existing)) {
+    return `jsql server is already running (pid ${existing.pid}).`;
   }
 
   const configPath = opts.config || CONF_FILE;
@@ -94,10 +135,11 @@ async function start(opts = {}) {
 
   const entry = path.join(__dirname, 'jsql-server');
   const logFd = fs.openSync(LOG_FILE, 'a');
+  const token = crypto.randomBytes(16).toString('hex'); // #537：进程身份令牌
   const child = spawn(process.execPath, [entry, '--config', CONF_FILE], {
     detached: true,
     stdio: ['ignore', logFd, logFd],
-    env: Object.assign({}, process.env, { JSQL_SERVER_MAIN: '1' }),
+    env: Object.assign({}, process.env, { JSQL_SERVER_MAIN: '1', JSQL_SERVER_TOKEN: token }),
   });
   child.once('error', err => {
     fs.closeSync(logFd);
@@ -105,7 +147,7 @@ async function start(opts = {}) {
   });
   child.unref();
 
-  fs.writeFileSync(PID_FILE, String(child.pid), 'utf8');
+  fs.writeFileSync(PID_FILE, JSON.stringify({ pid: child.pid, token }), 'utf8');
 
   const ready = await waitReady(cfg.port, cfg.host, 5000);
   if (!ready) {
@@ -131,12 +173,13 @@ function waitReady(port, host, timeoutMs) {
 }
 
 async function stop(opts = {}) {
-  const pid = readPid();
-  if (!pid) return 'jsql server is not running.';
-  if (!isAlive(pid)) {
-    fs.unlinkSync(PID_FILE);
+  const info = readPidInfo();
+  if (!isOurServer(info)) {
+    // #537：PID 复用或旧格式文件都不能作为发信号依据，只清理陈旧文件
+    try { fs.unlinkSync(PID_FILE); } catch (_) {}
     return 'jsql server is not running.';
   }
+  const pid = info.pid;
   try {
     process.kill(pid, 'SIGTERM');
   } catch (e) {
@@ -155,10 +198,11 @@ async function stop(opts = {}) {
 }
 
 async function status(opts = {}) {
-  const pid = readPid();
-  if (!pid || !isAlive(pid)) {
+  const info = readPidInfo();
+  if (!isOurServer(info)) {
     return 'jsql server is not running.';
   }
+  const pid = info.pid;
   let cfg = {};
   try { cfg = JSON.parse(fs.readFileSync(CONF_FILE, 'utf8')); } catch (e) {}
   const port = (opts.port != null ? opts.port : cfg.port) || 3306;
