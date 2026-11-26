@@ -1,9 +1,174 @@
 # 变更日志
 
-> 当前版本：**6.8.4**（2026-11-20）
+> 当前版本：**6.10.1**（2026-11-24）
 >
 > 本页按版本倒序汇总**关键 / 重要变更**（安全修复、数据损坏修复、新功能、破坏性变更）。
 > 逐条完整记录见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+## [Unreleased]
+
+> 尚未发布：本页仅在发版时由根目录 CHANGELOG.md 同步生成。
+
+## 6.10.1 — 2026-11-24
+
+### Fixed
+- #477 无主键表的 WAL 批量插入不再写整表镜像，100 万行 WAL 由约 210MB 降至 20MB，恢复吞吐大幅提升。
+
+## 6.10.0 — 2026-11-24
+
+### Changed
+- #475 批量写入热路径提速（bigintJson 快路径、insertMany 计划外提、B-Tree 顺序追加）。
+### Fixed
+- #476 WAL 回放按表缓存主键映射，消除批量 upsert 的 O(n²) 恢复。
+
+## 6.9.1 — 2026-11-24
+
+### Added
+- #474 `Database#syncWAL()`：只对已写入的 WAL 记录执行 fsync 的轻量持久化屏障。
+
+## 6.9.0 — 2026-11-24
+
+### Changed
+- #472 WAL 改为常驻追加句柄 + 批量 write + fsync 窗口合并（默认 20ms），单条写入吞吐约 25×。
+### Fixed
+- #473 检查点前先 fsync 并关闭句柄，避免写入已 unlink 的旧 inode。
+
+## 6.8.27 — 2026-11-24
+
+### Fixed
+- #445–#469 软删除恢复、复合唯一索引落盘（__uniqueGroups__）、事务内 DDL 回滚清理、
+  meta.json 原子写、CSV/JSON 导入白名单投影、递归 CTE JOIN、WAL 事务帧回放、
+  窗口 DISTINCT 去重、目录级文件锁，以及 PG/MySQL/Mongo/Redis 多协议与类型修复。
+
+## 6.8.26 — 2026-11-23
+
+### Fixed
+- #327–#419 WebUI 状态码（400/404/500）、RENAME COLUMN/TABLE 约束改写、
+  CSV 行宽 warnings、Mongo BSON Int64 无损往返与ListIndexes、PG 状态码与类型 OID、
+  聚合/窗口/INSERT SELECT 语义、Redis 类型校验、tui 与插件钩子等大批修复。
+
+## 6.8.25 — 2026-11-23
+
+### Fixed
+- #322–#325 CASE 基表达式与 WHEN/THEN 二元表达式、窗口 OVER 二元表达式、
+  YEARWEEK 默认 mode=0、CAST(... AS DECIMAL(p,s)) 负数半值舍入。
+
+## 6.8.24 — 2026-11-22
+
+### Fixed
+- #247 无原生模块时 disk 模式由纯 JS 引擎承载；#295 文件锁默认开启；
+  #277 PostgreSQL Bind 结果格式码生效。
+
+## 6.8.23 — 2026-11-22
+
+### Fixed
+- #258 标量子查询多行报 1242；#293 JSON_ARRAYAGG/JSON_OBJECTAGG；
+  #298–#300 TUI 宽度覆盖 emoji、转义引号、历史文件不内嵌 pid。
+
+## 6.8.22 — 2026-11-22
+
+### Fixed
+- #267 VARCHAR 长度按 Unicode 码点；#265 sqlite 嵌套 transaction 用 SAVEPOINT；
+  #294 WASM stop/start 清理表元数据；#273/#307 MySQL prepare 元数据与 COM_FIELD_LIST。
+
+## 6.8.21 — 2026-11-22
+
+### Fixed
+- #271 MySQL 列 flags；#275/#276 PG CancelRequest 与 Bind 参数校验；
+  #278 Mongo batchSize/getMore；#283 未知聚合 stage 报 40324。
+
+## 6.8.20 — 2026-11-22
+
+### Fixed
+- #296/#297 sqlite columns 类型与空串 no-op；#306 MySQL ColumnDefinition41 schema；
+  #279/#282 Mongo $push 选项与 $unwind 标量展开。
+
+## 6.8.19 — 2026-11-22
+
+### Fixed
+- #272/#274 MySQL COM_INIT_DB 与 errno/SQLSTATE 映射；
+  #308–#311 PG DDL tag、ParameterDescription 与 BOOLEAN typlen。
+
+## 6.8.18 — 2026-11-22
+
+### Fixed
+- #286/#287 Redis SET 选项互斥与原型链成员；#280/#281 Mongo count skip 与 listIndexes 方向；
+  #310 PG 密码错误 SQLSTATE 28P01。
+
+## 6.8.17 — 2026-11-22
+
+### Fixed
+- #253 mysql_compat 多结果集；#254 PG Describe/Close 名称解析；
+  #261 列存三值逻辑；#268 AUTO_INCREMENT 0；#269 INSERT IGNORE 行级 warning。
+
+## 6.8.16 — 2026-11-22
+
+### Fixed
+- #255 Mongo ordered 插入；#256/#257 日期函数 NULL；#266 DECIMAL 标度；
+  #270 整型列小数四舍五入。
+
+## 6.8.15 — 2026-11-22
+
+### Fixed
+- #259/#260 目录模式 WAL 回放与 encryptKey 静态加密；#262 表损坏显式报错；
+  #263 WAL 追加失败上报；#264 sqlite exec 多语句。
+
+## 6.8.14 — 2026-11-22
+
+### Fixed
+- #248 批量 ON DUPLICATE KEY UPDATE 按行累加；#249 SET DEFAULT；
+  #250 updateById 约束校验；#251 字符串 CHECK；#252 ADD COLUMN NOT NULL 回填。
+
+## 6.8.13 — 2026-11-22
+
+### Fixed
+- #301 HTTP 客户端超时；#302 NeDB 索引 API；#303 插件钩子回写；
+  #304 Cache.expire 负数报错；#305 重复键错误消息统一。
+
+## 6.8.12 — 2026-11-22
+
+### Fixed
+- #284/#285 BSON 整数与 Binary 编码；#290 位非 64 位语义；
+  #291/#292 GROUP BY / ORDER BY 类型归一。
+
+## 6.8.11 — 2026-11-22
+
+### Fixed
+- #243 CAST 大整数精度；#245 UNIQUE/PRIMARY ci 口径统一；#246 RENAME TABLE 外键；
+  #288/#289 SUBSTRING/INSERT 字符串函数按码点处理。
+
+## 6.8.10 — 2026-11-22
+
+### Fixed
+- #312 Mongo $group 累加器；#313 Redis EXPIRE 条件选项；#315 listIndexes nsNotFound；
+  #316 负 limit；#320 encryptKey 字节长度校验。
+
+## 6.8.9 — 2026-11-22
+
+### Fixed
+- #314 LPOP/RPOP count 严格校验；#317 REGEXP 错误码；#318 LPAD/RPAD NULL；
+  #319/#321 Cache 与数据文件定时器 unref。
+
+## 6.8.8 — 2026-11-21
+
+### Fixed
+- PG aborted 事务 SET、CSV 字面量 \N、BOM 表头、Redis 二进制误判、Mongo 二级唯一索引 UPDATE。
+
+## 6.8.7 — 2026-11-21
+
+### Fixed
+- #238 formatDate 重复格式符；#239 DATE 四位年份 0001-0099；
+  #240 聚合 columnTypes 按别名误匹配；#241 Cache.keys 转义。
+
+## 6.8.6 — 2026-11-21
+
+### Fixed
+- SQL 引擎/函数/列存、MySQL/PG/Redis/Mongo 协议、兼容层与 IO 工具批量修复（#188–#237）。
+
+## 6.8.5 — 2026-11-21
+
+### Fixed
+- issue #138–#179 批量修复。
 
 ## 6.8.4 — 2026-11-20 (Redis RESP 语义修正)
 
@@ -266,7 +431,6 @@
 ### Fixed
 - **Native 引擎 `add_column` 多行表数据损坏（issue #22）**：`Table::add_column` 用 `Vec::insert` 原地插入导致后续行 `values_start` 未同步，>1 行表添加列后首行之后所有行被静默损坏。现重建 `values` 并重算每个 `values_start`，数据不再损坏。
 
-## [Unreleased]
 ## 6.5.20 — 2026-11-03
 
 ### Fixed

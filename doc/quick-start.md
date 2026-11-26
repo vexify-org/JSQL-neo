@@ -1,12 +1,12 @@
 # 快速开始
 
-> 适用于 **v6.6.6**。
+> 适用于 **v6.10.1**。
 
 ## 安装
 
 ```bash
 npm install jsql-neo
-npx jsql-neo --version   # jsql-neo v6.6.6
+npx jsql-neo --version   # jsql-neo v6.10.1
 ```
 
 ## 三行代码
