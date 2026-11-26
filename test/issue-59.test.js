@@ -29,7 +29,9 @@ const j = (rows) => JSON.stringify(rows);
   ok('#59 WHERE active（整数列 truthiness）=> [1,3]', j(r.rows) === j([[1], [3]]), r.rows);
 
   r = await q('SELECT id FROM t WHERE name');
-  ok('#59 WHERE name（非空字符串）=> [1,3]', j(r.rows) === j([[1], [3]]), r.rows);
+  // #516：MySQL 逻辑运算先数值化操作数 —— 非数字开头字符串数值为 0（假），
+  // 故 'a'/'c' → 假，WHERE name 不返回行（与 MySQL 一致）。
+  ok('#59 WHERE name（#516 数值化：非数字字符串→假）=> []', j(r.rows) === j([]), r.rows);
 
   r = await q('SELECT id FROM t WHERE flag');
   ok('#59 WHERE flag => [1,3]', j(r.rows) === j([[1], [3]]), r.rows);
@@ -54,9 +56,20 @@ const j = (rows) => JSON.stringify(rows);
   r = await q('SELECT id FROM t WHERE 0 OR active');
   ok('#59 WHERE 裸谓词 OR 裸谓词', j(r.rows) === j([[1], [3]]), r.rows);
 
-  // HAVING 裸谓词
-  r = await q('SELECT active, COUNT(*) AS c FROM t GROUP BY active HAVING flag ORDER BY active');
-  ok('#59 HAVING 裸谓词', j(r.rows) === j([[1, 1], [5, 1]]), r.rows);
+  // HAVING 裸谓词 —— #434 ONLY_FULL_GROUP_BY：HAVING 引用非 GROUP BY 裸列应报 1055
+  let havingErr = null;
+  try {
+    await q('SELECT active, COUNT(*) AS c FROM t GROUP BY active HAVING flag ORDER BY active');
+  } catch (e) { havingErr = e; }
+  ok('#59 HAVING 非分组裸列 → 1055（ONLY_FULL_GROUP_BY）', havingErr && havingErr.code === 1055, havingErr && havingErr.message);
+
+  // HAVING 引用聚合别名仍合法（#434 兼容不破坏合法 HAVING）
+  r = await q('SELECT active, COUNT(*) AS c FROM t GROUP BY active HAVING c > 0 ORDER BY active');
+  ok('#59 HAVING 聚合别名', j(r.rows) === j([[0, 1], [1, 1], [5, 1]]), r.rows);
+
+  // HAVING 引用 GROUP BY 列仍合法
+  r = await q('SELECT active, COUNT(*) AS c FROM t GROUP BY active HAVING active IN (1, 5) ORDER BY active');
+  ok('#59 HAVING GROUP BY 列', j(r.rows) === j([[1, 1], [5, 1]]), r.rows);
 
   // 不破坏 #21/#42 既有比较语义
   r = await q('SELECT id FROM t WHERE active = 1');
