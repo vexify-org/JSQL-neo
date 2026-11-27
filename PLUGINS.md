@@ -57,8 +57,8 @@ db.use({
 | `afterCreateTable` | `(name, schema)` | — | N/W/D |
 | `beforeDropTable` | `(name)` | `true`/`false` | N/W/D |
 | `afterDropTable` | `(name)` | — | N/W/D |
-| `beforeFlush` | `()` | `true`/`false` | N/W |
-| `afterFlush` | `()` | — | N/W |
+| `beforeFlush` | `()` | `true`/`false` | N/W/D |
+| `afterFlush` | `()` | — | N/W/D |
 | `beforeCount` | `(table)` | `true`/`false` | N/W/D |
 | `afterCount` | `(table, count)` | — | N/W/D |
 | `onStart` | `()` | — | N/W/D |
@@ -234,8 +234,9 @@ db.use(timestampPlugin);
 | `db.use(plugin)` | 插件对象直接挂进核心，与核心同权 |
 | `jsql mod add <dir>` | 模块文件在 `vm.createContext` 受限沙箱中执行；默认不注入 `require` / `process` / `Buffer`，设 `JSQL_ALLOW_UNSAFE_MODULES=1` 才放开 |
 
-也就是说插件代码能访问 `fs`、`child_process` 等全部 Node API，也能改核心内部状态。
-模块文件可 `require` 本地依赖，但**不会被隔离**。
+也就是说插件代码（`db.use`）能访问 `fs`、`child_process` 等全部 Node API，也能改核心内部状态。
+模块文件（`jsql mod add`）默认运行在受限沙箱中，**不提供 `require`**；只有在设置
+`JSQL_ALLOW_UNSAFE_MODULES=1` 时才注入 `require` / `process` / `Buffer`，此时模块与宿主同权、**不会被隔离**。
 
 > 沙箱只约束模块脚本可见的全局对象（`lib/mod.js:292-305` 的 `vm.createContext` + 注入白名单），
 > 不是安全边界：`JSQL_ALLOW_UNSAFE_MODULES=1` 下与普通 `require` 同权。插件对象（`db.use`）
