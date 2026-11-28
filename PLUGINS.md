@@ -105,14 +105,14 @@ await db.start();
 await db.createTable('users', { name: { type: 'string' }, age: { type: 'integer' } });
 const ids = await db.insert('users', [{ name: 'Alice', age: 30 }]);
 await db.flush();
-const row = db.findById('users', ids[0]);          // 或 await（WASM）
-const rows = db.findByIds('users', ids);
+const row = await db.findById('users', ids[0]);
+const rows = await db.findByIds('users', ids);
 const list = await db.find('users', { age: { $gte: 18 } }, { limit: 10 });
 const n = await db.count('users');
-db.updateById('users', ids[0], { age: 31 });       // 或 await（WASM）
-db.updateByIds('users', [[ids[0], { age: 32 }]]);
-db.removeById('users', ids[0]);
-db.removeByIds('users', ids);
+await db.updateById('users', ids[0], { age: 31 });
+await db.updateByIds('users', [[ids[0], { age: 32 }]]);
+await db.removeById('users', ids[0]);
+await db.removeByIds('users', ids);
 await db.stop();
 ```
 
